@@ -1,6 +1,6 @@
-# Nova Web - Plataforma de Rastreamento Veicular
+# TrackCore - Plataforma de Rastreamento Veicular
 
-Plataforma moderna de rastreamento veicular (GPS Tracking) inspirada em sistemas profissionais como Traccar, Sascar e Omnilink.
+TrackCore é uma plataforma moderna de rastreamento veicular (GPS Tracking) inspirada em sistemas profissionais como Traccar, Sascar e Omnilink.
 
 ## Tecnologias
 
@@ -39,21 +39,6 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Acesse: http://localhost:3000
-
-## Credenciais de Teste (Mockado)
-
-**Admin:**
-- Email: admin@nova.com
-- Senha: admin123
-
-**Operador:**
-- Email: operador@nova.com
-- Senha: operador123
-
-**Cliente:**
-- Email: cliente@nova.com
-- Senha: cliente123
 
 ## Estrutura do Projeto
 
@@ -75,25 +60,9 @@ src/
 └── types/                 # TypeScript types
 ```
 
-## API Mockada
 
-A API está mockada e retorna dados realistas baseados no protocolo Traccar:
 
-- `POST /api/auth/login` - Autenticação
-- `GET /api/devices` - Lista de veículos
-- `GET /api/positions` - Posições em tempo real
-- `GET /api/events` - Eventos e alertas
-- `POST /api/commands` - Comandos remotos
-- `GET /api/users` - Usuários
-- `GET /api/clients` - Clientes
 
-## Próximos Passos
-
-- [ ] Integrar com API real do Traccar
-- [ ] Implementar WebSocket para atualizações em tempo real
-- [ ] Adicionar notificações push
-- [ ] Exportação de relatórios (PDF/Excel)
-- [ ] App mobile (React Native)
 
 ## Licença
 
