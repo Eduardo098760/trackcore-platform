@@ -89,9 +89,9 @@ export function Sidebar() {
     );
 
   return (
-    // Wrapper fixa (w-16) para não empurrar o layout; painel expande por cima ao hover
-    <div className="hidden lg:block relative w-16 flex-shrink-0">
-      <div className="group/sidebar absolute left-0 top-0 h-full w-16 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden z-50">
+    // Sidebar recolhida (w-16) e expande (w-64) no hover, ajustando o layout ao redor
+    <div className="hidden lg:flex lg:flex-shrink-0">
+      <div className="group/sidebar flex flex-col h-full w-16 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
         {/* Logo */}
         <div className="relative flex items-center h-16 px-4 border-b border-white/10">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
