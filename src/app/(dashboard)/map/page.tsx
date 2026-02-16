@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -54,21 +54,35 @@ const Polyline = dynamic(
   { ssr: false }
 );
 
-const TILE_LAYERS: Record<string, { url: string; attribution: string; label: string }> = {
+type TileLayerKey = 'dark' | 'light' | 'streets' | 'satellite';
+
+const TILE_LAYERS: Record<TileLayerKey, { url: string; attribution: string; label: string; subdomains?: string | string[]; maxNativeZoom?: number }> = {
   dark: {
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Escuro',
+    subdomains: 'abcd',
+    maxNativeZoom: 19,
   },
   light: {
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Claro',
+    subdomains: 'abcd',
+    maxNativeZoom: 19,
   },
   streets: {
     url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Ruas',
+    subdomains: 'abcd',
+    maxNativeZoom: 19,
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    label: 'Satélite',
+    maxNativeZoom: 19,
   },
 };
 
@@ -79,10 +93,7 @@ export default function MapPage() {
   const { searchTerm } = useSearchStore();
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const hasAppliedUrlDevice = useRef(false);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([-23.5505, -46.6333]);
-  const [mapZoom, setMapZoom] = useState(12);
   const [isClient, setIsClient] = useState(false);
-  const [mapKey, setMapKey] = useState(0);
   const [followVehicle, setFollowVehicle] = useState(true);
   const [deviceTrails, setDeviceTrails] = useState<Map<number, {lat:number; lng:number; ts:number}[]>>(new Map());
   const [deviceRecentDistance, setDeviceRecentDistance] = useState<Map<number, number>>(new Map());
@@ -104,10 +115,12 @@ export default function MapPage() {
     expiryDate: ''
   });
 
-  // Estilo do mapa: dark | light | streets (melhor qualidade visual)
-  const [mapStyle, setMapStyle] = useState<'dark' | 'light' | 'streets'>('dark');
+  // Estilo do mapa (melhor qualidade visual + satélite)
+  const [mapStyle, setMapStyle] = useState<TileLayerKey>('dark');
+
+  // Trilhas são pesadas com muitos veículos: manter apenas do selecionado
   // Rota planejada (quando ?routeId= na URL)
-  const routeIdFromUrl = searchParams.get('routeId');
+  const routeIdFromUrl = searchParams?.get('routeId') || null;
   const [plannedRouteGeometry, setPlannedRouteGeometry] = useState<[number, number][]>([]);
   const [plannedRouteName, setPlannedRouteName] = useState<string | null>(null);
   const [showPlannedRouteLabel, setShowPlannedRouteLabel] = useState(true);
@@ -126,10 +139,22 @@ export default function MapPage() {
     queryFn: () => getPositions(),
   });
 
+  // Evita que o effect do WebSocket reconecte a cada mudança de `devices`
+  const devicesRef = useRef<Device[]>([]);
+  useEffect(() => {
+    devicesRef.current = devices;
+  }, [devices]);
+
+  // Corrige stale-closure ao calcular distância baseado em trilhas
+  const deviceTrailsRef = useRef<Map<number, { lat: number; lng: number; ts: number }[]>>(new Map());
+  useEffect(() => {
+    deviceTrailsRef.current = deviceTrails;
+  }, [deviceTrails]);
+
   const { data: plannedRoute } = useQuery({
     queryKey: ['planned-route', routeIdFromUrl],
-    queryFn: () => getPlannedRouteById(routeIdFromUrl!),
-    enabled: !!routeIdFromUrl,
+    queryFn: () => getPlannedRouteById(routeIdFromUrl as string),
+    enabled: typeof routeIdFromUrl === 'string' && routeIdFromUrl.length > 0,
   });
 
   useEffect(() => {
@@ -144,22 +169,31 @@ export default function MapPage() {
 
   // Abrir mapa com veículo da URL (?deviceId=123): selecionar dispositivo e centralizar
   useEffect(() => {
-    const deviceIdParam = searchParams.get('deviceId');
+    const deviceIdParam = searchParams?.get('deviceId');
     if (!deviceIdParam || hasAppliedUrlDevice.current || !devices.length || !positions.length) return;
     const deviceId = parseInt(deviceIdParam, 10);
     if (!Number.isFinite(deviceId)) return;
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
-    const position = (positions as Position[]).find((p) => p.deviceId === deviceId);
     hasAppliedUrlDevice.current = true;
     setSelectedDevice(device);
     setFollowVehicle(true);
-    if (position) {
-      setMapCenter([position.latitude, position.longitude]);
-      setMapZoom(17);
-      setMapKey((prev) => prev + 1);
-    }
   }, [searchParams, devices, positions]);
+
+  const tileLayerProps = useMemo(() => {
+    const layer = TILE_LAYERS[mapStyle];
+    return {
+      url: layer.url,
+      attribution: layer.attribution,
+      maxZoom: 19,
+      maxNativeZoom: layer.maxNativeZoom ?? 19,
+      detectRetina: true,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 2,
+      ...(layer.subdomains ? { subdomains: layer.subdomains as any } : {}),
+    };
+  }, [mapStyle]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => 
@@ -208,8 +242,12 @@ export default function MapPage() {
     let pollingInterval: NodeJS.Timeout | null = null;
     let lastMessageTime = Date.now();
 
+    // Throttle de updates para não travar em bursts do WS
+    let flushTimer: NodeJS.Timeout | null = null;
+    let pendingPositions: Position[] | null = null;
+
     const processPositionUpdates = (positionList: Position[]) => {
-      console.debug(`[Map] Processando ${positionList.length} posições para ${devices.length} veículos`);
+      console.debug(`[Map] Processando ${positionList.length} posições para ${devicesRef.current.length} veículos`);
 
       // Atualizar React Query com novas posições para TODOS os veículos
       queryClient.setQueryData(['positions'], (old: Position[] = []) => {
@@ -237,6 +275,7 @@ export default function MapPage() {
           const updated = merged.filter(p => p.ts >= cutoff).slice(-60);
           trails.set(position.deviceId, updated);
         });
+        deviceTrailsRef.current = trails;
         return trails;
       });
 
@@ -246,7 +285,7 @@ export default function MapPage() {
         try {
           const { distanceKm } = require('@/lib/utils');
           positionList.forEach(position => {
-            const current = deviceTrails.get(position.deviceId) || [];
+            const current = deviceTrailsRef.current.get(position.deviceId) || [];
             let distKm = 0;
             for (let i = 1; i < current.length; i++) {
               const a = current[i - 1];
@@ -262,11 +301,22 @@ export default function MapPage() {
       });
     };
 
+    const scheduleProcessPositionUpdates = (positionList: Position[]) => {
+      pendingPositions = positionList;
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        const pending = pendingPositions;
+        pendingPositions = null;
+        if (pending && pending.length) processPositionUpdates(pending);
+      }, 250);
+    };
+
     const unsubscribe = wsClient.subscribe((message) => {
       if (message.type === 'positions') {
         console.debug('[WS] Posições recebidas:', message.data.length);
         lastMessageTime = Date.now();
-        processPositionUpdates(message.data);
+        scheduleProcessPositionUpdates(message.data);
       } else if (message.type === 'devices') {
         queryClient.setQueryData(['devices'], message.data);
       } else if (message.type === 'events') {
@@ -289,7 +339,7 @@ export default function MapPage() {
               const freshPositions = await getPositions();
               if (freshPositions.length > 0) {
                 console.debug('[Polling] Atualizando com', freshPositions.length, 'posições');
-                processPositionUpdates(freshPositions);
+                scheduleProcessPositionUpdates(freshPositions);
               }
             } catch (err) {
               console.error('[Polling] Erro:', err);
@@ -314,11 +364,12 @@ export default function MapPage() {
       unsubscribe();
       clearInterval(checkConnection);
       if (pollingInterval) clearInterval(pollingInterval);
+      if (flushTimer) clearTimeout(flushTimer);
       wsClient.disconnect();
     };
-  }, [queryClient, devices]);
+  }, [queryClient]);
 
-  const positionsMap = new Map((positions as Position[]).map(p => [p.deviceId, p]));
+  const positionsMap = useMemo(() => new Map((positions as Position[]).map(p => [p.deviceId, p])), [positions]);
 
   // Smooth polyline helper (Chaikin's algorithm - simple smoothing)
   const smoothTrail = (coords: [number, number][], iterations = 1) => {
@@ -366,7 +417,8 @@ export default function MapPage() {
 
       try {
         // smooth animated pan to the new position
-        map.flyTo([lat, lng], map.getZoom(), { duration: 0.6 });
+        const nextZoom = selectedDeviceId ? Math.max(map.getZoom(), 17) : map.getZoom();
+        map.flyTo([lat, lng], nextZoom, { duration: 0.6 });
       } catch (err) {
         try { map.setView([lat, lng], map.getZoom()); } catch (e) { /* ignore */ }
       }
@@ -396,6 +448,8 @@ export default function MapPage() {
         return '#6b7280';
     }
   };
+
+  const iconCacheRef = useRef(new Map<number, { key: string; icon: any }>());
 
   const createCustomIcon = (device: Device, position: Position, bearing?: number) => {
     if (!L) return null;
@@ -453,16 +507,48 @@ export default function MapPage() {
     });
   };
 
-  const handleDeviceClick = (device: Device) => {
-    const position = positionsMap.get(device.id);
-    if (position) {
-      setSelectedDevice(device);
-      setFollowVehicle(true);
-      setMapCenter([position.latitude, position.longitude]);
-      setMapZoom(17);
-      setMapKey(prev => prev + 1); // Força re-render do mapa
-    }
+  const getDeviceIcon = (device: Device, position: Position, bearing?: number) => {
+    if (!L) return null;
+
+    const rawCourse = typeof bearing === 'number' ? bearing : (typeof position.course === 'number' ? position.course : 0);
+    const courseBucket = Math.round(rawCourse / 10) * 10;
+    const speedBucket = device.status === 'moving' ? Math.round((position.speed || 0) / 5) * 5 : Math.round(position.speed || 0);
+    const blocked = device.attributes?.blocked ? 1 : 0;
+
+    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}`;
+    const cached = iconCacheRef.current.get(device.id);
+    if (cached?.key === cacheKey) return cached.icon;
+
+    const positionForIcon = (position.speed === speedBucket)
+      ? position
+      : ({ ...position, speed: speedBucket } as Position);
+
+    const icon = createCustomIcon(device, positionForIcon, courseBucket);
+    iconCacheRef.current.set(device.id, { key: cacheKey, icon });
+    return icon;
   };
+
+  const handleDeviceClick = useCallback((device: Device) => {
+    const position = positionsMap.get(device.id);
+    if (!position) return;
+    setSelectedDevice(device);
+    setFollowVehicle(true);
+  }, [positionsMap]);
+
+  const visibleDevices = useMemo(() => {
+    if (!searchTerm) return devices;
+    const searchLower = searchTerm.toLowerCase();
+    return devices.filter((d) => (
+      d.name?.toLowerCase().includes(searchLower) ||
+      d.plate?.toLowerCase().includes(searchLower) ||
+      d.uniqueId?.toLowerCase().includes(searchLower)
+    ));
+  }, [devices, searchTerm]);
+
+  const devicesForTrails = useMemo(() => {
+    if (!selectedDevice) return [] as Device[];
+    return [selectedDevice];
+  }, [selectedDevice]);
 
   if (!isClient) {
     return (
@@ -537,7 +623,7 @@ export default function MapPage() {
         <div className="flex items-center gap-1">
         <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg overflow-hidden">
           <div className="flex rounded-lg overflow-hidden">
-            {(['dark', 'light', 'streets'] as const).map((style) => (
+            {(['dark', 'light', 'streets', 'satellite'] as const).map((style) => (
               <button
                 key={style}
                 type="button"
@@ -558,26 +644,17 @@ export default function MapPage() {
 
       {/* Map */}
       <MapContainer
-        key={mapKey}
-        center={mapCenter}
-        zoom={mapZoom}
+        center={[-23.5505, -46.6333]}
+        zoom={12}
         minZoom={3}
         maxZoom={19}
         style={{ width: '100%', height: '100%' }}
         className="z-0 leaflet-map-quality"
         scrollWheelZoom={true}
       >
-        <TileLayer
-          key={mapStyle}
-          url={TILE_LAYERS[mapStyle].url}
-          attribution={TILE_LAYERS[mapStyle].attribution}
-          maxZoom={19}
-          maxNativeZoom={19}
-          detectRetina={true}
-          subdomains="abcd"
-        />
+        <TileLayer key={mapStyle} {...tileLayerProps} />
 
-        <MapFollowHandler positions={positions} devices={devices} follow={true} selectedDeviceId={selectedDevice ? selectedDevice.id : null} />
+        <MapFollowHandler positions={positions} devices={devices} follow={followVehicle} selectedDeviceId={selectedDevice ? selectedDevice.id : null} />
 
         {/* Rota planejada (quando ?routeId= na URL) */}
         {plannedRouteGeometry.length >= 2 && (
@@ -617,8 +694,8 @@ export default function MapPage() {
           </>
         )}
 
-        {/* Trilhas de movimento (últimos 5 minutos) - TODOS os veículos */}
-        {devices.map((device) => {
+        {/* Trilhas de movimento (últimos 5 minutos) */}
+        {devicesForTrails.map((device) => {
           const trail = deviceTrails.get(device.id) || [];
           if (trail.length < 1) return null; // Renderizar mesmo com 1 ponto
           const coords = trail.map(p => [p.lat, p.lng] as [number, number]);
@@ -639,7 +716,7 @@ export default function MapPage() {
                 />
               )}
 
-              {/* Small directional arrows along the (smoothed) trail every 3rd point */}
+              {/* Setas ao longo da trilha */}
               {smoothCoords.map((c, i) => {
                 if (i === 0 || i % 3 !== 0 || i === smoothCoords.length - 1) return null;
                 const prev = smoothCoords[i - 1];
@@ -692,7 +769,7 @@ export default function MapPage() {
             <Marker
               key={device.id}
               position={[position.latitude, position.longitude]}
-              icon={createCustomIcon(device, position, bearing)}
+              icon={getDeviceIcon(device, position, bearing)}
               eventHandlers={{
                 click: () => handleDeviceClick(device),
               }}
@@ -851,35 +928,12 @@ export default function MapPage() {
             <h3 className="font-semibold text-sm mb-2 text-gray-200 flex items-center justify-between">
               <span>Veículos</span>
               <span className="text-xs text-blue-400">
-                {searchTerm ? (
-                  <>
-                    {devices.filter(d => {
-                      const searchLower = searchTerm.toLowerCase();
-                      return (
-                        d.name?.toLowerCase().includes(searchLower) ||
-                        d.plate?.toLowerCase().includes(searchLower) ||
-                        d.uniqueId?.toLowerCase().includes(searchLower)
-                      );
-                    }).length} / {devices.length}
-                  </>
-                ) : (
-                  devices.length
-                )}
+                {searchTerm ? `${visibleDevices.length} / ${devices.length}` : devices.length}
               </span>
             </h3>
             
             <div className="space-y-1.5 max-h-[45vh] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600/30 scrollbar-track-transparent">
-              {devices
-                .filter(device => {
-                  if (!searchTerm) return true;
-                  const searchLower = searchTerm.toLowerCase();
-                  return (
-                    device.name?.toLowerCase().includes(searchLower) ||
-                    device.plate?.toLowerCase().includes(searchLower) ||
-                    device.uniqueId?.toLowerCase().includes(searchLower)
-                  );
-                })
-                .map((device) => {
+              {visibleDevices.map((device) => {
                 const position = positionsMap.get(device.id);
                 return (
                   <button
