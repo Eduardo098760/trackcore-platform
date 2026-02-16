@@ -75,7 +75,7 @@ export function Sidebar() {
 
   const linkClassName = (active: boolean) =>
     cn(
-      'relative flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none',
+      'relative flex items-center px-2 group-hover/sidebar:px-3 py-3 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none',
       'focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-0',
       active
         ? 'bg-white/10 text-white border border-white/10'
@@ -84,7 +84,7 @@ export function Sidebar() {
 
   const iconClassName = (active: boolean) =>
     cn(
-      'w-7 h-7 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
+      'w-8 h-8 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
       active && 'text-white'
     );
 
@@ -97,7 +97,7 @@ export function Sidebar() {
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
           <div className="relative flex items-center space-x-3">
             <div className="relative flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg shadow-lg shadow-blue-500/50">
-              <MapPin className="w-6 h-6 text-white" />
+              <MapPin className="w-7 h-7 text-white" />
               <div className="absolute inset-0 bg-gradient-to-br from-blue-400/50 to-purple-400/50 rounded-lg blur-lg"></div>
             </div>
             <div className="opacity-0 translate-x-[-6px] pointer-events-none group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 group-hover/sidebar:pointer-events-auto transition-all duration-200">
