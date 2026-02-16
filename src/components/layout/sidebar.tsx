@@ -66,6 +66,28 @@ const management = [
 export function Sidebar() {
   const pathname = usePathname();
 
+  const isActiveRoute = (href: string) => {
+    if (!pathname) return false;
+    // exact match or nested route match (ex: /vehicles/123 should keep /vehicles active)
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const linkClassName = (active: boolean) =>
+    cn(
+      'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none',
+      'focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-0',
+      active
+        ? 'bg-white/10 text-white border border-white/10'
+        : 'text-gray-300 hover:text-white hover:bg-white/5'
+    );
+
+  const iconClassName = (active: boolean) =>
+    cn(
+      'w-5 h-5 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
+      active && 'text-white'
+    );
+
   return (
     <div className="hidden lg:flex lg:flex-shrink-0">
       <div className="flex flex-col w-64 border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl">
@@ -88,29 +110,16 @@ export function Sidebar() {
         <nav className="flex-1 px-3 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600/50 scrollbar-track-transparent">
           <div className="space-y-1">
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isActiveRoute(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 group overflow-hidden',
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/50'
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={linkClassName(isActive)}
                 >
-                  {isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 blur-xl"></div>
-                  )}
-                  <item.icon className={cn(
-                    "w-5 h-5 mr-3 relative z-10 transition-transform group-hover:scale-110",
-                    isActive && "drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                  )} />
+                  <item.icon className={iconClassName(isActive)} />
                   <span className="relative z-10">{item.name}</span>
-                  {!isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/0 to-purple-600/0 group-hover:from-blue-600/10 group-hover:to-purple-600/10 transition-all duration-300"></div>
-                  )}
                 </Link>
               );
             })}
@@ -123,29 +132,16 @@ export function Sidebar() {
               VideoTelemetria
             </p>
             {videoTelemetry.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isActiveRoute(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 group overflow-hidden',
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/50'
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={linkClassName(isActive)}
                 >
-                  {isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 blur-xl"></div>
-                  )}
-                  <item.icon className={cn(
-                    "w-5 h-5 mr-3 relative z-10 transition-transform group-hover:scale-110",
-                    isActive && "drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                  )} />
+                  <item.icon className={iconClassName(isActive)} />
                   <span className="relative z-10">{item.name}</span>
-                  {!isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/0 to-purple-600/0 group-hover:from-blue-600/10 group-hover:to-purple-600/10 transition-all duration-300"></div>
-                  )}
                 </Link>
               );
             })}
@@ -158,29 +154,16 @@ export function Sidebar() {
               Recursos Avançados
             </p>
             {advanced.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isActiveRoute(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 group overflow-hidden',
-                    isActive
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={linkClassName(isActive)}
                 >
-                  {isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-pink-400/20 blur-xl"></div>
-                  )}
-                  <item.icon className={cn(
-                    "w-5 h-5 mr-3 relative z-10 transition-transform group-hover:scale-110",
-                    isActive && "drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                  )} />
+                  <item.icon className={iconClassName(isActive)} />
                   <span className="relative z-10">{item.name}</span>
-                  {!isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 to-pink-600/0 group-hover:from-purple-600/10 group-hover:to-pink-600/10 transition-all duration-300"></div>
-                  )}
                 </Link>
               );
             })}
@@ -193,29 +176,16 @@ export function Sidebar() {
               Gerenciamento
             </p>
             {management.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isActiveRoute(item.href);
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 group overflow-hidden',
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/50'
-                      : 'text-gray-300 hover:text-white hover:bg-white/5'
-                  )}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={linkClassName(isActive)}
                 >
-                  {isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 blur-xl"></div>
-                  )}
-                  <item.icon className={cn(
-                    "w-5 h-5 mr-3 relative z-10 transition-transform group-hover:scale-110",
-                    isActive && "drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                  )} />
+                  <item.icon className={iconClassName(isActive)} />
                   <span className="relative z-10">{item.name}</span>
-                  {!isActive && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/0 to-purple-600/0 group-hover:from-blue-600/10 group-hover:to-purple-600/10 transition-all duration-300"></div>
-                  )}
                 </Link>
               );
             })}
