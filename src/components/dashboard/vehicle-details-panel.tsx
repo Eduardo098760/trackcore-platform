@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Device, Position } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,28 @@ export function VehicleDetailsPanel({
   recentTrail,
 }: VehicleDetailsPanelProps) {
   if (!device || !position) return null;
+
+  const recentDistanceText = useMemo(() => {
+    const d = recentDistanceKm ?? 0;
+    if (d < 1) return `${Math.round(d * 1000)} m`;
+    return `${d.toFixed(3)} km`;
+  }, [recentDistanceKm]);
+
+  const recentPoints = recentTrail?.length ?? 0;
+
+  const contactPhone = useMemo(() => {
+    const phone = (device.phone || '').trim();
+    if (phone) return phone;
+    const contact = (device.contact || '').trim();
+    // Se o contato for um telefone, mantém; se for nome/email, ainda mostramos como "Contato" sem ação
+    return contact || '';
+  }, [device.phone, device.contact]);
+
+  const canCall = useMemo(() => {
+    // Heurística simples: tenta ligar apenas se tiver dígitos suficientes
+    const digits = contactPhone.replace(/\D/g, '');
+    return digits.length >= 8;
+  }, [contactPhone]);
 
   const speedExceeded = device.speedLimit && position.speed > device.speedLimit;
   const isMotion = position.attributes?.motion;
@@ -162,6 +185,24 @@ export function VehicleDetailsPanel({
                 ? `${(position.attributes.odometer / 1000).toFixed(2)} km`
                 : '0 km'}
           </p>
+        </div>
+
+        {/* Últimos 5 minutos */}
+        <div className="bg-slate-600/10 border border-slate-500/30 rounded-lg p-3">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-slate-300" />
+              <span className="text-sm font-semibold text-slate-200">Últimos 5 min</span>
+            </div>
+            <span className="text-xs text-slate-300 font-mono">{recentPoints} pts</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs text-slate-300">Distância</span>
+            <span className="text-lg font-bold text-slate-100 font-mono">{recentDistanceText}</span>
+          </div>
+          {recentPoints < 2 && (
+            <p className="text-[11px] text-gray-400 mt-1">Sem dados suficientes para trilha recente.</p>
+          )}
         </div>
 
 
@@ -317,6 +358,12 @@ export function VehicleDetailsPanel({
           <Button
             variant="outline"
             className="border-green-500/30 text-green-400 hover:bg-green-600/20"
+            disabled={!canCall}
+            onClick={() => {
+              if (!canCall) return;
+              window.open(`tel:${contactPhone}`, '_self');
+            }}
+            title={canCall ? `Ligar para ${contactPhone}` : 'Sem telefone cadastrado'}
           >
             <Phone className="w-4 h-4 mr-1" />
             Contato
