@@ -75,7 +75,7 @@ export function Sidebar() {
 
   const linkClassName = (active: boolean) =>
     cn(
-      'relative flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none',
+      'relative flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none',
       'focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-0',
       active
         ? 'bg-white/10 text-white border border-white/10'
@@ -84,7 +84,7 @@ export function Sidebar() {
 
   const iconClassName = (active: boolean) =>
     cn(
-      'w-5 h-5 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
+      'w-7 h-7 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
       active && 'text-white'
     );
 
@@ -124,7 +124,7 @@ export function Sidebar() {
                     'justify-center group-hover/sidebar:justify-start'
                   )}
                 >
-                  <item.icon className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
+                  <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
                   <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">
                     {item.name}
                   </span>
@@ -153,7 +153,7 @@ export function Sidebar() {
                     'justify-center group-hover/sidebar:justify-start'
                   )}
                 >
-                  <item.icon className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
+                  <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
                   <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">
                     {item.name}
                   </span>
@@ -182,7 +182,7 @@ export function Sidebar() {
                     'justify-center group-hover/sidebar:justify-start'
                   )}
                 >
-                  <item.icon className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
+                  <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
                   <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">
                     {item.name}
                   </span>
@@ -211,7 +211,7 @@ export function Sidebar() {
                     'justify-center group-hover/sidebar:justify-start'
                   )}
                 >
-                  <item.icon className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
+                  <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), 'mr-0 group-hover/sidebar:mr-3')} />
                   <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">
                     {item.name}
                   </span>

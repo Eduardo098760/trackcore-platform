@@ -129,6 +129,40 @@ export default function MapPage() {
     setIsClient(true);
   }, []);
 
+  function MapResizeInvalidator() {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useMap } = require('react-leaflet');
+    const map = useMap();
+
+    useEffect(() => {
+      if (!map) return;
+      if (typeof ResizeObserver === 'undefined') return;
+
+      const container: HTMLElement | undefined = map.getContainer?.();
+      if (!container) return;
+
+      let raf = 0;
+      const ro = new ResizeObserver(() => {
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          try {
+            map.invalidateSize?.({ animate: false });
+          } catch {
+            // no-op
+          }
+        });
+      });
+
+      ro.observe(container);
+      return () => {
+        if (raf) cancelAnimationFrame(raf);
+        ro.disconnect();
+      };
+    }, [map]);
+
+    return null;
+  }
+
   const { data: devices = [] } = useQuery({
     queryKey: ['devices'],
     queryFn: getDevices,
@@ -653,6 +687,8 @@ export default function MapPage() {
         scrollWheelZoom={true}
       >
         <TileLayer key={mapStyle} {...tileLayerProps} />
+
+        <MapResizeInvalidator />
 
         <MapFollowHandler positions={positions} devices={devices} follow={followVehicle} selectedDeviceId={selectedDevice ? selectedDevice.id : null} />
 
