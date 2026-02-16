@@ -84,7 +84,8 @@ export function Sidebar() {
 
   const iconClassName = (active: boolean) =>
     cn(
-      'w-8 h-8 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
+      // Bigger in collapsed mode, smaller when expanded (hover)
+      'w-9 h-9 group-hover/sidebar:w-6 group-hover/sidebar:h-6 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
       active && 'text-white'
     );
 
