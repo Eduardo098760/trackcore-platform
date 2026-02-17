@@ -1,4 +1,4 @@
-# Nova Web - GPS Tracking Platform
+# TrackCore - Plataforma de Rastreamento Veicular
 
 Plataforma completa de rastreamento GPS com paridade de recursos em relação ao Traccar.
 
@@ -288,4 +288,4 @@ Para dúvidas ou sugestões, entre em contato.
 
 ---
 
-**Nova Web GPS Tracking** - Rastreamento profissional de veículos
+**TrackCore** - Rastreamento profissional de veículos

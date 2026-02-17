@@ -6,8 +6,8 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nova Web - Rastreamento Veicular",
-  description: "Plataforma profissional de rastreamento veicular GPS",
+  title: "TrackCore",
+  description: "Plataforma de Rastreamento Veicular",
 };
 
 export default function RootLayout({

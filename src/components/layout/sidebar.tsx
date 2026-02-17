@@ -85,14 +85,14 @@ export function Sidebar() {
   const iconClassName = (active: boolean) =>
     cn(
       // Bigger in collapsed mode, smaller when expanded (hover)
-      'w-9 h-9 group-hover/sidebar:w-6 group-hover/sidebar:h-6 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
+      'w-6 h-6 group-hover/sidebar:w-5 group-hover/sidebar:h-5 mr-3 relative z-10 transition-transform duration-200 group-hover:scale-110',
       active && 'text-white'
     );
 
   return (
     // Sidebar recolhida (w-16) e expande (w-64) no hover, ajustando o layout ao redor
     <div className="hidden lg:flex lg:flex-shrink-0">
-      <div className="group/sidebar flex flex-col h-full w-16 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
+      <div className="group/sidebar flex flex-col h-full w-20 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
         {/* Logo */}
         <div className="relative flex items-center h-16 px-4 border-b border-white/10">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
@@ -102,14 +102,14 @@ export function Sidebar() {
               <div className="absolute inset-0 bg-gradient-to-br from-blue-400/50 to-purple-400/50 rounded-lg blur-lg"></div>
             </div>
             <div className="opacity-0 translate-x-[-6px] pointer-events-none group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 group-hover/sidebar:pointer-events-auto transition-all duration-200">
-              <h1 className="text-lg font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent whitespace-nowrap">Nova Web</h1>
-              <p className="text-xs text-blue-400 whitespace-nowrap">GPS Tracking Pro</p>
+              <h1 className="text-lg font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent whitespace-nowrap">TrackCore</h1>
+              <p className="text-xs text-blue-400 whitespace-nowrap">Plataforma de Rastreamento Veicular</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600/50 scrollbar-track-transparent">
+        <nav className="flex-1 px-2 py-4 overflow-y-auto sidebar-scrollbar scrollbar-thin scrollbar-thumb-blue-600/50 scrollbar-track-transparent">
           <div className="space-y-1">
             {navigation.map((item) => {
               const isActive = isActiveRoute(item.href);

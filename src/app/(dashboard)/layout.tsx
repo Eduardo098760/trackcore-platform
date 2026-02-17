@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth';
 import { getCurrentUser, login } from '@/lib/api/auth';
 import { Sidebar } from '@/components/layout/sidebar';
@@ -13,8 +14,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, setAuth, clearAuth, getCredentials, rememberMe } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
+
+  const isMapRoute = !!pathname && (pathname === '/map' || pathname.startsWith('/map/'));
 
   useEffect(() => {
     const validateSession = async () => {
@@ -104,7 +108,7 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-6 bg-theme-background">
+        <main className={isMapRoute ? 'flex-1 overflow-hidden p-0 bg-theme-background' : 'flex-1 overflow-y-auto p-6 bg-theme-background'}>
           {children}
         </main>
       </div>  

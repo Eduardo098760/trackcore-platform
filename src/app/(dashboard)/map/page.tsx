@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Navigation, Zap, ZapOff, Lock, Circle, Ban, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Satellite, Activity, History, Video, Route } from 'lucide-react';
+import { Navigation, Zap, ZapOff, Circle, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Route } from 'lucide-react';
 import { formatSpeed, formatDate, getDeviceStatusColor } from '@/lib/utils';
 import { getVehicleIconSVG } from '@/lib/vehicle-icons';
 import { getWebSocketClient } from '@/lib/websocket';
@@ -44,11 +44,6 @@ const Marker = dynamic(
   { ssr: false }
 );
 
-const Popup = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Popup),
-  { ssr: false }
-);
-
 const Polyline = dynamic(
   () => import('react-leaflet').then((mod) => mod.Polyline),
   { ssr: false }
@@ -62,27 +57,30 @@ const TILE_LAYERS: Record<TileLayerKey, { url: string; attribution: string; labe
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Escuro',
     subdomains: 'abcd',
-    maxNativeZoom: 19,
+    // Em alguns ambientes com alta densidade (retina), o Leaflet pode tentar buscar tiles acima do limite.
+    // Mantemos maxNativeZoom 18 para permitir overzoom por scaling e evitar tela "branca".
+    maxNativeZoom: 18,
   },
   light: {
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Claro',
     subdomains: 'abcd',
-    maxNativeZoom: 19,
+    maxNativeZoom: 18,
   },
   streets: {
     url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     label: 'Ruas',
     subdomains: 'abcd',
-    maxNativeZoom: 19,
+    maxNativeZoom: 18,
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri',
     label: 'Satélite',
-    maxNativeZoom: 19,
+    // Em algumas regiões o Esri não entrega tiles no z=19; usar overzoom evita tela branca.
+    maxNativeZoom: 18,
   },
 };
 
@@ -94,6 +92,7 @@ export default function MapPage() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const hasAppliedUrlDevice = useRef(false);
   const [isClient, setIsClient] = useState(false);
+  const [isHighDpi, setIsHighDpi] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
   const [deviceTrails, setDeviceTrails] = useState<Map<number, {lat:number; lng:number; ts:number}[]>>(new Map());
   const [deviceRecentDistance, setDeviceRecentDistance] = useState<Map<number, number>>(new Map());
@@ -127,10 +126,14 @@ export default function MapPage() {
 
   useEffect(() => {
     setIsClient(true);
+    try {
+      setIsHighDpi(typeof window !== 'undefined' && (window.devicePixelRatio || 1) > 1);
+    } catch {
+      setIsHighDpi(false);
+    }
   }, []);
 
   function MapResizeInvalidator() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useMap } = require('react-leaflet');
     const map = useMap();
 
@@ -216,18 +219,38 @@ export default function MapPage() {
 
   const tileLayerProps = useMemo(() => {
     const layer = TILE_LAYERS[mapStyle];
+    const isCarto = mapStyle === 'dark' || mapStyle === 'light' || mapStyle === 'streets';
+    const url = (isCarto && isHighDpi)
+      ? layer.url.replace(/\.png$/, '@2x.png')
+      : layer.url;
+
     return {
-      url: layer.url,
+      url,
       attribution: layer.attribution,
+      // O mapa permite até 19; se o TileLayer tiver maxZoom menor, no zoom alto ele fica em branco.
+      // maxNativeZoom controla até onde existem tiles "nativos"; acima disso, o Leaflet faz overzoom (scaling).
       maxZoom: 19,
       maxNativeZoom: layer.maxNativeZoom ?? 19,
-      detectRetina: true,
-      updateWhenIdle: true,
-      updateWhenZooming: false,
-      keepBuffer: 2,
+      // Tiles HD (@2x) com tileSize/zoomOffset corretos para melhorar nitidez
+      ...(isCarto && isHighDpi ? { tileSize: 512, zoomOffset: -1 } : {}),
+      // Evita "branco" durante zoom/flyTo mantendo tiles carregando
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 6,
+      eventHandlers: {
+        tileerror: (e: any) => {
+          try {
+            const src = e?.tile?.src;
+            // Ajuda a diagnosticar rapidamente 404/rate-limit no provider
+            console.warn('[Tile error]', { mapStyle, src });
+          } catch {
+            // ignore
+          }
+        },
+      },
       ...(layer.subdomains ? { subdomains: layer.subdomains as any } : {}),
     };
-  }, [mapStyle]);
+  }, [mapStyle, isHighDpi]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => 
@@ -426,22 +449,94 @@ export default function MapPage() {
   // Map follow handler component - centers map on a vehicle when `followVehicle` is true
   function MapFollowHandler({ positions, devices, follow, selectedDeviceId }: { positions: Position[]; devices: Device[]; follow: boolean; selectedDeviceId: number | null }) {
     // require here to avoid SSR issues; hook must be called unconditionally
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useMap } = require('react-leaflet');
     const map = useMap();
     const prev = useRef<{lat:number;lng:number} | null>(null);
+    const transitionRunning = useRef(false);
+    const animatedSelectionForId = useRef<number | null>(null);
 
+    // Se o usuário mexer no mapa (drag/zoom), desativa o follow para não "brigar".
+    useEffect(() => {
+      if (!map) return;
+
+      const disableFollowOnUserInput = () => {
+        if (transitionRunning.current) return;
+        setFollowVehicle(false);
+      };
+
+      map.on('dragstart', disableFollowOnUserInput);
+      map.on('zoomstart', disableFollowOnUserInput);
+      map.on('touchstart', disableFollowOnUserInput);
+
+      return () => {
+        map.off('dragstart', disableFollowOnUserInput);
+        map.off('zoomstart', disableFollowOnUserInput);
+        map.off('touchstart', disableFollowOnUserInput);
+      };
+    }, [map]);
+
+    // Transição de seleção: roda uma única vez por veículo selecionado.
+    useEffect(() => {
+      if (!follow || !map || !selectedDeviceId) return;
+      if (animatedSelectionForId.current === selectedDeviceId) return;
+
+      const pos = positions.find((p) => p.deviceId === selectedDeviceId);
+      if (!pos) return;
+
+      const lat = pos.latitude;
+      const lng = pos.longitude;
+
+      animatedSelectionForId.current = selectedDeviceId;
+      transitionRunning.current = true;
+
+      let t1: number | undefined;
+      let t2: number | undefined;
+
+      try {
+        try { map.stop?.(); } catch { /* ignore */ }
+        const currentZoom = map.getZoom();
+        const zoomOut = Math.max(13, Math.min(15, currentZoom - 3));
+        map.flyTo([lat, lng], zoomOut, { duration: 0.65 });
+      } catch {
+        try { map.setView([lat, lng], map.getZoom()); } catch { /* ignore */ }
+      }
+
+      t1 = window.setTimeout(() => {
+        try {
+          try { map.stop?.(); } catch { /* ignore */ }
+          map.flyTo([lat, lng], 17, { duration: 0.95 });
+        } catch {
+          try { map.setView([lat, lng], 17); } catch { /* ignore */ }
+        }
+      }, 740);
+
+      t2 = window.setTimeout(() => {
+        transitionRunning.current = false;
+        prev.current = { lat, lng };
+        // libera zoom/pan manual depois da animação
+        setFollowVehicle(false);
+      }, 1900);
+
+      return () => {
+        if (t1) window.clearTimeout(t1);
+        if (t2) window.clearTimeout(t2);
+        transitionRunning.current = false;
+      };
+    }, [follow, map, selectedDeviceId, positions]);
+
+    // Follow contínuo (opcional): apenas quando não há veículo selecionado.
     useEffect(() => {
       if (!follow || !map) return;
+      if (selectedDeviceId) return;
+      if (transitionRunning.current) return;
 
-      // choose device to follow: selectedDevice > moving device > first device
-      let targetDevice: Device | undefined;
-      if (selectedDeviceId) targetDevice = devices.find(d => d.id === selectedDeviceId);
-      if (!targetDevice) targetDevice = devices.find(d => d.status === 'moving') || devices[0];
+      // choose device to follow: moving device > first device
+      const targetDevice = devices.find((d) => d.status === 'moving') || devices[0];
       if (!targetDevice) return;
 
-      const pos = positions.find(p => p.deviceId === targetDevice!.id);
+      const pos = positions.find((p) => p.deviceId === targetDevice.id);
       if (!pos) return;
+
       const lat = pos.latitude;
       const lng = pos.longitude;
 
@@ -450,11 +545,9 @@ export default function MapPage() {
       prev.current = { lat, lng };
 
       try {
-        // smooth animated pan to the new position
-        const nextZoom = selectedDeviceId ? Math.max(map.getZoom(), 17) : map.getZoom();
-        map.flyTo([lat, lng], nextZoom, { duration: 0.6 });
-      } catch (err) {
-        try { map.setView([lat, lng], map.getZoom()); } catch (e) { /* ignore */ }
+        map.flyTo([lat, lng], map.getZoom(), { duration: 0.6 });
+      } catch {
+        try { map.setView([lat, lng], map.getZoom()); } catch { /* ignore */ }
       }
     }, [positions, devices, follow, selectedDeviceId, map]);
 
@@ -586,7 +679,7 @@ export default function MapPage() {
 
   if (!isClient) {
     return (
-      <div className="h-[calc(100vh-7rem)] flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Carregando mapa...</p>
@@ -596,7 +689,7 @@ export default function MapPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] relative">
+    <div className="h-full relative">
       {/* Compact Header */}
       <div className={`absolute top-3 z-[1000] flex items-center gap-2 transition-all ${selectedDevice ? 'right-[328px]' : 'right-3'}`}>
         <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg">
@@ -809,150 +902,7 @@ export default function MapPage() {
               eventHandlers={{
                 click: () => handleDeviceClick(device),
               }}
-            >
-              <Popup className="leaflet-popup-custom">
-                <div className="w-64 bg-gray-900/98 backdrop-blur-md rounded-lg p-2 text-white shadow-2xl">
-                  {/* Header Compacto */}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-xs truncate">{device.name || device.plate}</h3>
-                      {device.name && device.plate && (
-                        <p className="text-[9px] text-gray-400 truncate">{device.plate}</p>
-                      )}
-                    </div>
-                    <div className={`px-1.5 py-0.5 rounded text-[8px] font-semibold ml-2 ${getDeviceStatusColor(device.status)}`}>
-                      {device.status}
-                    </div>
-                  </div>
-
-                  {/* Grid Principal - 4 colunas */}
-                  <div className="grid grid-cols-4 gap-1 mb-1.5">
-                    {/* Velocidade */}
-                    <div className="bg-blue-600/20 border border-blue-500/30 p-1 rounded flex flex-col items-center justify-center">
-                      <p className="text-[10px] font-bold text-blue-400">{Math.round(position.speed)}</p>
-                    </div>
-
-                    {/* Bateria */}
-                    <div className="bg-green-600/20 border border-green-500/30 p-1 rounded text-center">
-                      <div className="text-base leading-none mb-0.5">🔋</div>
-                      <p className="text-[8px] text-green-300 leading-tight">Bat.</p>
-                      <p className="text-[10px] font-bold text-green-400">{position.attributes.batteryLevel || 0}%</p>
-                    </div>
-
-                    {/* Ignição */}
-                    <div className={`${position.attributes.ignition ? 'bg-green-600/20 border-green-500/30' : 'bg-gray-600/20 border-gray-500/30'} border p-1 rounded text-center`}>
-                      <Zap className={`w-3 h-3 mx-auto ${position.attributes.ignition ? 'text-green-400' : 'text-gray-500'}`} />
-                      <p className="text-[8px] text-gray-300 leading-tight">Igniç.</p>
-                      <p className="text-[9px] font-bold">{position.attributes.ignition ? 'ON' : 'OFF'}</p>
-                    </div>
-
-                    {/* GPS */}
-                    <div className="bg-purple-600/20 border border-purple-500/30 p-1 rounded text-center">
-                      <Satellite className="w-3 h-3 text-purple-400 mx-auto" />
-                      <p className="text-[8px] text-purple-300 leading-tight">GPS</p>
-                      <p className="text-[10px] font-bold text-purple-400">{position.attributes.sat || 0}</p>
-                    </div>
-                  </div>
-
-                  {/* Linha 2 - Hodômetro e Movimento */}
-                  <div className="grid grid-cols-2 gap-1 mb-1.5">
-                    <div className="bg-indigo-600/20 border border-indigo-500/30 p-1 rounded flex items-center gap-1">
-                      <Activity className={`w-3 h-3 flex-shrink-0 ${position.attributes.motion ? 'text-blue-400' : 'text-gray-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[8px] text-gray-300 leading-tight">Movimento</p>
-                        <p className="text-[9px] font-bold leading-tight">{position.attributes.motion ? 'MOVENDO' : 'PARADO'}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-indigo-600/20 border border-indigo-500/30 p-1 rounded flex items-center gap-1">
-                      <Gauge className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[8px] text-indigo-300 leading-tight">Hodômetro</p>
-                        <p className="text-[9px] font-bold text-indigo-400 truncate leading-tight">
-                          {position.attributes.totalDistance 
-                            ? `${(position.attributes.totalDistance / 1000).toFixed(1)} km` 
-                            : position.attributes.odometer 
-                              ? `${(position.attributes.odometer / 1000).toFixed(1)}k km`
-                              : '0 km'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Últimos 5 minutos */}
-                  <div className="text-[10px] text-gray-300 mt-2">
-                    <div className="flex items-center justify-between">
-                      <span>Últimos 5min</span>
-                      <span className="font-mono text-xs">
-                        {(() => {
-                          const d = deviceRecentDistance.get(device.id) || 0;
-                          // format distance
-                          if (d < 1) return `${Math.round(d * 1000)} m`;
-                          return `${d.toFixed(3)} km`;
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Limite de Velocidade */}
-                  {device.speedLimit && (
-                    <div className="bg-yellow-600/20 border border-yellow-500/30 p-1.5 rounded mb-2 flex items-center justify-between">
-                      <span className="text-[10px] text-yellow-300">Limite: {device.speedLimit} km/h</span>
-                      {position.speed > device.speedLimit && (
-                        <span className="text-[9px] bg-red-500 px-1.5 py-0.5 rounded font-bold">EXCEDIDO</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Address */}
-                  <div className="text-[10px] text-gray-400 mb-2 border-t border-white/10 pt-1.5">
-                    <p className="truncate">{position.address || 'Localização não disponível'}</p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-1.5 mb-1.5">
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleEditDevice(device)}
-                      className="flex-1 h-6 text-[10px] bg-purple-600 hover:bg-purple-700"
-                    >
-                      <Edit className="w-3 h-3 mr-1" />
-                      Editar
-                    </Button>
-                    {device.attributes.blocked ? (
-                      <Button size="sm" variant="outline" className="flex-1 h-6 text-[10px] border-green-500/50 text-green-400 hover:bg-green-600/20">
-                        <Lock className="w-3 h-3 mr-1" />
-                        Desbloquear
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" className="flex-1 h-6 text-[10px] border-red-500/50 text-red-400 hover:bg-red-600/20">
-                        <Ban className="w-3 h-3 mr-1" />
-                        Bloquear
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Button 
-                      size="sm" 
-                      onClick={() => router.push(`/replay?vehicle=${device.id}`)}
-                      className="flex-1 h-6 text-[10px] bg-blue-600 hover:bg-blue-700"
-                    >
-                      <History className="w-3 h-3 mr-1" />
-                      Replay
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      onClick={() => router.push(`/video?device=${device.id}`)}
-                      className="flex-1 h-6 text-[10px] bg-green-600 hover:bg-green-700"
-                    >
-                      <Video className="w-3 h-3 mr-1" />
-                      Vídeo
-                    </Button>
-                  </div>
-                </div>
-              </Popup>
-          </Marker>
+            />
           );
         })}
       </MapContainer>

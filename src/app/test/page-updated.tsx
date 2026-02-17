@@ -273,7 +273,7 @@ export default function TestPage() {
             <Card>
               <CardContent className="pt-6">
                 <p className="text-gray-500 dark:text-gray-400 text-center">
-                  Clique em "Executar Testes" para começar
+                  Clique em &quot;Executar Testes&quot; para começar
                 </p>
               </CardContent>
             </Card>
