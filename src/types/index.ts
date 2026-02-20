@@ -1,21 +1,59 @@
+// Organization/Tenant Types (Multi-tenant support)
+export interface Organization {
+  id: number;
+  name: string;
+  slug: string; // URL-friendly identifier (subdomain)
+  domain?: string; // Custom domain
+  settings: {
+    maxDevices: number;
+    maxUsers: number;
+    features: string[]; // enabled features
+  };
+  traccarUserId: number; // Maps to Traccar admin user for this tenant
+  status: 'active' | 'suspended' | 'trial';
+  plan: 'basic' | 'professional' | 'enterprise';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantContext {
+  organizationId: number;
+  organization: Organization;
+  permissions: string[];
+}
+
 // User Types
-export type UserRole = 'admin' | 'operator' | 'client';
+export type UserRole = 'superadmin' | 'admin' | 'operator' | 'client';
 
 export interface User {
   id: number;
   name: string;
   email: string;
   role: UserRole;
+  organizationId?: number; // Tenant association
   clientId?: number;
   phone?: string;
   avatar?: string;
+  disabled?: boolean; // Status da conta
+  deviceLimit?: number; // Limite de dispositivos
+  userLimit?: number; // Limite de usuários subordinados
+  token?: string; // Token de sessão atual
+  expirationTime?: string; // Expiracao do token
+  lastLogin?: string; // Última conexão
   createdAt: string;
   updatedAt: string;
+}
+
+// Permissões de usuário (relacionamento User-Device no Traccar)
+export interface UserPermission {
+  userId: number;
+  deviceId: number;
 }
 
 export interface AuthResponse {
   user: User;
   token: string;
+  organization?: Organization;
 }
 
 // Device Types (Baseado no Traccar)

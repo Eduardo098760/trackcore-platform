@@ -70,15 +70,28 @@ class ApiClient {
    * Trata erros de API
    */
   private handleError(error: any): never {
+    console.error('[API Client] ========== ERRO CAPTURADO ==========');
+    console.error('[API Client] Erro original:', error);
+    console.error('[API Client] Tipo do erro:', typeof error);
+    console.error('[API Client] Keys do erro:', Object.keys(error));
+    
+    // Log completo de todas as propriedades do erro
+    if (typeof error === 'object') {
+      Object.keys(error).forEach(key => {
+        console.error(`[API Client] error.${key}:`, error[key]);
+      });
+    }
+    
     const apiError: ApiError = {
-      message: error.message || 'Erro desconhecido',
+      message: error.message || error.statusText || 'Erro desconhecido',
       status: error.status,
       code: error.code,
-      details: error.details,
+      details: error.details || error,
     };
 
-    // Log do erro (pode ser enviado para serviço de monitoramento)
-    console.error('API Error:', apiError);
+    // Log do erro formatado
+    console.error('[API Client] Erro formatado:', JSON.stringify(apiError, null, 2));
+    console.error('[API Client] =========================================');
 
     throw apiError;
   }
@@ -122,6 +135,11 @@ class ApiClient {
         };
       }
 
+      // 204 No Content - não há corpo para parsear
+      if (response.status === 204) {
+        return null as T;
+      }
+
       return await response.json();
     } catch (error) {
       return this.handleError(error);
@@ -134,6 +152,8 @@ class ApiClient {
   async post<T>(endpoint: string, data?: any): Promise<T> {
     try {
       const url = `${this.config.baseURL}${endpoint}`;
+      console.log('[API Client] POST', url);
+      console.log('[API Client] Body:', JSON.stringify(data, null, 2));
 
       const response = await fetch(url, {
         method: 'POST',
@@ -143,14 +163,41 @@ class ApiClient {
         signal: AbortSignal.timeout(this.config.timeout),
       });
 
+      console.log('[API Client] Response status:', response.status, response.statusText);
+
       if (!response.ok) {
+        // Tentar ler o corpo da resposta de erro
+        let errorBody;
+        try {
+          errorBody = await response.text();
+          console.log('[API Client] Error body:', errorBody);
+          // Tentar parsear como JSON
+          try {
+            errorBody = JSON.parse(errorBody);
+          } catch (e) {
+            // Manter como texto se não for JSON
+          }
+        } catch (e) {
+          errorBody = 'Não foi possível ler o corpo da resposta';
+        }
+
         throw {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
+          statusText: response.statusText,
+          details: errorBody,
         };
       }
 
-      return await response.json();
+      // 204 No Content - não há corpo para parsear
+      if (response.status === 204) {
+        console.log('[API Client] Response 204 No Content - sucesso sem retorno');
+        return null as T;
+      }
+
+      const result = await response.json();
+      console.log('[API Client] Response data:', result);
+      return result;
     } catch (error) {
       return this.handleError(error);
     }
@@ -176,6 +223,12 @@ class ApiClient {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
         };
+      }
+
+      // 204 No Content - não há corpo para parsear
+      if (response.status === 204) {
+        console.log('[API Client] Response 204 No Content - sucesso sem retorno');
+        return null as T;
       }
 
       return await response.json();
@@ -206,6 +259,12 @@ class ApiClient {
         };
       }
 
+      // 204 No Content - não há corpo para parsear
+      if (response.status === 204) {
+        console.log('[API Client] Response 204 No Content - sucesso sem retorno');
+        return null as T;
+      }
+
       return await response.json();
     } catch (error) {
       return this.handleError(error);
@@ -215,14 +274,37 @@ class ApiClient {
   /**
    * Método DELETE
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string, paramsOrBody?: Record<string, any>, useBody: boolean = false): Promise<T> {
     try {
-      const url = `${this.config.baseURL}${endpoint}`;
+      let url = `${this.config.baseURL}${endpoint}`;
+      let body: string | undefined = undefined;
+      
+      if (paramsOrBody && !useBody) {
+        // Adicionar parâmetros como query string (padrão)
+        const searchParams = new URLSearchParams();
+        Object.keys(paramsOrBody).forEach(key => {
+          const value = paramsOrBody[key];
+          if (value === undefined || value === null) return;
+          if (Array.isArray(value)) {
+            value.forEach((v) => searchParams.append(key, String(v)));
+          } else {
+            searchParams.append(key, String(value));
+          }
+        });
+        const queryString = searchParams.toString();
+        if (queryString) {
+          url += `?${queryString}`;
+        }
+      } else if (paramsOrBody && useBody) {
+        // Enviar como body JSON (necessário para alguns endpoints do Traccar)
+        body = JSON.stringify(paramsOrBody);
+      }
 
       const response = await fetch(url, {
         credentials: 'include', // Importante: inclui cookies de sessão
         method: 'DELETE',
         headers: this.getHeaders(),
+        body: body,
         signal: AbortSignal.timeout(this.config.timeout),
       });
 
@@ -231,6 +313,12 @@ class ApiClient {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
         };
+      }
+
+      // 204 No Content - não há corpo para parsear
+      if (response.status === 204) {
+        console.log('[API Client] Response 204 No Content - sucesso sem retorno');
+        return null as T;
       }
 
       // DELETE pode retornar vazio
@@ -259,8 +347,8 @@ export const api = {
   patch: <T>(endpoint: string, data?: any) => 
     apiClient.patch<T>(endpoint, data),
   
-  delete: <T>(endpoint: string) => 
-    apiClient.delete<T>(endpoint),
+  delete: <T>(endpoint: string, paramsOrBody?: Record<string, any>, useBody?: boolean) => 
+    apiClient.delete<T>(endpoint, paramsOrBody, useBody),
   
   setAuthToken: (token: string | null) => 
     apiClient.setAuthToken(token),

@@ -3,9 +3,20 @@ import { api } from './client';
 
 /**
  * Obtém todos os dispositivos do Traccar
+ * Com suporte a filtro por organização
  */
-export async function getDevices(): Promise<Device[]> {
-  return api.get<Device[]>('/devices');
+export async function getDevices(organizationId?: number): Promise<Device[]> {
+  const devices = await api.get<Device[]>('/devices');
+  
+  // Se organizationId for fornecido, filtrar
+  if (organizationId) {
+    return devices.filter(d => 
+      d.attributes?.organizationId === organizationId ||
+      d.groupId === organizationId // Pode usar Groups do Traccar
+    );
+  }
+  
+  return devices;
 }
 
 /**
@@ -17,9 +28,21 @@ export async function getDevice(id: number): Promise<Device> {
 
 /**
  * Cria um novo dispositivo no Traccar
+ * Adiciona organizationId aos attributes
  */
-export async function createDevice(device: Omit<Device, 'id'>): Promise<Device> {
-  return api.post<Device>('/devices', device);
+export async function createDevice(
+  device: Omit<Device, 'id'>, 
+  organizationId?: number
+): Promise<Device> {
+  const deviceData = {
+    ...device,
+    attributes: {
+      ...device.attributes,
+      ...(organizationId && { organizationId })
+    }
+  };
+  
+  return api.post<Device>('/devices', deviceData);
 }
 
 /**

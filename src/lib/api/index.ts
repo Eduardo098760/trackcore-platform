@@ -1,6 +1,33 @@
 import { Device, Position, Event, Command, Client, User, DashboardStats, DeviceStatistics } from '@/types';
 import { api } from './client';
 
+/**
+ * Transformação entre modelo interno (com role) e modelo Traccar (com administrator)
+ */
+function mapUserToTraccar(user: Partial<User>): any {
+  const { role, createdAt, updatedAt, avatar, clientId, organizationId, ...traccarUser } = user as any;
+  
+  // Mapear role para administrator
+  if (role) {
+    traccarUser.administrator = role === 'admin' || role === 'superadmin';
+  }
+  
+  // Remover campos que não existem no Traccar
+  return traccarUser;
+}
+
+function mapTraccarToUser(traccarUser: any): User {
+  // Mapear administrator para role
+  const role = traccarUser.administrator ? 'admin' : 'operator';
+  
+  return {
+    ...traccarUser,
+    role,
+    createdAt: traccarUser.createdAt || new Date().toISOString(),
+    updatedAt: traccarUser.updatedAt || new Date().toISOString(),
+  } as User;
+}
+
 // Devices API (usando Traccar)
 export async function getDevices(): Promise<Device[]> {
   return api.get<Device[]>('/devices');
@@ -121,23 +148,135 @@ export async function deleteClient(id: number): Promise<void> {
 
 // Users API (usando Traccar)
 export async function getUsers(): Promise<User[]> {
-  return api.get<User[]>('/users');
+  const traccarUsers = await api.get<any[]>('/users');
+  return traccarUsers.map(mapTraccarToUser);
 }
 
 export async function getUserById(id: number): Promise<User> {
-  return api.get<User>(`/users/${id}`);
+  const traccarUser = await api.get<any>(`/users/${id}`);
+  return mapTraccarToUser(traccarUser);
 }
 
 export async function createUser(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-  return api.post<User>('/users', data);
+  console.log('[API] createUser - Dados originais:', JSON.stringify(data, null, 2));
+  
+  // Transformar para formato Traccar
+  const traccarData = mapUserToTraccar(data);
+  console.log('[API] createUser - Dados transformados para Traccar:', JSON.stringify(traccarData, null, 2));
+  
+  try {
+    const result = await api.post<any>('/users', traccarData);
+    console.log('[API] Usuário criado com sucesso:', result);
+    return mapTraccarToUser(result);
+  } catch (error) {
+    console.error('[API] Erro ao criar usuário:', error);
+    throw error;
+  }
 }
 
 export async function updateUser(id: number, data: Partial<User>): Promise<User> {
-  return api.put<User>(`/users/${id}`, { ...data, id });
+  const traccarData = mapUserToTraccar(data);
+  const result = await api.put<any>(`/users/${id}`, { ...traccarData, id });
+  return mapTraccarToUser(result);
 }
 
 export async function deleteUser(id: number): Promise<void> {
   await api.delete<void>(`/users/${id}`);
+}
+
+// User Permissions API (gerenciar dispositivos do usuário - Traccar)
+export async function getUserDevices(userId: number): Promise<Device[]> {
+  console.log(`[API] getUserDevices - Buscando dispositivos para userId: ${userId}`);
+  try {
+    // No Traccar, buscamos os devices diretamente com o parâmetro userId
+    // GET /devices?userId={userId} retorna apenas os devices que o usuário tem permissão
+    const devices = await api.get<any[]>('/devices', { userId });
+    console.log(`[API] Total de dispositivos retornados para userId ${userId}:`, devices.length);
+    
+    if (devices.length === 0) {
+      console.log(`[API] Nenhum dispositivo encontrado para userId ${userId}`);
+      return [];
+    }
+    
+    // Os devices do Traccar já estão no formato correto (Device[])
+    console.log(`[API] Dispositivos do usuário ${userId}:`, devices.map(d => ({ id: d.id, name: d.name })));
+    return devices;
+  } catch (error: any) {
+    console.error(`[API] ERRO em getUserDevices para userId ${userId}:`, error);
+    console.error(`[API] Detalhes do erro:`, {
+      message: error?.message,
+      status: error?.status,
+      details: error?.details
+    });
+    // Se o erro for porque o usuário não tem permissões, retornar array vazio
+    if (error?.status === 400 || error?.status === 404) {
+      console.log(`[API] Assumindo que usuário ${userId} não tem dispositivos, retornando array vazio`);
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function addDeviceToUser(userId: number, deviceId: number): Promise<void> {
+  console.log(`[API] addDeviceToUser - Adicionando permissão: userId=${userId}, deviceId=${deviceId}`);
+  // Adiciona permissão no Traccar
+  const result = await api.post<void>('/permissions', {
+    userId,
+    deviceId
+  });
+  console.log(`[API] Permissão adicionada com sucesso:`, result);
+}
+
+export async function removeDeviceFromUser(userId: number, deviceId: number): Promise<void> {
+  console.log(`[API] removeDeviceFromUser - Removendo permissão: userId=${userId}, deviceId=${deviceId}`);
+  // Remove permissão no Traccar usando body JSON (conforme documentação)
+  const result = await api.delete<void>('/permissions', {
+    userId: userId,
+    deviceId: deviceId
+  }, true); // useBody = true
+  console.log(`[API] Permissão removida com sucesso:`, result);
+}
+
+export async function setUserDevices(userId: number, deviceIds: number[]): Promise<void> {
+  console.log(`[API] setUserDevices - userId: ${userId}, deviceIds:`, deviceIds);
+  
+  // Remove todas as permissões atuais
+  console.log('[API] Buscando dispositivos atuais do usuário...');
+  const currentDevices = await getUserDevices(userId);
+  console.log(`[API] Usuário possui ${currentDevices.length} dispositivos atuais:`, currentDevices.map(d => d.id));
+  
+  for (const device of currentDevices) {
+    console.log(`[API] Removendo permissão do dispositivo ${device.id}...`);
+    await removeDeviceFromUser(userId, device.id);
+  }
+  console.log('[API] Permissões antigas removidas');
+  
+  // Adiciona as novas permissões
+  console.log(`[API] Adicionando ${deviceIds.length} novas permissões...`);
+  for (const deviceId of deviceIds) {
+    console.log(`[API] Adicionando permissão do dispositivo ${deviceId}...`);
+    await addDeviceToUser(userId, deviceId);
+  }
+  console.log('[API] Todas as novas permissões adicionadas com sucesso!');
+}
+
+// User Password Management
+export async function updateUserPassword(userId: number, newPassword: string): Promise<void> {
+  console.log(`[API] updateUserPassword - userId: ${userId}`);
+  // Traccar exige que enviemos todos os dados do usuário ao atualizar
+  // Buscar dados originais do Traccar (não mapeados)
+  const traccarUser = await api.get<any>(`/users/${userId}`);
+  console.log('[API] Dados do usuário obtidos do Traccar:', { id: traccarUser.id, name: traccarUser.name, email: traccarUser.email });
+  
+  const updateData = {
+    ...traccarUser,
+    id: userId,
+    password: newPassword
+  };
+  console.log('[API] Enviando atualização com senha...');
+  
+  await api.put<void>(`/users/${userId}`, updateData);
+  console.log('[API] Senha atualizada com sucesso!');
 }
 
 // Dashboard Stats API

@@ -1,11 +1,17 @@
-import { AuthResponse, User } from '@/types';
+import { AuthResponse, User, Organization } from '@/types';
 import { api } from './client';
+import { getOrganizationBySlug } from './organizations';
 
 /**
  * Faz login no Traccar usando email e senha
  * O Traccar usa autenticação baseada em sessão (cookie)
+ * Agora com suporte multi-tenant
  */
-export async function login(email: string, password: string): Promise<AuthResponse> {
+export async function login(
+  email: string, 
+  password: string, 
+  organizationSlug?: string
+): Promise<AuthResponse> {
   // Traccar usa form-encoded data para login
   const formData = new URLSearchParams();
   formData.append('email', email);
@@ -26,13 +32,32 @@ export async function login(email: string, password: string): Promise<AuthRespon
 
   const user: User = await response.json();
   
+  // Validate user belongs to the organization (if specified)
+  let organization: Organization | undefined;
+  if (organizationSlug) {
+    organization = await getOrganizationBySlug(organizationSlug) || undefined;
+    
+    if (organization) {
+      // Check if user belongs to this organization
+      const userOrgId = user.organizationId || user.attributes?.organizationId;
+      if (userOrgId !== organization.id && user.role !== 'superadmin') {
+        throw new Error('Usuário não pertence a esta organização');
+      }
+    }
+  }
+  
   // Traccar não retorna token JWT, usa sessão baseada em cookie
   // Geramos um token fake para compatibilidade com o sistema existente
-  const token = btoa(JSON.stringify({ userId: user.id, email: user.email }));
+  const token = btoa(JSON.stringify({ 
+    userId: user.id, 
+    email: user.email,
+    organizationId: organization?.id 
+  }));
   
   return {
     user,
-    token
+    token,
+    organization
   };
 }
 

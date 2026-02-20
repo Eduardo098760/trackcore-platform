@@ -73,7 +73,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 mb-8">
               <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Nova Web</h1>
+            <h1 className="text-3xl font-bold tracking-tight"> TrackCore</h1>
             <p className="text-white/95 text-base mt-2 font-normal">
               Entre para acessar o sistema
             </p>
@@ -84,7 +84,7 @@ export default function LoginPage() {
       {/* Mobile: barra superior com marca */}
       <div className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full bg-primary shrink-0 [color:hsl(var(--primary-foreground))]">
         <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
-        <span className="text-xl font-bold">Nova Web</span>
+        <span className="text-xl font-bold">TrackCore</span>
       </div>
 
       {/* Coluna direita - Formulário */}
@@ -173,54 +173,9 @@ export default function LoginPage() {
                 </Link>
               </div>
             </form>
-
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    ou conecte com redes sociais
-                  </span>
-                </div>
-              </div>
-              <div className="mt-5 space-y-3">
-                <button
-                  type="button"
-                  disabled
-                  className="w-full h-12 rounded-xl flex items-center justify-center gap-3 bg-secondary text-secondary-foreground font-medium opacity-80 cursor-not-allowed"
-                  title="Em breve"
-                >
-                  <TwitterIcon className="w-5 h-5" />
-                  Entrar com Twitter
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="w-full h-12 rounded-xl flex items-center justify-center gap-3 bg-secondary text-secondary-foreground font-medium opacity-80 cursor-not-allowed"
-                  title="Em breve"
-                >
-                  <FacebookIcon className="w-5 h-5" />
-                  Entrar com Facebook
-                </button>
-              </div>
-            </div>
           </div>
-
-          <div className="mt-6 p-4 bg-card/80 rounded-xl border border-border">
-            <p className="text-xs font-semibold text-muted-foreground mb-2">
-              Credenciais de teste
-            </p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p><strong>Admin:</strong> admin@nova.com / admin123</p>
-              <p><strong>Operador:</strong> operador@nova.com / operador123</p>
-              <p><strong>Cliente:</strong> cliente@nova.com / cliente123</p>
-            </div>
-          </div>
-
           <p className="text-center text-xs text-muted-foreground mt-4">
-            © {new Date().getFullYear()} Nova Web. Todos os direitos reservados.
+            © {new Date().getFullYear()} Track Core. Todos os direitos reservados.
           </p>
         </div>
       </div>

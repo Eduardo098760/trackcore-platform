@@ -1,15 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { User } from '@/types';
+import { User, Organization } from '@/types';
 
 interface AuthState {
   user: User | null;
   token: string | null;
+  organization: Organization | null;
   email: string | null;
   password: string | null;
   isAuthenticated: boolean;
   rememberMe: boolean;
-  setAuth: (user: User, token: string, email?: string, password?: string, rememberMe?: boolean) => void;
+  setAuth: (user: User, token: string, organization?: Organization, email?: string, password?: string, rememberMe?: boolean) => void;
   clearAuth: () => void;
   getCredentials: () => { email: string | null; password: string | null };
 }
@@ -19,15 +20,17 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      organization: null,
       email: null,
       password: null,
       isAuthenticated: false,
       rememberMe: false,
-      setAuth: (user, token, email, password, rememberMe = true) => {
-        console.log('Salvando autenticação:', { email, rememberMe });
+      setAuth: (user, token, organization, email, password, rememberMe = true) => {
+        console.log('Salvando autenticação:', { email, rememberMe, organization: organization?.name });
         set({ 
           user, 
-          token, 
+          token,
+          organization: organization || null,
           email: rememberMe ? email : null,
           password: rememberMe ? password : null,
           isAuthenticated: true,
@@ -38,7 +41,8 @@ export const useAuthStore = create<AuthState>()(
         console.log('Limpando autenticação');
         set({ 
           user: null, 
-          token: null, 
+          token: null,
+          organization: null,
           email: null,
           password: null,
           isAuthenticated: false,

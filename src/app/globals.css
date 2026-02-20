@@ -58,9 +58,6 @@
   }
 }
 
-/* Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
-
 /* Qualidade do mapa: tiles nítidos e controles */
 .leaflet-map-quality.leaflet-container {
   font-family: inherit;
