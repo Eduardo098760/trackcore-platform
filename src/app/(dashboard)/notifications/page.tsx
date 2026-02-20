@@ -2,371 +2,480 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Notification, NotificationEvent, NotificationType } from '@/types';
-import { getNotifications, createNotification, updateNotification, deleteNotification } from '@/lib/api/notifications';
-import { getDevices } from '@/lib/api/devices';
-import { getGeofences } from '@/lib/api/geofences';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Edit, Plus, Bell, Mail, Smartphone, Webhook } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Bell,
+  Mail,
+  Smartphone,
+  MessageSquare,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Save,
+  Volume2,
+  VolumeX
+} from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
-const eventLabels: Record<NotificationEvent, string> = {
-  ignitionOn: 'Ignição ligada',
-  ignitionOff: 'Ignição desligada',
-  speedLimit: 'Limite de velocidade',
-  geofenceEnter: 'Entrada em cerca',
-  geofenceExit: 'Saída de cerca',
-  lowBattery: 'Bateria fraca',
-  sos: 'SOS',
-  deviceOnline: 'Dispositivo online',
-  deviceOffline: 'Dispositivo offline',
-  maintenance: 'Manutenção',
-  alarm: 'Alarme',
-  deviceMoving: 'Dispositivo em movimento',
-  deviceStopped: 'Dispositivo parado',
+interface NotificationSettings {
+  inApp: {
+    enabled: boolean;
+    sound: boolean;
+    desktop: boolean;
+  };
+  email: {
+    enabled: boolean;
+    address: string;
+    frequency: 'instant' | 'hourly' | 'daily';
+  };
+  sms: {
+    enabled: boolean;
+    phone: string;
+  };
+  push: {
+    enabled: boolean;
+  };
+  events: {
+    speedLimit: boolean;
+    geofenceEnter: boolean;
+    geofenceExit: boolean;
+    ignitionOn: boolean;
+    ignitionOff: boolean;
+    deviceOffline: boolean;
+    deviceOnline: boolean;
+    lowBattery: boolean;
+    maintenance: boolean;
+    sos: boolean;
+  };
+}
+
+const getSettings = async (): Promise<NotificationSettings> => {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  const stored = localStorage.getItem('notificationSettings');
+  if (stored) {
+    return JSON.parse(stored);
+  }
+  
+  return {
+    inApp: {
+      enabled: true,
+      sound: true,
+      desktop: false,
+    },
+    email: {
+      enabled: false,
+      address: '',
+      frequency: 'instant',
+    },
+    sms: {
+      enabled: false,
+      phone: '',
+    },
+    push: {
+      enabled: false,
+    },
+    events: {
+      speedLimit: true,
+      geofenceEnter: true,
+      geofenceExit: true,
+      ignitionOn: false,
+      ignitionOff: false,
+      deviceOffline: true,
+      deviceOnline: false,
+      lowBattery: true,
+      maintenance: true,
+      sos: true,
+    },
+  };
 };
 
-const typeIcons = {
-  email: Mail,
-  sms: Smartphone,
-  push: Bell,
-  webhook: Webhook,
+const saveSettings = async (settings: NotificationSettings): Promise<void> => {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  localStorage.setItem('notificationSettings', JSON.stringify(settings));
 };
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'push' as NotificationType,
-    event: 'speedLimit' as NotificationEvent,
-    deviceIds: [] as number[],
-    geofenceIds: [] as number[],
-    enabled: true,
-    attributes: {
-      email: '',
-      phone: '',
-      webhookUrl: '',
-      message: '',
-    },
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['notificationSettings'],
+    queryFn: getSettings,
   });
 
-  const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: getNotifications,
-  });
+  // Inicializar settings quando data estiver disponível
+  if (data && !settings) {
+    setSettings(data);
+  }
 
-  const { data: devices = [] } = useQuery({
-    queryKey: ['devices'],
-    queryFn: getDevices,
-  });
-
-  const { data: geofences = [] } = useQuery({
-    queryKey: ['geofences'],
-    queryFn: getGeofences,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createNotification,
+  const saveMutation = useMutation({
+    mutationFn: saveSettings,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success('Notificação criada com sucesso!');
-      setIsDialogOpen(false);
-      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['notificationSettings'] });
+      toast.success('Configurações salvas com sucesso!');
     },
     onError: () => {
-      toast.error('Erro ao criar notificação');
+      toast.error('Erro ao salvar configurações');
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Notification> }) => 
-      updateNotification(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success('Notificação atualizada com sucesso!');
-      setIsDialogOpen(false);
-      resetForm();
-    },
-    onError: () => {
-      toast.error('Erro ao atualizar notificação');
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteNotification,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success('Notificação removida com sucesso!');
-    },
-    onError: () => {
-      toast.error('Erro ao remover notificação');
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      type: 'push',
-      event: 'speedLimit',
-      deviceIds: [],
-      geofenceIds: [],
-      enabled: true,
-      attributes: {
-        email: '',
-        phone: '',
-        webhookUrl: '',
-        message: '',
-      },
-    });
-    setEditingNotification(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const notificationData = formData;
-
-    if (editingNotification) {
-      updateMutation.mutate({ id: editingNotification.id, data: notificationData });
-    } else {
-      createMutation.mutate(notificationData);
+  const handleSave = () => {
+    if (settings) {
+      saveMutation.mutate(settings);
     }
   };
 
-  const handleEdit = (notification: Notification) => {
-    setEditingNotification(notification);
-    setFormData({
-      name: notification.name,
-      type: notification.type,
-      event: notification.event,
-      deviceIds: notification.deviceIds || [],
-      geofenceIds: notification.geofenceIds || [],
-      enabled: notification.enabled,
-      attributes: notification.attributes,
-    });
-    setIsDialogOpen(true);
+  const updateInApp = (key: keyof NotificationSettings['inApp'], value: boolean) => {
+    if (settings) {
+      setSettings({
+        ...settings,
+        inApp: { ...settings.inApp, [key]: value },
+      });
+    }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Tem certeza que deseja remover esta notificação?')) {
-      deleteMutation.mutate(id);
+  const updateEmail = (key: keyof NotificationSettings['email'], value: any) => {
+    if (settings) {
+      setSettings({
+        ...settings,
+        email: { ...settings.email, [key]: value },
+      });
     }
+  };
+
+  const updateSms = (key: keyof NotificationSettings['sms'], value: any) => {
+    if (settings) {
+      setSettings({
+        ...settings,
+        sms: { ...settings.sms, [key]: value },
+      });
+    }
+  };
+
+  const updatePush = (enabled: boolean) => {
+    if (settings) {
+      setSettings({
+        ...settings,
+        push: { enabled },
+      });
+    }
+  };
+
+  const updateEvent = (event: keyof NotificationSettings['events'], enabled: boolean) => {
+    if (settings) {
+      setSettings({
+        ...settings,
+        events: { ...settings.events, [event]: enabled },
+      });
+    }
+  };
+
+  if (isLoading || !settings) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Configurações de Notificações"
+          description="Personalize como você recebe alertas e notificações"
+          icon={Bell}
+        />
+        <div>Carregando...</div>
+      </div>
+    );
+  }
+
+  const eventLabels = {
+    speedLimit: { label: 'Excesso de Velocidade', icon: AlertTriangle, color: 'text-amber-500' },
+    geofenceEnter: { label: 'Entrada em Cerca', icon: Info, color: 'text-blue-500' },
+    geofenceExit: { label: 'Saída de Cerca', icon: AlertCircle, color: 'text-orange-500' },
+    ignitionOn: { label: 'Ignição Ligada', icon: CheckCircle2, color: 'text-green-500' },
+    ignitionOff: { label: 'Ignição Desligada', icon: Info, color: 'text-gray-500' },
+    deviceOffline: { label: 'Dispositivo Offline', icon: AlertCircle, color: 'text-red-500' },
+    deviceOnline: { label: 'Dispositivo Online', icon: CheckCircle2, color: 'text-green-500' },
+    lowBattery: { label: 'Bateria Fraca', icon: AlertTriangle, color: 'text-amber-500' },
+    maintenance: { label: 'Manutenção', icon: Info, color: 'text-blue-500' },
+    sos: { label: 'SOS / Emergência', icon: AlertCircle, color: 'text-red-500' },
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Notificações</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure alertas por email, SMS ou push
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Notificação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingNotification ? 'Editar Notificação' : 'Nova Notificação'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
+    <div className="space-y-6">
+      <PageHeader
+        title="Configurações de Notificações"
+        description="Personalize como você recebe alertas e notificações"
+        icon={Bell}
+      />
+
+      {/* Canais de Notificação */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* In-App Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-500" />
+              <CardTitle>Notificações na Plataforma</CardTitle>
+            </div>
+            <CardDescription>
+              Receba notificações diretamente na plataforma em tempo real
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Ativar notificações na plataforma</Label>
+                <p className="text-sm text-muted-foreground">
+                  Exibir alertas no painel de notificações
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="type">Tipo de Notificação</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value: NotificationType) => setFormData({ ...formData, type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="sms">SMS</SelectItem>
-                      <SelectItem value="push">Push</SelectItem>
-                      <SelectItem value="webhook">Webhook</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="event">Evento</Label>
-                  <Select
-                    value={formData.event}
-                    onValueChange={(value: NotificationEvent) => setFormData({ ...formData, event: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(eventLabels).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <Switch
+                checked={settings.inApp.enabled}
+                onCheckedChange={(checked) => updateInApp('enabled', checked)}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="flex items-center gap-2">
+                  {settings.inApp.sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  Som de notificação
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Reproduzir som ao receber notificações
+                </p>
               </div>
+              <Switch
+                checked={settings.inApp.sound}
+                onCheckedChange={(checked) => updateInApp('sound', checked)}
+                disabled={!settings.inApp.enabled}
+              />
+            </div>
 
-              {formData.type === 'email' && (
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.attributes.email}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      attributes: { ...formData.attributes, email: e.target.value }
-                    })}
-                  />
-                </div>
-              )}
-
-              {formData.type === 'sms' && (
-                <div>
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.attributes.phone}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      attributes: { ...formData.attributes, phone: e.target.value }
-                    })}
-                  />
-                </div>
-              )}
-
-              {formData.type === 'webhook' && (
-                <div>
-                  <Label htmlFor="webhookUrl">URL do Webhook</Label>
-                  <Input
-                    id="webhookUrl"
-                    value={formData.attributes.webhookUrl}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      attributes: { ...formData.attributes, webhookUrl: e.target.value }
-                    })}
-                  />
-                </div>
-              )}
-
-              <div>
-                <Label htmlFor="message">Mensagem Personalizada</Label>
-                <Textarea
-                  id="message"
-                  value={formData.attributes.message}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    attributes: { ...formData.attributes, message: e.target.value }
-                  })}
-                  placeholder="Use {device} para nome do veículo, {speed} para velocidade, etc."
-                />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Notificações do navegador</Label>
+                <p className="text-sm text-muted-foreground">
+                  Exibir notificações desktop do navegador
+                </p>
               </div>
+              <Switch
+                checked={settings.inApp.desktop}
+                onCheckedChange={(checked) => updateInApp('desktop', checked)}
+                disabled={!settings.inApp.enabled}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-                />
-                <Label htmlFor="enabled">Habilitada</Label>
+        {/* Email Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-green-500" />
+              <CardTitle>Notificações por Email</CardTitle>
+            </div>
+            <CardDescription>
+              Receba alertas importantes no seu email
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Ativar notificações por email</Label>
+                <p className="text-sm text-muted-foreground">
+                  Enviar alertas para o email cadastrado
+                </p>
               </div>
+              <Switch
+                checked={settings.email.enabled}
+                onCheckedChange={(checked) => updateEmail('enabled', checked)}
+              />
+            </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsDialogOpen(false);
-                    resetForm();
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  {editingNotification ? 'Atualizar' : 'Criar'}
-                </Button>
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Endereço de Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={settings.email.address}
+                onChange={(e) => updateEmail('address', e.target.value)}
+                disabled={!settings.email.enabled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="frequency">Frequência de Envio</Label>
+              <Select
+                value={settings.email.frequency}
+                onValueChange={(value: any) => updateEmail('frequency', value)}
+                disabled={!settings.email.enabled}
+              >
+                <SelectTrigger id="frequency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="instant">Instantâneo</SelectItem>
+                  <SelectItem value="hourly">A cada hora</SelectItem>
+                  <SelectItem value="daily">Resumo diário</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {settings.email.frequency === 'instant' && 'Enviar email imediatamente ao ocorrer evento'}
+                {settings.email.frequency === 'hourly' && 'Agrupar eventos e enviar a cada hora'}
+                {settings.email.frequency === 'daily' && 'Enviar resumo diário com todos os eventos'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SMS Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-5 h-5 text-purple-500" />
+              <CardTitle>Notificações por SMS</CardTitle>
+              <Badge variant="outline" className="ml-auto">Premium</Badge>
+            </div>
+            <CardDescription>
+              Receba alertas críticos via mensagem de texto
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Ativar notificações por SMS</Label>
+                <p className="text-sm text-muted-foreground">
+                  Enviar SMS para eventos críticos
+                </p>
               </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+              <Switch
+                checked={settings.sms.enabled}
+                onCheckedChange={(checked) => updateSms('enabled', checked)}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Número de Telefone</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+55 (11) 99999-9999"
+                value={settings.sms.phone}
+                onChange={(e) => updateSms('phone', e.target.value)}
+                disabled={!settings.sms.enabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                Custos adicionais podem ser aplicados
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Push Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-orange-500" />
+              <CardTitle>Notificações Push</CardTitle>
+            </div>
+            <CardDescription>
+              Receba notificações no seu dispositivo móvel
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Ativar notificações push</Label>
+                <p className="text-sm text-muted-foreground">
+                  Enviar push para o aplicativo móvel
+                </p>
+              </div>
+              <Switch
+                checked={settings.push.enabled}
+                onCheckedChange={updatePush}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="rounded-lg bg-muted p-4">
+              <p className="text-sm text-muted-foreground">
+                Para receber notificações push, instale o aplicativo TrackCore em seu dispositivo móvel e faça login com sua conta.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {notifications.map((notification) => {
-          const Icon = typeIcons[notification.type];
-          return (
-            <Card key={notification.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <CardTitle className="text-base">{notification.name}</CardTitle>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleEdit(notification)}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(notification.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+      {/* Tipos de Eventos */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tipos de Eventos</CardTitle>
+          <CardDescription>
+            Selecione quais tipos de eventos devem gerar notificações
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {Object.entries(eventLabels).map(([key, { label, icon: Icon, color }]) => (
+              <div key={key} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-5 h-5 ${color}`} />
+                  <Label className="cursor-pointer" htmlFor={key}>
+                    {label}
+                  </Label>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Evento:</span>{' '}
-                    {eventLabels[notification.event]}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Tipo:</span>{' '}
-                    {notification.type.toUpperCase()}
-                  </div>
-                  {notification.enabled ? (
-                    <span className="text-xs text-green-500">✓ Habilitada</span>
-                  ) : (
-                    <span className="text-xs text-gray-500">✗ Desabilitada</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                <Switch
+                  id={key}
+                  checked={settings.events[key as keyof typeof settings.events]}
+                  onCheckedChange={(checked) => updateEvent(key as keyof typeof settings.events, checked)}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end gap-4">
+        <Button
+          onClick={() => {
+            if (data) {
+              setSettings(data);
+              toast.info('Alterações descartadas');
+            }
+          }}
+          variant="outline"
+        >
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={saveMutation.isPending}
+        >
+          <Save className="w-4 h-4 mr-2" />
+          {saveMutation.isPending ? 'Salvando...' : 'Salvar Configurações'}
+        </Button>
       </div>
     </div>
   );

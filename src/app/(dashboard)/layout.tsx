@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { getCurrentUser, login } from '@/lib/api/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+import { useEventNotifications } from '@/lib/hooks/useEventNotifications';
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,9 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { isAuthenticated, setAuth, clearAuth, getCredentials, rememberMe } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
+
+  // Ativar monitoramento de eventos do Traccar para notificações
+  useEventNotifications(isAuthenticated && !isValidating);
 
   const isMapRoute = !!pathname && (pathname === '/map' || pathname.startsWith('/map/'));
 

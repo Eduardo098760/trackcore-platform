@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Search, Bell, Moon, Sun, LogOut, User, Settings } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,12 +19,27 @@ import {
 import { useAuthStore } from '@/lib/stores/auth';
 import { useSearchStore } from '@/lib/stores/search';
 import { ConnectionStatus } from '@/components/ui/connection-status';
+import { NotificationBadge } from '@/components/ui/notification-badge';
+import { NotificationPanel } from '@/components/layout/notification-panel';
 
 export function Header() {
   const { theme, setTheme } = useTheme();
   const { user, clearAuth } = useAuthStore();
   const { searchTerm, setSearchTerm } = useSearchStore();
   const router = useRouter();
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+
+  // Query para buscar notificações não lidas
+  const { data: notifications = [] } = useQuery({
+    queryKey: ['inAppNotifications'],
+    queryFn: async () => {
+      const stored = localStorage.getItem('inAppNotifications');
+      return stored ? JSON.parse(stored) : [];
+    },
+    refetchInterval: 30000, // Atualizar a cada 30 segundos
+  });
+
+  const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   const handleLogout = () => {
     clearAuth();
@@ -84,13 +101,10 @@ export function Header() {
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative hover:bg-white/10 text-gray-300 hover:text-white transition-all group">
-          <Bell className="h-5 w-5 group-hover:animate-pulse" />
-          <span className="absolute top-1 right-1 flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-          </span>
-        </Button>
+        <NotificationBadge 
+          count={unreadCount} 
+          onClick={() => setNotificationPanelOpen(true)} 
+        />
 
         {/* User Menu */}
         <DropdownMenu>
@@ -133,6 +147,12 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Notification Panel */}
+      <NotificationPanel 
+        open={notificationPanelOpen} 
+        onOpenChange={setNotificationPanelOpen} 
+      />
     </header>
   );
 }

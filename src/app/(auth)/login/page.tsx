@@ -43,7 +43,7 @@ export default function LoginPage() {
 
     try {
       const response = await login(email, password);
-      setAuth(response.user, response.token, email, password, rememberMe);
+      setAuth(response.user, response.token, response.organization, email, password, rememberMe);
       router.push('/dashboard');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login');

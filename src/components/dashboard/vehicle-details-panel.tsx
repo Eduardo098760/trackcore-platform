@@ -22,8 +22,12 @@ import {
   Phone,
   FileText,
   Settings,
+  Loader2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { formatDate, getDeviceStatusColor } from '@/lib/utils';
+import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
 
 interface VehicleDetailsPanelProps {
   device: Device | null;
@@ -50,6 +54,9 @@ export function VehicleDetailsPanel({
   recentDistanceKm,
   recentTrail,
 }: VehicleDetailsPanelProps) {
+  // Enriquecer posição com endereço via reverse geocoding
+  const { enrichedPosition, isLoadingAddress } = usePositionAddress(position);
+  
   const recentDistanceText = useMemo(() => {
     const d = recentDistanceKm ?? 0;
     if (d < 1) return `${Math.round(d * 1000)} m`;
@@ -77,6 +84,15 @@ export function VehicleDetailsPanel({
   const speedExceeded = device.speedLimit && position.speed > device.speedLimit;
   const isMotion = position.attributes?.motion;
   const isIgnitionOn = position.attributes?.ignition;
+
+  const handleCopyAddress = () => {
+    const address = enrichedPosition?.address || `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}`;
+    navigator.clipboard.writeText(address);
+  };
+
+  const handleOpenMaps = () => {
+    window.open(`https://www.google.com/maps?q=${position.latitude},${position.longitude}`, '_blank');
+  };
 
   return (
     <div className="fixed right-0 top-0 bottom-0 w-80 z-[900] bg-background/95 backdrop-blur-md border-l border-border shadow-2xl overflow-y-auto">
@@ -119,12 +135,35 @@ export function VehicleDetailsPanel({
 
           <Card className="bg-card/60">
             <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <MapPin className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">Endereço</span>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium">Endereço</span>
+                {isLoadingAddress && (
+                  <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleCopyAddress}
+                  className="p-1 hover:bg-muted rounded transition-colors"
+                  title="Copiar endereço"
+                >
+                  <Copy className="w-3 h-3 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={handleOpenMaps}
+                  className="p-1 hover:bg-muted rounded transition-colors"
+                  title="Abrir no Google Maps"
+                >
+                  <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </div>
             </div>
-            <p className="text-sm">
-              {position.address || 'Localização não disponível'}
+            <p className="text-sm leading-relaxed">
+              {isLoadingAddress 
+                ? 'Buscando endereço...' 
+                : enrichedPosition?.address || 'Localização não disponível'}
             </p>
             <p className="text-xs text-muted-foreground mt-1 font-mono">
               {position.latitude.toFixed(6)}, {position.longitude.toFixed(6)}

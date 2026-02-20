@@ -51,7 +51,8 @@ export async function getPositionByDevice(deviceId: number): Promise<Position> {
 }
 
 // Events API (usando Traccar - Reports endpoint)
-// O Traccar exige deviceId(s) ou groupId; sem isso retorna [].
+// O Traccar exige deviceId(s) ou groupId para reports/events
+// Para obter todos os eventos, buscamos de todos os dispositivos
 export async function getEvents(params?: { 
   deviceId?: number; 
   deviceIds?: number[];
@@ -59,16 +60,44 @@ export async function getEvents(params?: {
   to?: string;
   type?: string;
 }): Promise<Event[]> {
-  const requestParams: Record<string, unknown> = {};
-  if (params?.from) requestParams.from = params.from;
-  if (params?.to) requestParams.to = params.to;
-  if (params?.type) requestParams.type = params.type;
-  if (params?.deviceIds?.length) {
-    requestParams.deviceId = params.deviceIds;
-  } else if (params?.deviceId != null) {
-    requestParams.deviceId = params.deviceId;
+  try {
+    const requestParams: Record<string, unknown> = {};
+    if (params?.from) requestParams.from = params.from;
+    if (params?.to) requestParams.to = params.to;
+    if (params?.type) requestParams.type = params.type;
+    
+    // Se tem deviceIds ou deviceId específico, usar
+    if (params?.deviceIds?.length) {
+      requestParams.deviceId = params.deviceIds;
+    } else if (params?.deviceId != null) {
+      requestParams.deviceId = params.deviceId;
+    } else {
+      // Se não tem deviceId especificado, buscar de todos os devices
+      const devices = await api.get<Device[]>('/devices');
+      if (devices.length === 0) return [];
+      
+      // Pegar IDs de todos os dispositivos
+      const deviceIds = devices.map(d => d.id);
+      requestParams.deviceId = deviceIds;
+    }
+    
+    const events = await api.get<Event[]>('/reports/events', requestParams);
+    
+    // Enriquecer eventos com nome do dispositivo
+    const devices = await api.get<Device[]>('/devices');
+    const deviceMap = new Map(devices.map(d => [d.id, d]));
+    
+    return events.map(event => ({
+      ...event,
+      attributes: {
+        ...event.attributes,
+        deviceName: deviceMap.get(event.deviceId)?.name || `Dispositivo #${event.deviceId}`,
+      }
+    }));
+  } catch (error) {
+    console.error('Erro ao buscar eventos:', error);
+    return [];
   }
-  return api.get<Event[]>('/reports/events', requestParams);
 }
 
 export async function markEventAsResolved(eventId: number): Promise<Event> {
