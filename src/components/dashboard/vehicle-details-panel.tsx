@@ -25,6 +25,7 @@ import {
   Loader2,
   Copy,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 import { formatDate, getDeviceStatusColor } from '@/lib/utils';
 import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
@@ -38,6 +39,7 @@ interface VehicleDetailsPanelProps {
   onVideo: (deviceId: number) => void;
   onDetails: (deviceId: number) => void;
   onStreetView?: (lat: number, lng: number) => void;
+  onManageGeofences?: (device: Device) => void;
   recentDistanceKm?: number;
   recentTrail?: {lat:number; lng:number; ts:number}[];
 }
@@ -51,6 +53,7 @@ export function VehicleDetailsPanel({
   onVideo,
   onDetails,
   onStreetView,
+  onManageGeofences,
   recentDistanceKm,
   recentTrail,
 }: VehicleDetailsPanelProps) {
@@ -378,6 +381,17 @@ export function VehicleDetailsPanel({
               Editar
             </Button>
           </div>
+
+          {onManageGeofences && (
+            <Button
+              onClick={() => onManageGeofences(device)}
+              variant="outline"
+              className="w-full border-orange-500/30 text-orange-400 hover:bg-orange-600/20"
+            >
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Gerenciar Cercas
+            </Button>
+          )}
         </div>
 
         {/* Botões de Controle */}

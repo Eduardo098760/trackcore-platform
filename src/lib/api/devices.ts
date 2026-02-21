@@ -6,17 +6,26 @@ import { api } from './client';
  * Com suporte a filtro por organização
  */
 export async function getDevices(organizationId?: number): Promise<Device[]> {
-  const devices = await api.get<Device[]>('/devices');
-  
-  // Se organizationId for fornecido, filtrar
-  if (organizationId) {
-    return devices.filter(d => 
-      d.attributes?.organizationId === organizationId ||
-      d.groupId === organizationId // Pode usar Groups do Traccar
-    );
+  try {
+    console.log('[getDevices] Iniciando requisição de devices...');
+    const devices = await api.get<Device[]>('/devices');
+    console.log('[getDevices] Devices recebidos:', devices?.length || 0);
+    
+    // Se organizationId for fornecido, filtrar
+    if (organizationId) {
+      const filtered = devices.filter(d => 
+        d.attributes?.organizationId === organizationId ||
+        d.groupId === organizationId // Pode usar Groups do Traccar
+      );
+      console.log('[getDevices] Devices filtrados por org:', filtered.length);
+      return filtered;
+    }
+    
+    return devices || [];
+  } catch (error) {
+    console.error('[getDevices] Erro ao buscar devices:', error);
+    throw error;
   }
-  
-  return devices;
 }
 
 /**

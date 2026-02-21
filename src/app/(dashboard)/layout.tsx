@@ -22,7 +22,12 @@ export default function DashboardLayout({
   // Ativar monitoramento de eventos do Traccar para notificações
   useEventNotifications(isAuthenticated && !isValidating);
 
-  const isMapRoute = !!pathname && (pathname === '/map' || pathname.startsWith('/map/'));
+  const isMapRoute = !!pathname && (
+    pathname === '/map' ||
+    pathname.startsWith('/map/') ||
+    pathname === '/geofences' ||
+    pathname.startsWith('/geofences/')
+  );
 
   useEffect(() => {
     const validateSession = async () => {

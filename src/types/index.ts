@@ -258,11 +258,12 @@ export interface Geofence {
   name: string;
   description?: string;
   type: GeofenceType;
-  area: string; // WKT format ou GeoJSON
+  area: string; // WKT format
   color?: string;
   clientId: number;
   active: boolean;
-  attributes?: Record<string, any>;
+  calendarId?: number;
+  attributes?: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -428,13 +429,13 @@ export interface SharedDevice {
 export interface AuditLog {
   id: number;
   userId: number;
-  userName?: string;
+  userName: string;
   action: string;
   resource: string;
   resourceId?: number;
-  details?: Record<string, any>;
-  ipAddress?: string;
-  userAgent?: string;
+  details: string;
+  ipAddress: string;
+  userAgent: string;
   timestamp: string;
 }
 

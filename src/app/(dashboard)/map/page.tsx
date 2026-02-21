@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Navigation, Zap, ZapOff, Circle, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Route } from 'lucide-react';
+import { Navigation, Zap, ZapOff, Circle, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Route, ShieldCheck } from 'lucide-react';
 import { formatSpeed, formatDate, getDeviceStatusColor } from '@/lib/utils';
 import { getVehicleIconSVG } from '@/lib/vehicle-icons';
 import { getWebSocketClient } from '@/lib/websocket';
@@ -21,6 +21,8 @@ import { getPlannedRouteById, getRouteGeometry } from '@/lib/api/routes';
 import { useSearchStore } from '@/lib/stores/search';
 import { VehicleDetailsPanel } from '@/components/dashboard/vehicle-details-panel';
 import { toast } from 'sonner';
+import { getGeofences, getDeviceGeofences, assignGeofenceToDevice, removeGeofenceFromDevice } from '@/lib/api/geofences';
+import type { Geofence } from '@/types';
 
 // Importar Leaflet apenas no cliente
 let L: any;
@@ -46,6 +48,16 @@ const Marker = dynamic(
 
 const Polyline = dynamic(
   () => import('react-leaflet').then((mod) => mod.Polyline),
+  { ssr: false }
+);
+
+const LeafletPolygon = dynamic(
+  () => import('react-leaflet').then((mod) => mod.Polygon),
+  { ssr: false }
+);
+
+const LeafletCircle = dynamic(
+  () => import('react-leaflet').then((mod) => mod.Circle),
   { ssr: false }
 );
 
@@ -99,6 +111,11 @@ export default function MapPage() {
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+
+  // Dialog de gerenciamento de cercas
+  const [geofenceDialogDevice, setGeofenceDialogDevice] = useState<Device | null>(null);
+  const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(null);
+  const [showGeofences, setShowGeofences] = useState(true);
   const [editForm, setEditForm] = useState({
     name: '',
     uniqueId: '',
@@ -175,6 +192,42 @@ export default function MapPage() {
     queryKey: ['positions'],
     queryFn: () => getPositions(),
   });
+
+  // Todas as cercas disponíveis
+  const { data: allGeofences = [] } = useQuery({
+    queryKey: ['geofences'],
+    queryFn: getGeofences,
+    staleTime: 30_000,
+  });
+
+  // Cercas já vinculadas ao device do dialog
+  const { data: deviceGeofences = [], refetch: refetchDeviceGeofences } = useQuery({
+    queryKey: ['device-geofences', geofenceDialogDevice?.id],
+    queryFn: () => getDeviceGeofences(geofenceDialogDevice!.id),
+    enabled: !!geofenceDialogDevice,
+  });
+
+  const deviceGeofenceIds = new Set(deviceGeofences.map((g) => g.id));
+
+  const handleToggleGeofence = async (geofenceId: number) => {
+    if (!geofenceDialogDevice) return;
+    setAssigningGeofenceId(geofenceId);
+    try {
+      if (deviceGeofenceIds.has(geofenceId)) {
+        await removeGeofenceFromDevice(geofenceDialogDevice.id, geofenceId);
+        toast.success('Cerca removida do veículo');
+      } else {
+        await assignGeofenceToDevice(geofenceDialogDevice.id, geofenceId);
+        toast.success('Cerca aplicada ao veículo');
+      }
+      refetchDeviceGeofences();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao atualizar cerca';
+      toast.error(msg);
+    } finally {
+      setAssigningGeofenceId(null);
+    }
+  };
 
   // Evita que o effect do WebSocket reconecte a cada mudança de `devices`
   const devicesRef = useRef<Device[]>([]);
@@ -560,6 +613,44 @@ export default function MapPage() {
     console.debug(`[Map Render] ${devices.length} devices, ${positions.length} positions, ${trailPoints} trail points total`);
   }, [devices.length, positions.length, deviceTrails.size]);
 
+  // Parse WKT → coordenadas Leaflet (igual ao geofences/page.tsx)
+  const parseWKT = (wkt: string): {
+    type: 'polygon' | 'circle';
+    coordinates?: [number, number][];
+    center?: [number, number];
+    radius?: number;
+  } | null => {
+    if (!wkt || typeof wkt !== 'string') return null;
+    try {
+      const upper = wkt.trim().toUpperCase();
+      if (upper.startsWith('POLYGON') || upper.startsWith('LINESTRING')) {
+        const inner = wkt.replace(/^[A-Za-z]+\s*\(\s*\(?\s*/, '').replace(/\s*\)?\s*\)\s*$/, '');
+        const coords = inner.split(',').map((pair): [number, number] | null => {
+          const parts = pair.trim().split(/\s+/);
+          if (parts.length < 2) return null;
+          const lng = parseFloat(parts[0]);
+          const lat = parseFloat(parts[1]);
+          if (isNaN(lat) || isNaN(lng)) return null;
+          return [lat, lng];
+        }).filter((c): c is [number, number] => c !== null);
+        if (coords.length < 3) return null;
+        return { type: 'polygon', coordinates: coords };
+      }
+      if (upper.startsWith('CIRCLE')) {
+        const inner = wkt.replace(/^CIRCLE\s*\(\s*\(?/i, '').replace(/\)?\s*\)\s*$/, '');
+        const parts = inner.split(',');
+        if (parts.length < 2) return null;
+        const coordParts = parts[0].trim().split(/\s+/);
+        const lng = parseFloat(coordParts[0]);
+        const lat = parseFloat(coordParts[1]);
+        const radius = parseFloat(parts[parts.length - 1]);
+        if (isNaN(lat) || isNaN(lng) || isNaN(radius)) return null;
+        return { type: 'circle', center: [lat, lng], radius };
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+
   const getMarkerColor = (status: string) => {
     switch (status) {
       case 'moving':
@@ -766,6 +857,21 @@ export default function MapPage() {
             ))}
           </div>
         </Card>
+
+        {/* Toggle de cercas */}
+        <button
+          type="button"
+          onClick={() => setShowGeofences((v) => !v)}
+          title={showGeofences ? 'Ocultar cercas' : 'Mostrar cercas'}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+            showGeofences
+              ? 'bg-orange-500/80 border-orange-400/50 text-white'
+              : 'bg-black/40 border-white/10 text-gray-400 hover:bg-white/10'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          Cercas {allGeofences.length > 0 && `(${allGeofences.length})`}
+        </button>
         </div>
       </div>
 
@@ -782,6 +888,34 @@ export default function MapPage() {
         <TileLayer key={mapStyle} {...tileLayerProps} />
 
         <MapResizeInvalidator />
+
+        {/* ── Cercas Eletrônicas ── */}
+        {showGeofences && allGeofences.map((geofence) => {
+          const parsed = parseWKT(geofence.area);
+          if (!parsed) return null;
+          const color = (geofence.attributes?.color as string) || geofence.color || '#f97316';
+
+          if (parsed.type === 'polygon' && parsed.coordinates) {
+            return (
+              <LeafletPolygon
+                key={`geo-${geofence.id}`}
+                positions={parsed.coordinates}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.2, weight: 2.5, opacity: 0.9 }}
+              />
+            );
+          }
+          if (parsed.type === 'circle' && parsed.center && parsed.radius) {
+            return (
+              <LeafletCircle
+                key={`geo-${geofence.id}`}
+                center={parsed.center}
+                radius={parsed.radius}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.2, weight: 2.5, opacity: 0.9 }}
+              />
+            );
+          }
+          return null;
+        })}
 
         <MapFollowHandler positions={positions} devices={devices} follow={followVehicle} selectedDeviceId={selectedDevice ? selectedDevice.id : null} />
 
@@ -1206,11 +1340,68 @@ export default function MapPage() {
         onReplay={(deviceId) => router.push(`/replay?vehicle=${deviceId}`)}
         onVideo={(deviceId) => router.push(`/video?device=${deviceId}`)}
         onDetails={(deviceId) => router.push(`/vehicles/${deviceId}`)}
+        onManageGeofences={(device) => setGeofenceDialogDevice(device)}
         onStreetView={(lat, lng) => {
           const url = `https://www.google.com/maps/@${lat},${lng},18z`;
           window.open(url, '_blank');
         }}
       />
+
+      {/* Dialog: Gerenciar Cercas do Veículo */}
+      <Dialog open={!!geofenceDialogDevice} onOpenChange={(open) => { if (!open) setGeofenceDialogDevice(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-orange-400" />
+              Cercas de {geofenceDialogDevice?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {allGeofences.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
+              Nenhuma cerca cadastrada. Crie cercas em <strong>/geofences</strong>.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {allGeofences.map((geofence) => {
+                const isLinked = deviceGeofenceIds.has(geofence.id);
+                const isLoading = assigningGeofenceId === geofence.id;
+                return (
+                  <div
+                    key={geofence.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      isLinked ? 'border-orange-500/50 bg-orange-500/10' : 'border-border bg-card/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: geofence.color || '#3b82f6' }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{geofence.name}</p>
+                        <p className="text-xs text-muted-foreground">{geofence.type}</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isLinked ? 'destructive' : 'default'}
+                      disabled={isLoading}
+                      onClick={() => handleToggleGeofence(geofence.id)}
+                      className="flex-shrink-0 ml-2"
+                    >
+                      {isLoading ? (
+                        <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : isLinked ? 'Remover' : 'Aplicar'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
