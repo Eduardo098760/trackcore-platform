@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Search, Bell, Moon, Sun, LogOut, User, Settings } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,6 +27,7 @@ export function Header() {
   const { user, clearAuth } = useAuthStore();
   const { searchTerm, setSearchTerm } = useSearchStore();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
 
   // Query para buscar notificações não lidas
@@ -42,6 +43,7 @@ export function Header() {
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   const handleLogout = () => {
+    queryClient.clear(); // limpa todo o cache ao sair
     clearAuth();
     router.push('/login');
   };
