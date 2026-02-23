@@ -219,9 +219,19 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        // Ler o corpo da resposta de erro para diagnóstico
+        let errorBody;
+        try {
+          errorBody = await response.text();
+          console.error('[API Client] PUT error body:', errorBody);
+          try { errorBody = JSON.parse(errorBody); } catch (_) { /* manter como texto */ }
+        } catch (_) {
+          errorBody = 'Não foi possível ler o corpo da resposta';
+        }
         throw {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
+          details: errorBody,
         };
       }
 

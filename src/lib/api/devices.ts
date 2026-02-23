@@ -56,9 +56,25 @@ export async function createDevice(
 
 /**
  * Atualiza um dispositivo existente
+ * Garante os campos obrigatórios do Traccar e remove campos read-only
  */
 export async function updateDevice(id: number, device: Partial<Device>): Promise<Device> {
-  return api.put<Device>(`/devices/${id}`, { ...device, id });
+  // Campos obrigatórios pelo Traccar (com defaults seguros)
+  const payload: Record<string, any> = {
+    groupId: 0,
+    ...device,
+    id,
+  };
+
+  // Remover campos que o Traccar não reconhece ou são read-only
+  // Campos aceitos: contact, positionId, model, name, uniqueId, phone, status,
+  //                 attributes, calendarId, groupId, id, disabled, category,
+  //                 lastUpdate, expirationTime
+  delete payload.geofenceIds; // não existe no modelo Device do Traccar
+  delete payload.clientId;    // campo interno da plataforma
+
+  console.log('[updateDevice] Payload enviado ao Traccar:', JSON.stringify(payload, null, 2));
+  return api.put<Device>(`/devices/${id}`, payload);
 }
 
 /**

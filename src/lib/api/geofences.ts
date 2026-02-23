@@ -13,7 +13,7 @@ interface TraccarGeofence {
 }
 
 function toTraccar(g: Partial<Geofence> & { name?: string; area?: string }): TraccarGeofence {
-  const { type, color, active, clientId, id, name, description, area, attributes, ...rest } = g as Geofence & Record<string, unknown>;
+  const { type, color, active, clientId, id, name, description, area, attributes, assignToAll, linkedDeviceIds, ...rest } = g as Geofence & Record<string, unknown>;
   return {
     ...(id !== undefined ? { id } : {}),
     name: name ?? '',
@@ -25,24 +25,30 @@ function toTraccar(g: Partial<Geofence> & { name?: string; area?: string }): Tra
       ...(color ? { color } : {}),
       ...(active !== undefined ? { active } : {}),
       ...(clientId !== undefined ? { clientId } : {}),
+      ...(assignToAll !== undefined ? { assignToAll } : {}),
+      ...(linkedDeviceIds !== undefined ? { linkedDeviceIds } : {}),
     },
   };
 }
 
 function fromTraccar(raw: TraccarGeofence & { id: number; createdAt?: string }): Geofence {
   const attrs = raw.attributes ?? {};
+  // Fallback: alguns registros antigos podem ter a área em attributes.area ou attributes.wkt
+  const area = raw.area || (attrs.area as string) || (attrs.wkt as string) || '';
   return {
     id: raw.id,
     name: raw.name,
     description: raw.description,
-    area: raw.area,
+    area,
     calendarId: raw.calendarId,
-    type: (attrs.type as GeofenceType) ?? deriveTypeFromArea(raw.area),
+    type: (attrs.type as GeofenceType) ?? deriveTypeFromArea(area),
     color: (attrs.color as string) ?? '#3b82f6',
     active: attrs.active !== undefined ? Boolean(attrs.active) : true,
     clientId: (attrs.clientId as number) ?? 0,
     attributes: attrs,
     createdAt: raw.createdAt ?? new Date().toISOString(),
+    assignToAll: attrs.assignToAll !== undefined ? Boolean(attrs.assignToAll) : undefined,
+    linkedDeviceIds: Array.isArray(attrs.linkedDeviceIds) ? (attrs.linkedDeviceIds as number[]) : undefined,
   };
 }
 
@@ -54,11 +60,21 @@ function deriveTypeFromArea(area: string): GeofenceType {
 }
 
 /**
- * Obtém todas as geofences do Traccar
+ * Obtém as geofences do usuário atual (sessão Traccar).
+ * NÃO usa all=true para garantir isolamento por usuário/cliente.
  */
 export async function getGeofences(): Promise<Geofence[]> {
   const raw = await api.get<TraccarGeofence[]>('/geofences');
   return raw.map((r) => fromTraccar(r as TraccarGeofence & { id: number }));
+}
+
+/**
+ * Retorna os dispositivos vinculados a uma geofence específica.
+ * Traccar: GET /api/devices?geofenceId={id}
+ */
+export async function getDevicesForGeofence(geofenceId: number): Promise<number[]> {
+  const raw = await api.get<{ id: number }[]>('/devices', { geofenceId });
+  return raw.map((d) => d.id);
 }
 
 /**

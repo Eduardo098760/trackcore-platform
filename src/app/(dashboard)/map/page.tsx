@@ -22,6 +22,7 @@ import { useSearchStore } from '@/lib/stores/search';
 import { VehicleDetailsPanel } from '@/components/dashboard/vehicle-details-panel';
 import { toast } from 'sonner';
 import { getGeofences, getDeviceGeofences, assignGeofenceToDevice, removeGeofenceFromDevice } from '@/lib/api/geofences';
+import { parseWKT } from '@/lib/parse-wkt';
 import type { Geofence } from '@/types';
 
 // Importar Leaflet apenas no cliente
@@ -197,7 +198,8 @@ export default function MapPage() {
   const { data: allGeofences = [] } = useQuery({
     queryKey: ['geofences'],
     queryFn: getGeofences,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnMount: true,
   });
 
   // Cercas já vinculadas ao device do dialog
@@ -613,43 +615,8 @@ export default function MapPage() {
     console.debug(`[Map Render] ${devices.length} devices, ${positions.length} positions, ${trailPoints} trail points total`);
   }, [devices.length, positions.length, deviceTrails.size]);
 
-  // Parse WKT → coordenadas Leaflet (igual ao geofences/page.tsx)
-  const parseWKT = (wkt: string): {
-    type: 'polygon' | 'circle';
-    coordinates?: [number, number][];
-    center?: [number, number];
-    radius?: number;
-  } | null => {
-    if (!wkt || typeof wkt !== 'string') return null;
-    try {
-      const upper = wkt.trim().toUpperCase();
-      if (upper.startsWith('POLYGON') || upper.startsWith('LINESTRING')) {
-        const inner = wkt.replace(/^[A-Za-z]+\s*\(\s*\(?\s*/, '').replace(/\s*\)?\s*\)\s*$/, '');
-        const coords = inner.split(',').map((pair): [number, number] | null => {
-          const parts = pair.trim().split(/\s+/);
-          if (parts.length < 2) return null;
-          const lng = parseFloat(parts[0]);
-          const lat = parseFloat(parts[1]);
-          if (isNaN(lat) || isNaN(lng)) return null;
-          return [lat, lng];
-        }).filter((c): c is [number, number] => c !== null);
-        if (coords.length < 3) return null;
-        return { type: 'polygon', coordinates: coords };
-      }
-      if (upper.startsWith('CIRCLE')) {
-        const inner = wkt.replace(/^CIRCLE\s*\(\s*\(?/i, '').replace(/\)?\s*\)\s*$/, '');
-        const parts = inner.split(',');
-        if (parts.length < 2) return null;
-        const coordParts = parts[0].trim().split(/\s+/);
-        const lng = parseFloat(coordParts[0]);
-        const lat = parseFloat(coordParts[1]);
-        const radius = parseFloat(parts[parts.length - 1]);
-        if (isNaN(lat) || isNaN(lng) || isNaN(radius)) return null;
-        return { type: 'circle', center: [lat, lng], radius };
-      }
-    } catch { /* ignore */ }
-    return null;
-  };
+  // parseWKT agora usa o utilitário compartilhado em @/lib/parse-wkt
+  // que detecta automaticamente a ordem das coordenadas (lng lat vs lat lng)
 
   const getMarkerColor = (status: string) => {
     switch (status) {
@@ -892,7 +859,12 @@ export default function MapPage() {
         {/* ── Cercas Eletrônicas ── */}
         {showGeofences && allGeofences.map((geofence) => {
           const parsed = parseWKT(geofence.area);
-          if (!parsed) return null;
+          if (!parsed) {
+            if (geofence.area) {
+              console.warn(`[Map] Cerca ID=${geofence.id} ("${geofence.name}") não pôde ser renderizada. area="${geofence.area?.slice(0, 100)}"`);
+            }
+            return null;
+          }
           const color = (geofence.attributes?.color as string) || geofence.color || '#f97316';
 
           if (parsed.type === 'polygon' && parsed.coordinates) {

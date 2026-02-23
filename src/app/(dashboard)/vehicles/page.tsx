@@ -131,16 +131,22 @@ export default function VehiclesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const deviceData = {
-      ...formData,
-      status: 'offline' as const,
-      lastUpdate: new Date().toISOString(),
-      disabled: false,
-    };
-
     if (editingDevice) {
-      updateMutation.mutate({ id: editingDevice.id, data: deviceData });
+      // Para update: preservar campos existentes do device e não sobrescrever campos read-only
+      const updateData = {
+        ...editingDevice,   // garante groupId, geofenceIds, positionId, etc.
+        ...formData,        // aplica as alterações do formulário
+        id: editingDevice.id,
+        disabled: editingDevice.disabled ?? false,
+      };
+      updateMutation.mutate({ id: editingDevice.id, data: updateData });
     } else {
+      const deviceData = {
+        ...formData,
+        status: 'offline' as const,
+        lastUpdate: new Date().toISOString(),
+        disabled: false,
+      };
       createMutation.mutate(deviceData);
     }
   };
@@ -148,15 +154,15 @@ export default function VehiclesPage() {
   const handleEdit = (device: Device) => {
     setEditingDevice(device);
     setFormData({
-      name: device.name,
-      uniqueId: device.uniqueId,
-      phone: device.phone || '',
-      model: device.model || '',
-      contact: device.contact || '',
-      category: device.category,
-      plate: device.plate,
-      speedLimit: device.speedLimit || 80,
-      attributes: device.attributes || {},
+      name: device.name ?? '',
+      uniqueId: device.uniqueId ?? '',
+      phone: device.phone ?? '',
+      model: device.model ?? '',
+      contact: device.contact ?? '',
+      category: device.category ?? 'car',
+      plate: device.plate ?? '',
+      speedLimit: device.speedLimit ?? 80,
+      attributes: device.attributes ?? {},
     });
     setIsDialogOpen(true);
   };
@@ -170,9 +176,11 @@ export default function VehiclesPage() {
   const positionsMap = new Map(positions.map(p => [p.deviceId, p]));
 
   const filteredDevices = devices.filter(device => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch = 
-      device.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      device.plate.toLowerCase().includes(searchQuery.toLowerCase());
+      (device.name ?? '').toLowerCase().includes(q) ||
+      (device.plate ?? '').toLowerCase().includes(q) ||
+      (device.uniqueId ?? '').toLowerCase().includes(q);
     
     const matchesStatus = statusFilter === 'all' || device.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || device.category === categoryFilter;

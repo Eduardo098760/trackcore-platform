@@ -265,6 +265,9 @@ export interface Geofence {
   calendarId?: number;
   attributes?: Record<string, unknown>;
   createdAt: string;
+  // Controle de veículos vinculados (salvo em attributes)
+  assignToAll?: boolean;
+  linkedDeviceIds?: number[];
 }
 
 // Notification Types
