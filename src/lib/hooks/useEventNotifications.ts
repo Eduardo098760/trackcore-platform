@@ -111,7 +111,11 @@ async function processEvent(event: Event, devices: Device[] = []) {
         longitude = position.longitude;
 
         const speed = Math.round(event.attributes?.speed || position.speed || 0);
-        const speedLimit = event.attributes?.speedLimit || event.attributes?.limit || matchedDevice?.speedLimit || 0;
+        // Prioriza o limite configurado pelo usuário (já em km/h).
+        // event.attributes.speedLimit vem do Traccar em KNOTS → converte * 1.852 apenas como fallback.
+        const rawEventLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
+        const speedLimit = matchedDevice?.speedLimit ||
+          (rawEventLimit > 0 ? Math.round(rawEventLimit * 1.852) : 0);
 
         const alert: SpeedAlert = {
           id: `${Date.now()}-${event.id}`,
@@ -257,7 +261,11 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       title: '⚡ Excesso de Velocidade',
       message: (() => {
         const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
-        const limit = event.attributes?.speedLimit || event.attributes?.limit || deviceSpeedLimit || 0;
+        // Prioriza o limite configurado pelo usuário (km/h).
+        // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
+        const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
+        const limit = deviceSpeedLimit ||
+          (rawEvtLimit > 0 ? Math.round(rawEvtLimit * 1.852) : 0);
         if (speed && limit) {
           return `${deviceName} atingiu ${speed} km/h (limite: ${limit} km/h)`;
         }
@@ -269,7 +277,11 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       title: '⚡ Excesso de Velocidade',
       message: (() => {
         const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
-        const limit = event.attributes?.speedLimit || event.attributes?.limit || deviceSpeedLimit || 0;
+        // Prioriza o limite configurado pelo usuário (km/h).
+        // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
+        const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
+        const limit = deviceSpeedLimit ||
+          (rawEvtLimit > 0 ? Math.round(rawEvtLimit * 1.852) : 0);
         if (speed && limit) {
           return `${deviceName} atingiu ${speed} km/h (limite: ${limit} km/h)`;
         }

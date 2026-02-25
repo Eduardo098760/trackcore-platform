@@ -2,6 +2,21 @@ import { Device } from '@/types';
 import { api } from './client';
 
 /**
+ * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
+ * Usado para filtrar dados da API Traccar pelo usuário alvo.
+ */
+function getImpersonatingUserId(): number | undefined {
+  try {
+    // Acessamos o store fora do React via getState()
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAuthStore } = require('@/lib/stores/auth');
+    const state = useAuthStore.getState();
+    if (state.isImpersonating && state.user?.id) return state.user.id;
+  } catch {}
+  return undefined;
+}
+
+/**
  * Normaliza um device vindo do Traccar:
  * Promove campos customizados (plate, year, color, speedLimit) que ficam em
  * `attributes` para o nível raiz do objeto Device, pois o código da plataforma
@@ -9,13 +24,18 @@ import { api } from './client';
  */
 function normalizeDevice(raw: any): Device {
   const attrs = raw?.attributes || {};
+  // speedLimit é sempre salvo em km/h (inteiro) pela plataforma.
+  // Aplica Math.round para limpar qualquer valor decimal herdado de versões antigas.
+  const rawSpeedLimit = raw.speedLimit || attrs.speedLimit;
+  // Usa || (não ??) para string fields: Traccar pode retornar plate:"" no root
+  // enquanto o valor real está em attributes.plate — ?? não filtra strings vazias.
   return {
     ...raw,
-    plate:      raw.plate      ?? attrs.plate      ?? '',
-    year:       raw.year       ?? attrs.year,
-    color:      raw.color      ?? attrs.color,
-    speedLimit: raw.speedLimit || attrs.speedLimit,
-    clientId:   raw.clientId   ?? attrs.clientId,
+    plate:      raw.plate      || attrs.plate      || '',
+    year:       raw.year       || attrs.year,
+    color:      raw.color      || attrs.color,
+    speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit) : undefined,
+    clientId:   raw.clientId   || attrs.clientId,
   } as Device;
 }
 
@@ -25,14 +45,22 @@ function normalizeDevice(raw: any): Device {
  */
 export async function getDevices(organizationId?: number): Promise<Device[]> {
   try {
+    // Se estiver em modo de impersonação, busca apenas os devices do usuário alvo
+    const impersonatingUserId = getImpersonatingUserId();
+    const params: Record<string, any> = {};
+    if (impersonatingUserId) {
+      params.userId = impersonatingUserId;
+      console.log('[getDevices] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    }
+
     console.log('[getDevices] Iniciando requisição de devices...');
-    const devices = await api.get<any[]>('/devices');
+    const devices = await api.get<any[]>('/devices', Object.keys(params).length ? params : undefined);
     console.log('[getDevices] Devices recebidos:', devices?.length || 0);
 
     const normalized = (devices || []).map(normalizeDevice);
 
-    // Se organizationId for fornecido, filtrar
-    if (organizationId) {
+    // Se organizationId for fornecido (e não em impersonação), filtrar por org
+    if (organizationId && !impersonatingUserId) {
       const filtered = normalized.filter(d =>
         d.attributes?.organizationId === organizationId ||
         (d as any).groupId === organizationId
@@ -58,21 +86,56 @@ export async function getDevice(id: number): Promise<Device> {
 
 /**
  * Cria um novo dispositivo no Traccar
- * Adiciona organizationId aos attributes
+ * Aplica a mesma separação de campos que updateDevice:
+ * campos customizados (plate, color, year, speedLimit) vão para attributes,
+ * pois o Traccar rejeita campos desconhecidos no nível raiz com 400.
  */
 export async function createDevice(
-  device: Omit<Device, 'id'>, 
+  device: Omit<Device, 'id'>,
   organizationId?: number
 ): Promise<Device> {
-  const deviceData = {
-    ...device,
-    attributes: {
-      ...device.attributes,
-      ...(organizationId && { organizationId })
-    }
+  const {
+    // campos aceitos no nível raiz:
+    name, uniqueId, groupId, calendarId, phone, model, contact,
+    category, disabled, status, lastUpdate, positionId,
+    // campos customizados → vão para attributes:
+    plate, year, color, speedLimit,
+    // expiryDate do form → expirationTime do Traccar
+    expiryDate,
+    // ignorar campos internos da plataforma:
+    clientId: _clientId, geofenceIds: _geofenceIds,
+    attributes: incomingAttributes,
+  } = device as any;
+
+  const mergedAttributes: Record<string, any> = {
+    ...(incomingAttributes || {}),
+    ...(organizationId  !== undefined ? { organizationId } : {}),
+    ...(plate           !== undefined ? { plate }           : {}),
+    ...(year            !== undefined ? { year }            : {}),
+    ...(color           !== undefined ? { color }           : {}),
+    ...(speedLimit      !== undefined ? { speedLimit }      : {}),
   };
-  
-  return api.post<Device>('/devices', deviceData);
+
+  const payload: Record<string, any> = {
+    groupId: groupId ?? 0,
+    attributes: mergedAttributes,
+  };
+
+  if (name       !== undefined) payload.name       = name;
+  if (uniqueId   !== undefined) payload.uniqueId   = uniqueId;
+  if (phone      !== undefined) payload.phone      = phone;
+  if (model      !== undefined) payload.model      = model;
+  if (contact    !== undefined) payload.contact    = contact;
+  if (category   !== undefined) payload.category   = category;
+  if (disabled   !== undefined) payload.disabled   = disabled;
+  if (calendarId !== undefined) payload.calendarId = calendarId;
+  if (status     !== undefined) payload.status     = status;
+  if (positionId !== undefined) payload.positionId = positionId;
+  if (expiryDate)               payload.expirationTime = new Date(expiryDate).toISOString();
+
+  console.log('[createDevice] Payload Traccar:', JSON.stringify(payload, null, 2));
+  const raw = await api.post<any>('/devices', payload);
+  return normalizeDevice(raw);
 }
 
 /**

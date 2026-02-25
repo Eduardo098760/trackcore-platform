@@ -1,6 +1,16 @@
 import { Geofence, GeofenceType } from '@/types';
 import { api } from './client';
 
+function getImpersonatingUserId(): number | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAuthStore } = require('@/lib/stores/auth');
+    const state = useAuthStore.getState();
+    if (state.isImpersonating && state.user?.id) return state.user.id;
+  } catch {}
+  return undefined;
+}
+
 // Campos que o Traccar aceita no topo: id, name, description, area, calendarId, attributes
 // Campos customizados (type, color, active, clientId) são persistidos em attributes
 interface TraccarGeofence {
@@ -61,10 +71,15 @@ function deriveTypeFromArea(area: string): GeofenceType {
 
 /**
  * Obtém as geofences do usuário atual (sessão Traccar).
- * NÃO usa all=true para garantir isolamento por usuário/cliente.
+ * Quando em impersonação, filtra pelo userId do usuário alvo.
  */
 export async function getGeofences(): Promise<Geofence[]> {
-  const raw = await api.get<TraccarGeofence[]>('/geofences');
+  const impersonatingUserId = getImpersonatingUserId();
+  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  if (impersonatingUserId) {
+    console.log('[getGeofences] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  }
+  const raw = await api.get<TraccarGeofence[]>('/geofences', params);
   return raw.map((r) => fromTraccar(r as TraccarGeofence & { id: number }));
 }
 

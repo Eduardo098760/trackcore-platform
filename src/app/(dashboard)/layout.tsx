@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/stores/auth';
 import { getCurrentUser, login } from '@/lib/api/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+import { RouteGuard } from '@/components/layout/route-guard';
 import { useEventNotifications } from '@/lib/hooks/useEventNotifications';
 
 export default function DashboardLayout({
@@ -16,7 +17,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, setAuth, clearAuth, getCredentials, rememberMe } = useAuthStore();
+  const { isAuthenticated, user: storedUser, setAuth, setUser, clearAuth, getCredentials, rememberMe, isImpersonating } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
 
   // Ativar monitoramento de eventos do Traccar para notificações
@@ -31,6 +32,14 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const validateSession = async () => {
+      // ⚡ Em modo de impersonação, não validar sessão Traccar:
+      // getCurrentUser() retornaria o admin e sobrescreveria o usuário impersonado.
+      // O cookie Traccar do admin continua válido para todas as chamadas de API.
+      if (isImpersonating) {
+        setIsValidating(false);
+        return;
+      }
+
       if (!isAuthenticated) {
         // Aguarda re-hidratação do estado persistido antes de forçar logout
         const hasPersist = typeof window !== 'undefined' && !!localStorage.getItem('auth-storage');
@@ -47,9 +56,13 @@ export default function DashboardLayout({
       
       try {
         // Verifica se a sessão do Traccar ainda é válida
-        const user = await getCurrentUser();
-        console.log('Sessão válida:', user.email);
-        // Mantém autenticação
+        const freshUser = await getCurrentUser();
+        console.log('Sessão válida:', freshUser.email, '| role:', freshUser.role);
+        // Atualiza o user no store com dados frescos (corrige role, etc.)
+        if (storedUser && freshUser.role !== storedUser.role) {
+          console.log(`[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`);
+        }
+        setUser(freshUser);
         setIsValidating(false);
       } catch (error) {
         console.log('Erro ao validar sessão:', error);
@@ -99,7 +112,7 @@ export default function DashboardLayout({
     }, 15 * 60 * 1000); // 15 minutos
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, router, setAuth, clearAuth, getCredentials, rememberMe]);
+  }, [isAuthenticated, isImpersonating, router, setAuth, clearAuth, getCredentials, rememberMe]);
 
   if (!isAuthenticated || isValidating) {
     return (
@@ -118,7 +131,9 @@ export default function DashboardLayout({
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
         <main className={isMapRoute ? 'flex-1 overflow-hidden p-0 bg-theme-background' : 'flex-1 overflow-y-auto p-6 bg-theme-background'}>
-          {children}
+          <RouteGuard>
+            {children}
+          </RouteGuard>
         </main>
       </div>  
     </div>

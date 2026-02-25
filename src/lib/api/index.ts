@@ -2,6 +2,19 @@ import { Device, Position, Event, Command, Client, User, DashboardStats, DeviceS
 import { api } from './client';
 
 /**
+ * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
+ */
+function getImpersonatingUserId(): number | undefined {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAuthStore } = require('@/lib/stores/auth');
+    const state = useAuthStore.getState();
+    if (state.isImpersonating && state.user?.id) return state.user.id;
+  } catch {}
+  return undefined;
+}
+
+/**
  * Transformação entre modelo interno (com role) e modelo Traccar (com administrator)
  */
 function mapUserToTraccar(user: Partial<User>): any {
@@ -10,6 +23,8 @@ function mapUserToTraccar(user: Partial<User>): any {
   // Mapear role para administrator
   if (role) {
     traccarUser.administrator = role === 'admin' || role === 'superadmin';
+    // Persistir a role customizada em attributes para não perder superadmin/client
+    traccarUser.attributes = { ...(traccarUser.attributes ?? {}), role };
   }
   
   // Remover campos que não existem no Traccar
@@ -17,8 +32,13 @@ function mapUserToTraccar(user: Partial<User>): any {
 }
 
 function mapTraccarToUser(traccarUser: any): User {
-  // Mapear administrator para role
-  const role = traccarUser.administrator ? 'admin' : 'operator';
+  // Ler role de attributes.role primeiro (suporta superadmin/client),
+  // senão inferir pelo campo administrator do Traccar
+  const savedRole = traccarUser.attributes?.role as string | undefined;
+  const validRoles = ['superadmin', 'admin', 'operator', 'client'];
+  const role = (savedRole && validRoles.includes(savedRole))
+    ? savedRole
+    : traccarUser.administrator ? 'superadmin' : 'operator';
   
   return {
     ...traccarUser,
@@ -30,6 +50,11 @@ function mapTraccarToUser(traccarUser: any): User {
 
 // Devices API (usando Traccar)
 export async function getDevices(): Promise<Device[]> {
+  const impersonatingUserId = getImpersonatingUserId();
+  if (impersonatingUserId) {
+    console.log('[getDevices/index] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    return api.get<Device[]>('/devices', { userId: impersonatingUserId });
+  }
   return api.get<Device[]>('/devices');
 }
 
@@ -82,20 +107,20 @@ export async function getEvents(params?: {
     } else if (params?.deviceId != null) {
       requestParams.deviceId = params.deviceId;
     } else {
-      // Se não tem deviceId especificado, buscar de todos os devices
-      const devices = await api.get<Device[]>('/devices');
+      // Buscar devices do usuário correto (impersonado ou admin)
+      const impersonatingUserId = getImpersonatingUserId();
+      const devicesParams = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+      const devices = await api.get<Device[]>('/devices', devicesParams);
       if (devices.length === 0) return [];
-      
-      // Pegar IDs de todos os dispositivos
-      const deviceIds = devices.map(d => d.id);
-      requestParams.deviceId = deviceIds;
+      requestParams.deviceId = devices.map(d => d.id);
     }
     
     const events = await api.get<Event[]>('/reports/events', requestParams);
     
-    // Enriquecer eventos com nome do dispositivo
-    const devices = await api.get<Device[]>('/devices');
-    const deviceMap = new Map(devices.map(d => [d.id, d]));
+    // Enriquecer eventos com nome do dispositivo (usando mesmo filtro de userId se impersonando)
+    const impUid = getImpersonatingUserId();
+    const allDevices = await api.get<Device[]>('/devices', impUid ? { userId: impUid } : undefined);
+    const deviceMap = new Map(allDevices.map(d => [d.id, d]));
     
     return events.map(event => ({
       ...event,
@@ -135,17 +160,27 @@ export async function getCommands(deviceId?: number): Promise<Command[]> {
 
 // Clients API (Traccar não tem "clients", mas podemos usar Groups)
 export async function getClients(): Promise<Client[]> {
-  // No Traccar, isso seria mapeado para Groups ou Users dependendo da necessidade
-  const groups = await api.get<any[]>('/groups');
-  return groups.map(g => ({
+  // Quando em impersonação, filtra pelos grupos do usuário alvo (não do admin)
+  // evitando que dados do admin apareçam na conta do cliente.
+  const impersonatingUserId = getImpersonatingUserId();
+  const params: Record<string, any> = {};
+  if (impersonatingUserId) {
+    params.userId = impersonatingUserId;
+    console.log('[getClients] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  }
+
+  const groups = await api.get<any[]>('/groups', Object.keys(params).length ? params : undefined);
+  return (groups || []).map(g => ({
     id: g.id,
     name: g.name,
-    email: '',
-    phone: '',
-    address: '',
-    createdAt: '',
-    devicesCount: 0,
-    active: true
+    document: g.attributes?.document || '',
+    email: g.attributes?.email || '',
+    phone: g.attributes?.phone || '',
+    address: g.attributes?.address || '',
+    plan: g.attributes?.plan || 'basic',
+    status: g.attributes?.status || 'active',
+    createdAt: g.attributes?.createdAt || new Date().toISOString(),
+    devicesCount: g.attributes?.devicesCount || 0,
   }));
 }
 
@@ -164,20 +199,50 @@ export async function getClientById(id: number): Promise<Client> {
 }
 
 export async function createClient(data: Omit<Client, 'id' | 'createdAt' | 'devicesCount'>): Promise<Client> {
-  const group = await api.post<any>('/groups', { name: data.name });
+  const group = await api.post<any>('/groups', {
+    name: data.name,
+    attributes: {
+      document: data.document || '',
+      email:    data.email    || '',
+      phone:    data.phone    || '',
+      address:  data.address  || '',
+      plan:     data.plan     || 'basic',
+      status:   data.status   || 'active',
+      createdAt: new Date().toISOString(),
+    },
+  });
   return {
     ...data,
     id: group.id,
-    createdAt: new Date().toISOString(),
-    devicesCount: 0
+    createdAt: group.attributes?.createdAt || new Date().toISOString(),
+    devicesCount: 0,
   };
 }
 
 export async function updateClient(id: number, data: Partial<Client>): Promise<Client> {
-  const group = await api.put<any>(`/groups/${id}`, { name: data.name, id });
+  // Busca atributos atuais para não sobrescrever campos não enviados
+  let currentAttributes: Record<string, any> = {};
+  try {
+    const current = await api.get<any>(`/groups/${id}`);
+    currentAttributes = current?.attributes || {};
+  } catch { /* segue com objeto vazio */ }
+
+  const group = await api.put<any>(`/groups/${id}`, {
+    id,
+    name: data.name,
+    attributes: {
+      ...currentAttributes,
+      ...(data.document  !== undefined ? { document:  data.document  } : {}),
+      ...(data.email     !== undefined ? { email:     data.email     } : {}),
+      ...(data.phone     !== undefined ? { phone:     data.phone     } : {}),
+      ...(data.address   !== undefined ? { address:   data.address   } : {}),
+      ...(data.plan      !== undefined ? { plan:      data.plan      } : {}),
+      ...(data.status    !== undefined ? { status:    data.status    } : {}),
+    },
+  });
   return {
     ...data as Client,
-    id: group.id
+    id: group.id,
   };
 }
 
@@ -187,7 +252,14 @@ export async function deleteClient(id: number): Promise<void> {
 
 // Users API (usando Traccar)
 export async function getUsers(): Promise<User[]> {
-  const traccarUsers = await api.get<any[]>('/users');
+  // Quando em impersonação, filtra apenas os usuários gerenciados pelo usuário alvo
+  // evitando que usuários do admin apareçam na conta do cliente impersonado.
+  const impersonatingUserId = getImpersonatingUserId();
+  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  if (impersonatingUserId) {
+    console.log('[getUsers] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  }
+  const traccarUsers = await api.get<any[]>('/users', params);
   return traccarUsers.map(mapTraccarToUser);
 }
 
@@ -221,6 +293,179 @@ export async function updateUser(id: number, data: Partial<User>): Promise<User>
 
 export async function deleteUser(id: number): Promise<void> {
   await api.delete<void>(`/users/${id}`);
+}
+
+// Drivers API (Traccar /drivers endpoint)
+export async function getDrivers(): Promise<import('@/types').Driver[]> {
+  const impersonatingUserId = getImpersonatingUserId();
+  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  if (impersonatingUserId) {
+    console.log('[getDrivers] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  }
+  try {
+    const traccarDrivers = await api.get<any[]>('/drivers', params);
+    return (traccarDrivers || []).map(d => ({
+      id: d.id,
+      name: d.name,
+      uniqueId: d.uniqueId,
+      document: d.attributes?.document || '',
+      licenseNumber: d.attributes?.licenseNumber || '',
+      licenseCategory: d.attributes?.licenseCategory || 'B',
+      licenseExpiry: d.attributes?.licenseExpiry || '',
+      phone: d.attributes?.phone || '',
+      email: d.attributes?.email || '',
+      photo: d.attributes?.photo || '',
+      status: d.attributes?.status || 'active',
+      clientId: d.attributes?.clientId,
+      currentDeviceId: d.attributes?.currentDeviceId,
+      createdAt: d.attributes?.createdAt || new Date().toISOString(),
+      updatedAt: d.attributes?.updatedAt || new Date().toISOString(),
+    }));
+  } catch (error) {
+    console.error('[getDrivers] Erro ao buscar motoristas:', error);
+    return [];
+  }
+}
+
+export async function createDriver(data: Partial<import('@/types').Driver>): Promise<import('@/types').Driver> {
+  const payload = {
+    name: data.name || '',
+    uniqueId: data.document || `drv-${Date.now()}`,
+    attributes: {
+      document: data.document || '',
+      licenseNumber: data.licenseNumber || '',
+      licenseCategory: data.licenseCategory || 'B',
+      licenseExpiry: data.licenseExpiry || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      photo: data.photo || '',
+      status: data.status || 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  const result = await api.post<any>('/drivers', payload);
+  return { ...data, id: result.id, createdAt: result.attributes?.createdAt || new Date().toISOString(), updatedAt: result.attributes?.updatedAt || new Date().toISOString() } as import('@/types').Driver;
+}
+
+export async function updateDriver(id: number, data: Partial<import('@/types').Driver>): Promise<import('@/types').Driver> {
+  let currentAttributes: Record<string, any> = {};
+  try {
+    const current = await api.get<any>(`/drivers/${id}`);
+    currentAttributes = current?.attributes || {};
+  } catch {}
+  const payload = {
+    id,
+    name: data.name,
+    uniqueId: data.document || currentAttributes.document || `drv-${id}`,
+    attributes: {
+      ...currentAttributes,
+      ...(data.document       !== undefined ? { document:       data.document       } : {}),
+      ...(data.licenseNumber  !== undefined ? { licenseNumber:  data.licenseNumber  } : {}),
+      ...(data.licenseCategory !== undefined ? { licenseCategory: data.licenseCategory } : {}),
+      ...(data.licenseExpiry  !== undefined ? { licenseExpiry:  data.licenseExpiry  } : {}),
+      ...(data.phone          !== undefined ? { phone:          data.phone          } : {}),
+      ...(data.email          !== undefined ? { email:          data.email          } : {}),
+      ...(data.status         !== undefined ? { status:         data.status         } : {}),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  const result = await api.put<any>(`/drivers/${id}`, payload);
+  return { ...data, id: result.id, updatedAt: new Date().toISOString() } as import('@/types').Driver;
+}
+
+export async function deleteDriver(id: number): Promise<void> {
+  await api.delete<void>(`/drivers/${id}`);
+}
+
+// Maintenances API (Traccar /maintenance endpoint)
+export async function getMaintenances(): Promise<import('@/types').Maintenance[]> {
+  const impersonatingUserId = getImpersonatingUserId();
+  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  if (impersonatingUserId) {
+    console.log('[getMaintenances] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  }
+  try {
+    const items = await api.get<any[]>('/maintenance', params);
+    return (items || []).map(m => ({
+      id: m.id,
+      deviceId: m.attributes?.deviceId || 0,
+      deviceName: m.attributes?.deviceName || '',
+      type: m.attributes?.maintenanceType || 'general_inspection',
+      description: m.name || m.attributes?.description || '',
+      status: m.attributes?.status || 'scheduled',
+      scheduledDate: m.attributes?.scheduledDate || '',
+      completedDate: m.attributes?.completedDate,
+      cost: m.attributes?.cost || 0,
+      odometer: m.start || m.attributes?.odometer || 0,
+      nextOdometer: m.period ? (m.start + m.period) : m.attributes?.nextOdometer,
+      notes: m.attributes?.notes || '',
+      createdAt: m.attributes?.createdAt || new Date().toISOString(),
+      updatedAt: m.attributes?.updatedAt || new Date().toISOString(),
+    }));
+  } catch (error) {
+    console.error('[getMaintenances] Erro ao buscar manutenções:', error);
+    return [];
+  }
+}
+
+export async function createMaintenance(data: Partial<import('@/types').Maintenance>): Promise<import('@/types').Maintenance> {
+  const payload = {
+    name: data.description || 'Manutenção',
+    type: 'totalDistance',
+    start: data.odometer || 0,
+    period: data.nextOdometer ? (data.nextOdometer - (data.odometer || 0)) : 10000,
+    attributes: {
+      deviceId: data.deviceId,
+      deviceName: data.deviceName || '',
+      maintenanceType: data.type,
+      description: data.description || '',
+      status: data.status || 'scheduled',
+      scheduledDate: data.scheduledDate || '',
+      cost: data.cost || 0,
+      odometer: data.odometer || 0,
+      nextOdometer: data.nextOdometer,
+      notes: data.notes || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  const result = await api.post<any>('/maintenance', payload);
+  return { ...data, id: result.id, createdAt: result.attributes?.createdAt || new Date().toISOString(), updatedAt: result.attributes?.updatedAt || new Date().toISOString() } as import('@/types').Maintenance;
+}
+
+export async function updateMaintenance(id: number, data: Partial<import('@/types').Maintenance>): Promise<import('@/types').Maintenance> {
+  let currentAttributes: Record<string, any> = {};
+  try {
+    const current = await api.get<any>(`/maintenance/${id}`);
+    currentAttributes = current?.attributes || {};
+  } catch {}
+  const payload = {
+    id,
+    name: data.description || currentAttributes.description || 'Manutenção',
+    type: 'totalDistance',
+    start: data.odometer || currentAttributes.odometer || 0,
+    period: data.nextOdometer ? (data.nextOdometer - (data.odometer || 0)) : 10000,
+    attributes: {
+      ...currentAttributes,
+      ...(data.deviceId      !== undefined ? { deviceId:      data.deviceId      } : {}),
+      ...(data.deviceName    !== undefined ? { deviceName:    data.deviceName    } : {}),
+      ...(data.type          !== undefined ? { maintenanceType: data.type        } : {}),
+      ...(data.description   !== undefined ? { description:   data.description   } : {}),
+      ...(data.status        !== undefined ? { status:        data.status        } : {}),
+      ...(data.scheduledDate !== undefined ? { scheduledDate: data.scheduledDate } : {}),
+      ...(data.completedDate !== undefined ? { completedDate: data.completedDate } : {}),
+      ...(data.cost          !== undefined ? { cost:          data.cost          } : {}),
+      ...(data.notes         !== undefined ? { notes:         data.notes         } : {}),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  const result = await api.put<any>(`/maintenance/${id}`, payload);
+  return { ...data, id: result.id, updatedAt: new Date().toISOString() } as import('@/types').Maintenance;
+}
+
+export async function deleteMaintenance(id: number): Promise<void> {
+  await api.delete<void>(`/maintenance/${id}`);
 }
 
 // User Permissions API (gerenciar dispositivos do usuário - Traccar)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Bell, Moon, Sun, LogOut, User, Settings } from 'lucide-react';
+import { Search, Bell, Moon, Sun, LogOut, User, Settings, UserCheck, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,10 +21,13 @@ import { useSearchStore } from '@/lib/stores/search';
 import { ConnectionStatus } from '@/components/ui/connection-status';
 import { NotificationBadge } from '@/components/ui/notification-badge';
 import { NotificationPanel } from '@/components/layout/notification-panel';
+import { useImpersonation } from '@/lib/hooks/useImpersonation';
 
 export function Header() {
   const { theme, setTheme } = useTheme();
-  const { user, clearAuth } = useAuthStore();
+  const { user, clearAuth, isImpersonating, adminSnapshot } = useAuthStore();
+  const { returnToAdmin, loading: impersonationLoading } = useImpersonation();
+
   const { searchTerm, setSearchTerm } = useSearchStore();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -43,13 +46,21 @@ export function Header() {
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   // Listener SEMPRE ATIVO (Header nunca desmonta) para atualizar badge e cache
-  // assim que uma notificação é criada — independentemente do painel estar aberto
+  // assim que uma notificação é criada ou limpada (troca de usuário / logout)
   useEffect(() => {
     const handleNewNotification = () => {
       queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
     };
+    const handleCleared = () => {
+      // Remove imediatamente do cache sem buscar localStorage (já foi apagado)
+      queryClient.setQueryData(['inAppNotifications'], []);
+    };
     window.addEventListener('notificationAdded', handleNewNotification);
-    return () => window.removeEventListener('notificationAdded', handleNewNotification);
+    window.addEventListener('notificationsCleared', handleCleared);
+    return () => {
+      window.removeEventListener('notificationAdded', handleNewNotification);
+      window.removeEventListener('notificationsCleared', handleCleared);
+    };
   }, [queryClient]);
 
   const handleLogout = () => {
@@ -78,6 +89,34 @@ export function Header() {
   };
 
   return (
+    <>
+      {/* Banner de impersonação — aparece quando admin entra como outro usuário */}
+      {isImpersonating && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-amber-500 text-amber-950 text-sm font-medium z-50">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4 shrink-0" />
+            <span>
+              Você está visualizando como <strong>{user?.name}</strong>
+              {adminSnapshot?.user?.name && (
+                <span className="font-normal opacity-75"> · Admin: {adminSnapshot.user.name}</span>
+              )}
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => returnToAdmin()}
+            disabled={impersonationLoading}
+            className="h-7 px-3 text-xs text-amber-950 hover:bg-amber-400/60 font-semibold gap-1.5"
+          >
+            {impersonationLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <LogOut className="w-3.5 h-3.5" />}
+            {impersonationLoading ? 'Saindo...' : 'Voltar ao Admin'}
+          </Button>
+        </div>
+      )}
+
     <header className="relative flex items-center justify-between h-16 px-6 bg-gradient-to-r from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 border-b border-white/10 backdrop-blur-xl">
       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
       
@@ -166,5 +205,6 @@ export function Header() {
         onOpenChange={setNotificationPanelOpen} 
       />
     </header>
+    </>
   );
 }

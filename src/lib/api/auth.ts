@@ -3,6 +3,27 @@ import { api } from './client';
 import { getOrganizationBySlug } from './organizations';
 
 /**
+ * Extrai a role correta do usuário Traccar:
+ * Prioridade: attributes.role > administrator > fallback 'operator'
+ * 
+ * No Traccar: administrator = true → dono da plataforma → superadmin
+ */
+function mapTraccarRole(traccarUser: any): string {
+  const savedRole = traccarUser?.attributes?.role as string | undefined;
+  const validRoles = ['superadmin', 'admin', 'operator', 'client'];
+  if (savedRole && validRoles.includes(savedRole)) return savedRole;
+  // administrator: true no Traccar = dono da plataforma = superadmin
+  return traccarUser?.administrator ? 'superadmin' : 'operator';
+}
+
+function applyRole(traccarUser: any): User {
+  return {
+    ...traccarUser,
+    role: mapTraccarRole(traccarUser),
+  } as User;
+}
+
+/**
  * Faz login no Traccar usando email e senha
  * O Traccar usa autenticação baseada em sessão (cookie)
  * Agora com suporte multi-tenant
@@ -30,7 +51,8 @@ export async function login(
     throw new Error('Credenciais inválidas');
   }
 
-  const user: User = await response.json();
+  const rawUser = await response.json();
+  const user: User = applyRole(rawUser);
   
   // Validate user belongs to the organization (if specified)
   let organization: Organization | undefined;
@@ -73,7 +95,8 @@ export async function getCurrentUser(): Promise<User> {
     throw new Error('Não autenticado');
   }
 
-  return response.json();
+  const raw = await response.json();
+  return applyRole(raw);
 }
 
 /**

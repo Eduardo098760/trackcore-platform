@@ -91,8 +91,19 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {user?.email}
               </p>
-              <div className="mt-2 px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 text-xs font-semibold">
-                {user?.role === 'admin' ? 'Administrador' : user?.role === 'operator' ? 'Operador' : 'Cliente'}
+              <div className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold ${
+                user?.role === 'superadmin'
+                  ? 'bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300'
+                  : user?.role === 'admin'
+                  ? 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                  : user?.role === 'operator'
+                  ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+                  : 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300'
+              }`}>
+                {user?.role === 'superadmin' ? 'Super Admin'
+                  : user?.role === 'admin'    ? 'Administrador'
+                  : user?.role === 'operator' ? 'Operador'
+                  : 'Cliente'}
               </div>
             </div>
 

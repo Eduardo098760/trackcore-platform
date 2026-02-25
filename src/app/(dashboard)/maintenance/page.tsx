@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevices } from '@/lib/api';
+import { getDevices, getMaintenances, createMaintenance, updateMaintenance, deleteMaintenance } from '@/lib/api';
 import { Maintenance } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,88 +31,6 @@ import { Search, Plus, Edit, Trash2, Wrench, Calendar, DollarSign, Gauge, CheckC
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Mock API
-const getMaintenances = async (): Promise<Maintenance[]> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: 1,
-      deviceId: 1,
-      deviceName: 'ABC-1234',
-      type: 'oil_change',
-      description: 'Troca de óleo e filtro',
-      status: 'completed',
-      scheduledDate: '2024-12-15T10:00:00Z',
-      completedDate: '2024-12-15T14:30:00Z',
-      cost: 350.00,
-      odometer: 15000,
-      nextOdometer: 20000,
-      notes: 'Trocado óleo sintético 5W30',
-      createdAt: '2024-12-01T10:00:00Z',
-      updatedAt: '2024-12-15T14:30:00Z'
-    },
-    {
-      id: 2,
-      deviceId: 2,
-      deviceName: 'XYZ-5678',
-      type: 'tire_rotation',
-      description: 'Rodízio de pneus',
-      status: 'scheduled',
-      scheduledDate: '2025-01-10T09:00:00Z',
-      odometer: 25000,
-      cost: 150.00,
-      createdAt: '2024-12-20T15:00:00Z',
-      updatedAt: '2024-12-20T15:00:00Z'
-    },
-    {
-      id: 3,
-      deviceId: 3,
-      deviceName: 'DEF-9012',
-      type: 'brake_service',
-      description: 'Revisão de freios',
-      status: 'in_progress',
-      scheduledDate: '2024-12-30T08:00:00Z',
-      cost: 800.00,
-      odometer: 35000,
-      createdAt: '2024-12-25T10:00:00Z',
-      updatedAt: '2024-12-30T08:00:00Z'
-    },
-    {
-      id: 4,
-      deviceId: 1,
-      deviceName: 'ABC-1234',
-      type: 'general_inspection',
-      description: 'Revisão geral periódica',
-      status: 'overdue',
-      scheduledDate: '2024-12-20T10:00:00Z',
-      cost: 500.00,
-      odometer: 20000,
-      createdAt: '2024-12-10T10:00:00Z',
-      updatedAt: '2024-12-20T10:00:00Z'
-    }
-  ];
-};
-
-const createMaintenance = async (data: Partial<Maintenance>): Promise<Maintenance> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { 
-    id: Date.now(), 
-    ...data,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  } as Maintenance;
-};
-
-const updateMaintenance = async (id: number, data: Partial<Maintenance>): Promise<Maintenance> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { id, ...data, updatedAt: new Date().toISOString() } as Maintenance;
-};
-
-const deleteMaintenance = async (id: number): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-};
 
 export default function MaintenancePage() {
   const queryClient = useQueryClient();

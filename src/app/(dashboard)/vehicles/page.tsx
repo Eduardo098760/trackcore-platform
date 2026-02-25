@@ -77,10 +77,24 @@ export default function VehiclesPage() {
 
   const createMutation = useMutation({
     mutationFn: createDevice,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['devices'] });
-      toast.success('Veículo criado com sucesso!');
-      setIsDialogOpen(false);
+    onSuccess: (createdDevice, variables) => {
+      // Adiciona o novo device ao cache imediatamente.
+      // Campos customizados (plate, color, etc.) podem não vir no root da resposta POST
+      // do Traccar — por isso usa variables (formData enviado) como fonte primária.
+      queryClient.setQueryData(['devices'], (old: Device[] = []) => [
+        ...old,
+        {
+          ...createdDevice,
+          plate:      (variables as any).plate      ?? (createdDevice as any).plate      ?? '',
+          model:      (variables as any).model      ?? (createdDevice as any).model      ?? '',
+          color:      (variables as any).color      ?? (createdDevice as any).color      ?? '',
+          contact:    (variables as any).contact    ?? (createdDevice as any).contact    ?? '',
+          category:   (variables as any).category   ?? (createdDevice as any).category   ?? 'car',
+          speedLimit: Math.round((variables as any).speedLimit ?? (createdDevice as any).speedLimit ?? 80),
+        },
+      ]);
+      queryClient.invalidateQueries({ queryKey: ['devices'], refetchType: 'none' });
+      toast.success('Veículo criado com sucesso!');      setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
@@ -91,7 +105,26 @@ export default function VehiclesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => 
       updateDevice(id, data),
-    onSuccess: () => {
+    onSuccess: (updatedDevice, variables) => {
+      // Atualiza o cache imediatamente.
+      // Campos customizados (plate, speedLimit, etc.) ficam em `attributes` no Traccar
+      // e podem não vir no nível raiz da resposta PUT — por isso usamos variables.data
+      // como fonte confiável para esses campos.
+      queryClient.setQueryData(['devices'], (old: Device[] = []) =>
+        old.map(d => {
+          if (d.id !== variables.id) return d;
+          return {
+            ...d,
+            ...updatedDevice,
+            plate:      (variables.data as any).plate      ?? (updatedDevice as any).plate      ?? d.plate,
+            model:      (variables.data as any).model      ?? (updatedDevice as any).model      ?? d.model,
+            color:      (variables.data as any).color      ?? (updatedDevice as any).color      ?? d.color,
+            contact:    (variables.data as any).contact    ?? (updatedDevice as any).contact    ?? d.contact,
+            category:   (variables.data as any).category   ?? (updatedDevice as any).category   ?? d.category,
+            speedLimit: Math.round((variables.data as any).speedLimit ?? (updatedDevice as any).speedLimit ?? d.speedLimit ?? 80),
+          };
+        })
+      );
       queryClient.invalidateQueries({ queryKey: ['devices'] });
       toast.success('Veículo atualizado com sucesso!');
       setIsDialogOpen(false);
@@ -312,6 +345,11 @@ export default function VehiclesPage() {
                         <SelectItem value="motorcycle">Moto</SelectItem>
                         <SelectItem value="truck">Caminhão</SelectItem>
                         <SelectItem value="bus">Ônibus</SelectItem>
+                        <SelectItem value="van">Van</SelectItem>
+                        <SelectItem value="trailer">Carreta</SelectItem>
+                        <SelectItem value="bicycle">Bicicleta</SelectItem>
+                        <SelectItem value="boat">Barco</SelectItem>
+                        <SelectItem value="airplane">Avião</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -403,6 +441,11 @@ export default function VehiclesPage() {
                 <SelectItem value="motorcycle">Moto</SelectItem>
                 <SelectItem value="truck">Caminhão</SelectItem>
                 <SelectItem value="bus">Ônibus</SelectItem>
+                <SelectItem value="van">Van</SelectItem>
+                <SelectItem value="trailer">Carreta</SelectItem>
+                <SelectItem value="bicycle">Bicicleta</SelectItem>
+                <SelectItem value="boat">Barco</SelectItem>
+                <SelectItem value="airplane">Avião</SelectItem>
               </SelectContent>
             </Select>
           </div>

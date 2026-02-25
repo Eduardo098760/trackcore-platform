@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Driver } from '@/types';
+import { getDrivers, createDriver, updateDriver, deleteDriver } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,102 +31,6 @@ import { Search, Plus, Edit, Trash2, Users, IdCard, Phone, Mail, Calendar, Car, 
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Mock API
-const getDrivers = async (): Promise<Driver[]> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: 1,
-      name: 'João da Silva',
-      document: '123.456.789-00',
-      licenseNumber: '12345678900',
-      licenseCategory: 'D',
-      licenseExpiry: '2026-06-15',
-      phone: '(11) 98765-4321',
-      email: 'joao.silva@email.com',
-      photo: '',
-      status: 'active',
-      currentDeviceId: 1,
-      createdAt: '2024-01-10T10:00:00Z',
-      updatedAt: '2024-12-20T15:30:00Z'
-    },
-    {
-      id: 2,
-      name: 'Maria Santos',
-      document: '987.654.321-00',
-      licenseNumber: '98765432100',
-      licenseCategory: 'E',
-      licenseExpiry: '2025-03-20',
-      phone: '(11) 97654-3210',
-      email: 'maria.santos@email.com',
-      photo: '',
-      status: 'active',
-      currentDeviceId: 2,
-      createdAt: '2024-02-15T09:00:00Z',
-      updatedAt: '2024-12-22T10:20:00Z'
-    },
-    {
-      id: 3,
-      name: 'Carlos Oliveira',
-      document: '456.789.123-00',
-      licenseNumber: '45678912300',
-      licenseCategory: 'C',
-      licenseExpiry: '2024-12-31',
-      phone: '(21) 96543-2109',
-      email: 'carlos@email.com',
-      photo: '',
-      status: 'active',
-      createdAt: '2024-03-20T14:30:00Z',
-      updatedAt: '2024-12-25T08:45:00Z'
-    },
-    {
-      id: 4,
-      name: 'Ana Paula Costa',
-      document: '321.654.987-00',
-      licenseNumber: '32165498700',
-      licenseCategory: 'B',
-      licenseExpiry: '2027-08-10',
-      phone: '(31) 95432-1098',
-      status: 'suspended',
-      createdAt: '2024-04-10T11:15:00Z',
-      updatedAt: '2024-12-15T16:00:00Z'
-    },
-    {
-      id: 5,
-      name: 'Pedro Henrique',
-      document: '789.123.456-00',
-      licenseNumber: '78912345600',
-      licenseCategory: 'AB',
-      licenseExpiry: '2026-02-28',
-      phone: '(41) 94321-0987',
-      email: 'pedro@email.com',
-      status: 'inactive',
-      createdAt: '2024-05-05T13:45:00Z',
-      updatedAt: '2024-11-30T09:30:00Z'
-    }
-  ];
-};
-
-const createDriver = async (data: Partial<Driver>): Promise<Driver> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { 
-    id: Date.now(), 
-    ...data,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  } as Driver;
-};
-
-const updateDriver = async (id: number, data: Partial<Driver>): Promise<Driver> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { id, ...data, updatedAt: new Date().toISOString() } as Driver;
-};
-
-const deleteDriver = async (id: number): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-};
 
 export default function DriversPage() {
   const queryClient = useQueryClient();

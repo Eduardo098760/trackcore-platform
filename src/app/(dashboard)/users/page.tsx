@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { User, UserRole, Device } from '@/types';
 import { 
   getUsers, 
@@ -13,6 +14,11 @@ import {
   updateUserPassword,
   getDevices
 } from '@/lib/api';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { usePermissionsStore } from '@/lib/stores/permissions';
+import { useImpersonation } from '@/lib/hooks/useImpersonation';
+import { BulkPermissionDialog } from '@/components/layout/bulk-permission-dialog';
+import { PermissionSheet } from '@/components/layout/permission-sheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,19 +42,44 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Users, Shield, User as UserIcon, Mail, Phone, Lock, Car, KeyRound, Wifi, WifiOff } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Users, Shield, User as UserIcon, Mail, Phone, Lock, Car, KeyRound, Wifi, WifiOff, ShieldCheck, LayoutTemplate, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useAuthStore } from '@/lib/stores/auth';
 
 export default function UsersPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = usePermissions();
+  const permUsers = usePermissionsStore((s) => s.users);
+  const { user: adminUser } = useAuthStore();
+  const { loginAs } = useImpersonation();
+  // Estado do dialog "Entrar como usuário"
+  const [loginAsTarget, setLoginAsTarget] = useState<User | null>(null);
+  const [loginAsLoading, setLoginAsLoading] = useState(false);
+
+  const handleLoginAs = async () => {
+    if (!loginAsTarget) return;
+    setLoginAsLoading(true);
+    try {
+      await loginAs(loginAsTarget); // valida server-side, cria cookie HttpOnly, audit log
+      setLoginAsTarget(null);
+    } catch {
+      // erro já exibido via toast dentro do hook
+      setLoginAsLoading(false);
+    }
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isDevicesDialogOpen, setIsDevicesDialogOpen] = useState(false);
+  const [isPermSheetOpen, setIsPermSheetOpen] = useState(false);
+  const [permSheetUser, setPermSheetUser] = useState<User | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
+  const [isBulkPermOpen, setIsBulkPermOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -113,9 +144,22 @@ export default function UsersPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<User> }) => apiUpdateUser(id, data),
-    onSuccess: () => {
+    onSuccess: (updatedUser, variables) => {
       console.log('[UI] Usuário atualizado com sucesso');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.setQueryData(['users'], (old: User[] = []) =>
+        old.map(u => {
+          if (u.id !== variables.id) return u;
+          return {
+            ...u,
+            ...updatedUser,
+            name:  (variables.data as any).name  ?? (updatedUser as any).name  ?? u.name,
+            email: (variables.data as any).email ?? (updatedUser as any).email ?? u.email,
+            role:  (variables.data as any).role  ?? (updatedUser as any).role  ?? u.role,
+            phone: (variables.data as any).phone ?? (updatedUser as any).phone ?? u.phone,
+          };
+        })
+      );
+      queryClient.invalidateQueries({ queryKey: ['users'], refetchType: 'none' });
       toast.success('Usuário atualizado com sucesso!');
       setIsDialogOpen(false);
       resetForm();
@@ -219,9 +263,19 @@ export default function UsersPage() {
     if (editingUser) {
       console.log('[UI] Atualizando usuário existente:', editingUser.id);
       const { password, ...updateData } = formData;
+      // Merge do usuário completo (preserva todos os campos do Traccar)
+      // com apenas os campos editados pelo form
+      const mergedData = {
+        ...editingUser,
+        name:  updateData.name,
+        email: updateData.email,
+        role:  updateData.role,
+        phone: updateData.phone,
+        ...(password ? { password } : {}),
+      };
       updateMutation.mutate({ 
         id: editingUser.id, 
-        data: password ? formData : updateData 
+        data: mergedData,
       });
     } else {
       console.log('[UI] Criando novo usuário');
@@ -305,6 +359,28 @@ export default function UsersPage() {
 
     return matchesSearch && matchesRole;
   });
+
+  // ── Seleção em massa ───────────────────────────────────────────
+  const eligibleUsers  = filteredUsers.filter(u => u.role !== 'superadmin');
+  const isAllSelected  = eligibleUsers.length > 0 && eligibleUsers.every(u => selectedUserIds.has(u.id));
+  const isSomeSelected = eligibleUsers.some(u => selectedUserIds.has(u.id));
+
+  const toggleSelectUser = (id: number) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(eligibleUsers.map(u => u.id)));
+    }
+  };
 
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
@@ -424,6 +500,17 @@ export default function UsersPage() {
                 <SelectItem value="client">Cliente</SelectItem>
               </SelectContent>
             </Select>
+
+            {isSuperAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkPermOpen(true)}
+                className="gap-2 border-purple-500/20 text-purple-400 hover:bg-purple-500/10"
+              >
+                <LayoutTemplate className="w-4 h-4" />
+                Presets
+              </Button>
+            )}
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -581,118 +668,183 @@ export default function UsersPage() {
                 // Não limpar selectedDeviceIds para manter a última seleção
               }
             }}>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Car className="w-5 h-5" />
-                    Gerenciar Veículos - {selectedUser?.name}
+                    Gerenciar Veículos — {selectedUser?.name}
                   </DialogTitle>
                   <DialogDescription>
                     Selecione os veículos que este usuário pode visualizar e gerenciar
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  {/* Campo de busca de veículos */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      placeholder="Buscar veículos por nome, placa ou ID..."
-                      value={vehicleSearchQuery}
-                      onChange={(e) => setVehicleSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  
-                  {allDevices.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      Nenhum veículo cadastrado
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {(() => {
-                        const filteredDevices = allDevices.filter(device => {
-                          if (!vehicleSearchQuery) return true;
-                          const search = vehicleSearchQuery.toLowerCase();
-                          return (
-                            device.name.toLowerCase().includes(search) ||
-                            (device.plate && device.plate.toLowerCase().includes(search)) ||
-                            (device.uniqueId && device.uniqueId.toLowerCase().includes(search)) ||
-                            device.id.toString().includes(search)
-                          );
-                        });
 
-                        if (filteredDevices.length === 0) {
-                          return (
-                            <div className="text-center py-8 text-muted-foreground">
-                              <Search className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                              <p>Nenhum veículo encontrado</p>
-                              <p className="text-sm">Tente buscar com outros termos</p>
-                            </div>
-                          );
-                        }
+                <div className="flex flex-col gap-3 overflow-hidden flex-1 min-h-0">
 
-                        return filteredDevices.map((device) => (
-                          <div
-                            key={device.id}
-                            className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent cursor-pointer"
-                            onClick={() => toggleDeviceSelection(device.id)}
-                          >
-                            <Checkbox
-                              checked={selectedDeviceIds.includes(device.id)}
-                              onCheckedChange={() => toggleDeviceSelection(device.id)}
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium">{device.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {device.plate} • {device.uniqueId}
-                              </div>
-                            </div>
-                            <Badge variant={device.status === 'online' ? 'success' : 'secondary'}>
-                              {device.status}
-                            </Badge>
-                          </div>
-                        ));
-                      })()}
+                  {/* ── SEÇÃO: Selecionados ───────────────────────────────── */}
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-emerald-500/10">
+                      <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                        Selecionados
+                      </span>
+                      <span className="text-xs font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                        {selectedDeviceIds.length}
+                      </span>
                     </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <div className="text-sm text-muted-foreground">
-                      {selectedDeviceIds.length} {selectedDeviceIds.length === 1 ? 'veículo selecionado' : 'veículos selecionados'}
-                    </div>
-                    {vehicleSearchQuery && (
-                      <div className="text-sm text-muted-foreground">
-                        {allDevices.filter(device => {
-                          const search = vehicleSearchQuery.toLowerCase();
-                          return (
-                            device.name.toLowerCase().includes(search) ||
-                            (device.plate && device.plate.toLowerCase().includes(search)) ||
-                            (device.uniqueId && device.uniqueId.toLowerCase().includes(search)) ||
-                            device.id.toString().includes(search)
-                          );
-                        }).length} {' '}
-                        resultado(s) encontrado(s)
+                    {selectedDeviceIds.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-3">Nenhum veículo selecionado ainda</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 p-2 max-h-28 overflow-y-auto">
+                        {allDevices
+                          .filter((d) => selectedDeviceIds.includes(d.id))
+                          .map((device) => (
+                            <span
+                              key={device.id}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 border border-emerald-500/25 text-emerald-300"
+                            >
+                              <Car className="w-2.5 h-2.5" />
+                              {device.name}
+                              {device.plate && <span className="text-emerald-400/60">· {device.plate}</span>}
+                              <button
+                                onClick={() => toggleDeviceSelection(device.id)}
+                                className="ml-0.5 hover:text-red-400 transition-colors"
+                                title="Remover"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <Button 
-                    onClick={handleSubmitDevices} 
-                    className="flex-1"
-                    disabled={updateDevicesMutation.isPending}
-                  >
-                    {updateDevicesMutation.isPending ? 'Salvando...' : 'Salvar Veículos'}
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDevicesDialogOpen(false)}>
-                    Cancelar
-                  </Button>
+
+                  {/* ── SEÇÃO: Disponíveis ───────────────────────────────── */}
+                  <div className="flex flex-col gap-2 overflow-hidden flex-1 min-h-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                      <Input
+                        placeholder="Buscar por nome, placa ou ID..."
+                        value={vehicleSearchQuery}
+                        onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+
+                    {allDevices.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">Nenhum veículo cadastrado</div>
+                    ) : (
+                      <div className="overflow-y-auto flex-1 space-y-1 pr-0.5">
+                        {(() => {
+                          const filtered = allDevices.filter((device) => {
+                            if (!vehicleSearchQuery) return true;
+                            const s = vehicleSearchQuery.toLowerCase();
+                            return (
+                              device.name.toLowerCase().includes(s) ||
+                              (device.plate && device.plate.toLowerCase().includes(s)) ||
+                              (device.uniqueId && device.uniqueId.toLowerCase().includes(s)) ||
+                              device.id.toString().includes(s)
+                            );
+                          });
+
+                          // Colocar selecionados no topo dentro da lista de disponíveis
+                          const selected    = filtered.filter((d) => selectedDeviceIds.includes(d.id));
+                          const unselected  = filtered.filter((d) => !selectedDeviceIds.includes(d.id));
+                          const ordered     = [...selected, ...unselected];
+
+                          if (ordered.length === 0) {
+                            return (
+                              <div className="text-center py-8 text-muted-foreground">
+                                <Search className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                                <p className="text-sm">Nenhum veículo encontrado</p>
+                              </div>
+                            );
+                          }
+
+                          return ordered.map((device) => {
+                            const isSelected = selectedDeviceIds.includes(device.id);
+                            return (
+                              <div
+                                key={device.id}
+                                onClick={() => toggleDeviceSelection(device.id)}
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? 'border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12'
+                                    : 'border-white/5 bg-white/[0.02] hover:bg-white/5'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleDeviceSelection(device.id)}
+                                  className={isSelected ? 'data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600' : ''}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{device.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {device.plate && <span>{device.plate} &bull; </span>}
+                                    {device.uniqueId}
+                                  </div>
+                                </div>
+                                <Badge variant={device.status === 'online' ? 'success' : 'secondary'} className="shrink-0">
+                                  {device.status}
+                                </Badge>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    <Button
+                      onClick={handleSubmitDevices}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={updateDevicesMutation.isPending}
+                    >
+                      {updateDevicesMutation.isPending ? 'Salvando...' : `Salvar — ${selectedDeviceIds.length} veículo(s)`}
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsDevicesDialogOpen(false)} className="shrink-0">
+                      Cancelar
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Selection Bar */}
+      {isSuperAdmin && selectedUserIds.size > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-xl border border-purple-500/20 bg-purple-500/5">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold">
+              {selectedUserIds.size}
+            </div>
+            <span className="text-sm text-gray-300">
+              {selectedUserIds.size} usuário(s) selecionado(s)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => setIsBulkPermOpen(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5"
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              Aplicar Preset
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedUserIds(new Set())}
+              className="border-white/10 text-gray-400 hover:bg-white/5 text-xs h-8"
+            >
+              Limpar seleção
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Users Table */}
       <Card>
@@ -707,10 +859,20 @@ export default function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isSuperAdmin && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={isAllSelected ? true : isSomeSelected ? 'indeterminate' : false}
+                        onCheckedChange={() => toggleSelectAll()}
+                        className="border-gray-500"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Usuário</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Função</TableHead>
+                  {isSuperAdmin && <TableHead>Permissões</TableHead>}
                   <TableHead>Conexão</TableHead>
                   <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -719,7 +881,7 @@ export default function UsersPage() {
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={isSuperAdmin ? 8 : 7} className="text-center py-8 text-muted-foreground">
                       Nenhum usuário encontrado
                     </TableCell>
                   </TableRow>
@@ -730,6 +892,17 @@ export default function UsersPage() {
                     
                     return (
                       <TableRow key={user.id}>
+                        {isSuperAdmin && (
+                          <TableCell className="w-10">
+                            {user.role !== 'superadmin' && (
+                              <Checkbox
+                                checked={selectedUserIds.has(user.id)}
+                                onCheckedChange={() => toggleSelectUser(user.id)}
+                                className="border-gray-500"
+                              />
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
@@ -755,6 +928,45 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getRoleBadge(user.role)}</TableCell>
+                        {isSuperAdmin && (() => {
+                          const entry = permUsers[user.id];
+                          if (user.role === 'superadmin') {
+                            return (
+                              <TableCell>
+                                <span className="text-[11px] text-purple-400/70 flex items-center gap-1">
+                                  <ShieldCheck className="w-3 h-3" /> Irrestrito
+                                </span>
+                              </TableCell>
+                            );
+                          }
+                          if (!entry) {
+                            return (
+                              <TableCell>
+                                <span className="text-[11px] text-gray-500">Padrão</span>
+                              </TableCell>
+                            );
+                          }
+                          if (entry.inheritFromCompany) {
+                            return (
+                              <TableCell>
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-green-500/20 bg-green-500/10 text-green-400">
+                                  <Shield className="w-3 h-3" /> Empresa
+                                </span>
+                              </TableCell>
+                            );
+                          }
+                          return (
+                            <TableCell>
+                              <span
+                                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-300 max-w-[140px] truncate"
+                                title={entry.appliedPresetName ?? 'Customizado'}
+                              >
+                                <LayoutTemplate className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{entry.appliedPresetName ?? 'Customizado'}</span>
+                              </span>
+                            </TableCell>
+                          );
+                        })()}
                         <TableCell>
                           <Badge variant={connectionStatus.variant} className="gap-1">
                             <StatusIcon className="w-3 h-3" />
@@ -766,6 +978,30 @@ export default function UsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            {isSuperAdmin && user.role !== 'superadmin' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setLoginAsTarget(user);
+                                }}
+                                title={`Entrar como ${user.name}`}
+                                className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                              >
+                                <LogIn className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {isSuperAdmin && user.role !== 'superadmin' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setPermSheetUser(user); setIsPermSheetOpen(true); }}
+                                title="Controle de acesso"
+                                className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                              >
+                                <ShieldCheck className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -810,6 +1046,87 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+      {/* Permission Sheet - Super Admin only */}
+      <PermissionSheet
+        mode="user"
+        targetId={permSheetUser?.id ?? null}
+        targetName={permSheetUser?.name ?? ''}
+        open={isPermSheetOpen}
+        onClose={() => { setIsPermSheetOpen(false); setPermSheetUser(null); }}
+      />
+
+      {/* Bulk Permission Dialog - Super Admin only */}
+      {isSuperAdmin && (
+        <BulkPermissionDialog
+          open={isBulkPermOpen}
+          onClose={() => setIsBulkPermOpen(false)}
+          selectedUserIds={Array.from(selectedUserIds)}
+          onApplied={() => setSelectedUserIds(new Set())}
+        />
+      )}
+
+      {/* Dialog: Entrar como usuário (impersonação local) */}
+      <Dialog open={!!loginAsTarget} onOpenChange={(v) => { if (!v && !loginAsLoading) { setLoginAsTarget(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-400">
+              <LogIn className="w-5 h-5" />
+              Entrar como usuário
+            </DialogTitle>
+            <DialogDescription>
+              Você entrará na plataforma <strong className="text-white">como {loginAsTarget?.name}</strong>.
+              Um banner aparecerá no topo para você voltar ao admin a qualquer momento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Info do usuário alvo */}
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/8 border border-emerald-500/20">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-600/20 text-emerald-300 font-bold text-sm shrink-0">
+                {loginAsTarget?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white truncate">{loginAsTarget?.name}</p>
+                <p className="text-xs text-gray-400 truncate">{loginAsTarget?.email}</p>
+              </div>
+            </div>
+
+            {/* Badge de acesso direto */}
+            <p className="text-xs text-emerald-400/80 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              Nenhuma senha necessária — acesso de superadmin.
+            </p>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              onClick={() => handleLoginAs()}
+              disabled={loginAsLoading}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            >
+              {loginAsLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  Entrar como {loginAsTarget?.name?.split(' ')[0]}
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setLoginAsTarget(null); }}
+              disabled={loginAsLoading}
+              className="shrink-0"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

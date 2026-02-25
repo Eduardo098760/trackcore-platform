@@ -232,7 +232,7 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
                   <span style={{ fontSize: 26, fontWeight: 800, color: '#94a3b8', lineHeight: 1 }}>
-                    {alert.speedLimit > 0 ? alert.speedLimit : '—'}
+                    {alert.speedLimit > 0 ? Math.round(alert.speedLimit) : '—'}
                   </span>
                   {alert.speedLimit > 0 && <span style={{ fontSize: 11, color: '#6b7280' }}>km/h</span>}
                 </div>
@@ -252,7 +252,7 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
               }}>
                 <span style={{ fontSize: 11, color: '#6b7280' }}>Ultrapassou o limite em</span>
                 <span style={{ fontSize: 14, fontWeight: 800, color: '#fbbf24' }}>
-                  +{alert.speed - alert.speedLimit} km/h
+                  +{Math.max(0, Math.round(alert.speed - alert.speedLimit))} km/h
                 </span>
               </div>
             )}
@@ -421,6 +421,15 @@ export default function MapPage() {
     queryFn: getDevices,
   });
 
+  // IDs dos dispositivos que pertencem à conta logada (filtra alertas de outras contas)
+  const userDeviceIds = useMemo(() => new Set(devices.map((d) => d.id)), [devices]);
+
+  // Somente alertas cujo deviceId pertence a esta conta
+  const visibleSpeedAlerts = useMemo(
+    () => speedAlerts.filter((a) => userDeviceIds.has(a.deviceId)),
+    [speedAlerts, userDeviceIds]
+  );
+
   const { data: positions = [] } = useQuery({
     queryKey: ['positions'],
     queryFn: () => getPositions(),
@@ -582,8 +591,26 @@ export default function MapPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => 
       updateDevice(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['devices'] });
+    onSuccess: (updatedDevice, variables) => {
+      // Atualiza imediatamente o device no cache com os novos dados.
+      // Usa variables.data.* como fonte PRIMÁRIA (o que o usuário digitou no form),
+      // porque o Traccar pode retornar string vazia "" para campos customizados no root.
+      queryClient.setQueryData(['devices'], (old: Device[] = []) =>
+        old.map(d => {
+          if (d.id !== variables.id) return d;
+          return {
+            ...d,
+            ...updatedDevice,
+            plate:      (variables.data as any).plate      || (updatedDevice as any).plate      || d.plate      || '',
+            model:      (variables.data as any).model      || (updatedDevice as any).model      || d.model      || '',
+            color:      (variables.data as any).color      || (updatedDevice as any).color      || d.color      || '',
+            category:   (variables.data as any).category   || (updatedDevice as any).category   || d.category   || 'car',
+            speedLimit: Math.round((variables.data as any).speedLimit ?? (updatedDevice as any).speedLimit ?? d.speedLimit ?? 80),
+          };
+        })
+      );
+      // refetchType: 'none' evita refetch imediato que sobrescreveria o setQueryData acima
+      queryClient.invalidateQueries({ queryKey: ['devices'], refetchType: 'none' });
       toast.success('Veículo atualizado com sucesso!');
       setIsEditDialogOpen(false);
     },
@@ -604,7 +631,7 @@ export default function MapPage() {
       year: device.year || new Date().getFullYear(),
       color: device.color || '',
       contact: device.contact || '',
-      speedLimit: device.speedLimit || 80,
+      speedLimit: Math.round(device.speedLimit || 80),
       groupId: 0,
       expiryDate: ''
     });
@@ -1137,13 +1164,13 @@ export default function MapPage() {
           onClick={() => setShowSpeedAlerts((v) => !v)}
           title={showSpeedAlerts ? 'Ocultar alertas de velocidade' : 'Mostrar alertas de velocidade'}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
-            showSpeedAlerts && speedAlerts.length > 0
+            showSpeedAlerts && visibleSpeedAlerts.length > 0
               ? 'bg-amber-500/80 border-amber-400/50 text-white'
               : 'bg-black/40 border-white/10 text-gray-400 hover:bg-white/10'
           }`}
         >
           <Zap className="w-3.5 h-3.5" />
-          Excessos {speedAlerts.length > 0 && `(${speedAlerts.length})`}
+          Excessos {visibleSpeedAlerts.length > 0 && `(${visibleSpeedAlerts.length})`}
         </button>
 
         </div>
@@ -1285,8 +1312,8 @@ export default function MapPage() {
           );
         })}
 
-        {/* ⚡ Marcadores de Excesso de Velocidade */}
-        {showSpeedAlerts && L && speedAlerts.map((alert) => (
+        {/* ⚡ Marcadores de Excesso de Velocidade — apenas dispositivos desta conta */}
+        {showSpeedAlerts && L && visibleSpeedAlerts.map((alert) => (
           <SpeedAlertMarker key={alert.id} alert={alert} />
         ))}
 

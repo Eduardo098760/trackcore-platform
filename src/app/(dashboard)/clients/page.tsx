@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Client } from '@/types';
+import { getClients, createClient, updateClient, deleteClient } from '@/lib/api';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PermissionSheet } from '@/components/layout/permission-sheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,89 +28,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Users, Building2, Mail, Phone, MapPin, CreditCard, Ban, Check } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Users, Building2, Mail, Phone, MapPin, CreditCard, Ban, Check, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Mock API functions - replace with real API calls
-const getClients = async (): Promise<Client[]> => {
-  // Simular delay de API
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: 1,
-      name: 'Transportadora ABC Ltda',
-      document: '12.345.678/0001-90',
-      email: 'contato@abctransportes.com.br',
-      phone: '(11) 98765-4321',
-      address: 'Rua das Flores, 123 - São Paulo, SP',
-      plan: 'professional',
-      status: 'active',
-      createdAt: '2024-01-15T10:00:00Z',
-      devicesCount: 15
-    },
-    {
-      id: 2,
-      name: 'Logística XYZ S.A.',
-      document: '98.765.432/0001-10',
-      email: 'admin@logisticaxyz.com',
-      phone: '(11) 91234-5678',
-      address: 'Av. Paulista, 1000 - São Paulo, SP',
-      plan: 'enterprise',
-      status: 'active',
-      createdAt: '2023-11-20T08:30:00Z',
-      devicesCount: 45
-    },
-    {
-      id: 3,
-      name: 'Entregas Rápidas Ltda',
-      document: '11.222.333/0001-44',
-      email: 'contato@entregasrapidas.com',
-      phone: '(21) 97777-8888',
-      address: 'Rua do Comércio, 456 - Rio de Janeiro, RJ',
-      plan: 'basic',
-      status: 'active',
-      createdAt: '2024-03-10T14:20:00Z',
-      devicesCount: 8
-    },
-    {
-      id: 4,
-      name: 'Frota Express',
-      document: '55.666.777/0001-88',
-      email: 'info@frotaexpress.com.br',
-      phone: '(31) 99999-0000',
-      address: 'Av. Afonso Pena, 789 - Belo Horizonte, MG',
-      plan: 'professional',
-      status: 'suspended',
-      createdAt: '2023-08-05T09:15:00Z',
-      devicesCount: 22
-    }
-  ];
-};
-
-const createClient = async (data: Partial<Client>): Promise<Client> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { id: Date.now(), ...data, createdAt: new Date().toISOString(), devicesCount: 0 } as Client;
-};
-
-const updateClient = async (id: number, data: Partial<Client>): Promise<Client> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return { id, ...data } as Client;
-};
-
-const deleteClient = async (id: number): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-};
-
 export default function ClientsPage() {
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = usePermissions();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [planFilter, setPlanFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isPermSheetOpen, setIsPermSheetOpen] = useState(false);
+  const [permSheetClient, setPermSheetClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     document: '',
@@ -526,6 +461,17 @@ export default function ClientsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          {isSuperAdmin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setPermSheetClient(client); setIsPermSheetOpen(true); }}
+                              title="Controle de acesso"
+                              className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -551,6 +497,14 @@ export default function ClientsPage() {
           )}
         </CardContent>
       </Card>
+      {/* Permission Sheet - Super Admin only */}
+      <PermissionSheet
+        mode="company"
+        targetId={permSheetClient?.id ?? null}
+        targetName={permSheetClient?.name ?? ''}
+        open={isPermSheetOpen}
+        onClose={() => { setIsPermSheetOpen(false); setPermSheetClient(null); }}
+      />
     </div>
   );
 }
