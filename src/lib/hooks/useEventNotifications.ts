@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getEvents } from '@/lib/api';
+import { getEvents, getDevices, getPositions } from '@/lib/api';
 import { notificationManager } from '@/lib/notifications';
-import { Event } from '@/types';
+import { Device, Event, SpeedAlert } from '@/types';
 
 /**
  * Hook que monitora eventos do Traccar e dispara notificações automaticamente
@@ -10,6 +10,14 @@ import { Event } from '@/types';
 export function useEventNotifications(enabled: boolean = true) {
   const processedEvents = useRef(new Set<number>());
   const lastCheckTime = useRef<Date>(new Date());
+
+  // Buscar lista de dispositivos para resolver nome + placa
+  const { data: devices = [] } = useQuery<Device[]>({
+    queryKey: ['devices'],
+    queryFn: () => getDevices(),
+    enabled,
+    staleTime: 60000, // Revalidar a cada 1 min
+  });
 
   // Buscar eventos recentes a cada 5 segundos
   const { data: events = [] } = useQuery({
@@ -43,7 +51,7 @@ export function useEventNotifications(enabled: boolean = true) {
       if (processedEvents.current.has(event.id)) return false;
       
       // Verificar se é realmente novo (depois do último check)
-      const eventTime = new Date(event.serverTime || event.fixTime);
+      const eventTime = new Date(event.serverTime);
       if (eventTime < lastCheckTime.current) return false;
       
       return true;
@@ -55,8 +63,8 @@ export function useEventNotifications(enabled: boolean = true) {
 
     // Processar eventos um por vez com pequeno delay para evitar empilhamento
     newEvents.forEach((event, index) => {
-      setTimeout(() => {
-        processEvent(event);
+      setTimeout(async () => {
+        await processEvent(event, devices);
         processedEvents.current.add(event.id);
       }, index * 500); // 500ms entre cada notificação
     });
@@ -69,7 +77,7 @@ export function useEventNotifications(enabled: boolean = true) {
       const eventsArray = Array.from(processedEvents.current);
       processedEvents.current = new Set(eventsArray.slice(-200));
     }
-  }, [events]);
+  }, [events, devices]);
 
   return { events };
 }
@@ -77,21 +85,65 @@ export function useEventNotifications(enabled: boolean = true) {
 /**
  * Processa um evento e cria notificação apropriada
  */
-function processEvent(event: Event) {
+async function processEvent(event: Event, devices: Device[] = []) {
   console.log('📢 Processando evento:', event);
 
-  // Verificar configurações do usuário
-  const settingsStr = localStorage.getItem('notificationSettings');
-  if (!settingsStr) return;
+  // Resolver nome e placa a partir da lista de devices
+  const matchedDevice = devices.find((d) => d.id === event.deviceId);
+  const vehicleName = matchedDevice?.name || event.attributes?.deviceName || undefined;
+  const deviceName = matchedDevice?.plate || matchedDevice?.uniqueId || event.attributes?.deviceName || `Veículo #${event.deviceId}`;
+  const displayName = vehicleName || deviceName;
 
-  const settings = JSON.parse(settingsStr);
-  if (!settings.inApp?.enabled) {
-    console.log('Notificações in-app desabilitadas');
-    return;
+  let latitude: number | undefined;
+  let longitude: number | undefined;
+  let speedAlertId: string | undefined;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // EXCESSO DE VELOCIDADE: sempre salvar marcador no mapa, independente de
+  // configurações de notificação, para o mapa exibir o ⚡ corretamente.
+  // ──────────────────────────────────────────────────────────────────────────
+  if (event.type === 'deviceOverspeed' || event.type === 'speedLimit') {
+    try {
+      const positions = await getPositions({ deviceId: event.deviceId });
+      const position = positions?.[0];
+      if (position) {
+        latitude = position.latitude;
+        longitude = position.longitude;
+
+        const speed = Math.round(event.attributes?.speed || position.speed || 0);
+        const speedLimit = event.attributes?.speedLimit || event.attributes?.limit || matchedDevice?.speedLimit || 0;
+
+        const alert: SpeedAlert = {
+          id: `${Date.now()}-${event.id}`,
+          deviceId: event.deviceId,
+          deviceName,
+          vehicleName,
+          speed,
+          speedLimit,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          timestamp: event.serverTime,
+        };
+        speedAlertId = alert.id;
+
+        try {
+          const stored = localStorage.getItem('speedAlerts');
+          const alerts: SpeedAlert[] = stored ? JSON.parse(stored) : [];
+          alerts.unshift(alert);
+          localStorage.setItem('speedAlerts', JSON.stringify(alerts.slice(0, 100)));
+          window.dispatchEvent(new CustomEvent('speedAlertAdded', { detail: alert }));
+          console.log('⚡ SpeedAlert registrado:', alert);
+        } catch (storageErr) {
+          console.error('[SpeedAlert] Erro ao salvar no localStorage:', storageErr);
+        }
+      }
+    } catch (e) {
+      console.error('[SpeedAlert] Erro ao buscar posição:', e);
+    }
   }
 
-  // Mapear tipo de evento Traccar para tipo interno
-  const eventTypeMap: Record<string, keyof typeof settings.events> = {
+  // ── Notificação in-app: respeita o filtro de "Tipos de Eventos" ──
+  const eventTypeMap: Record<string, string> = {
     'ignitionOn': 'ignitionOn',
     'ignitionOff': 'ignitionOff',
     'deviceOnline': 'deviceOnline',
@@ -100,36 +152,65 @@ function processEvent(event: Event) {
     'geofenceExit': 'geofenceExit',
     'alarm': 'sos',
     'deviceOverspeed': 'speedLimit',
+    'speedLimit': 'speedLimit',
     'maintenance': 'maintenance',
+    'deviceMoving': 'deviceMoving',
+    'deviceStopped': 'deviceStopped',
   };
 
-  const internalEventType = eventTypeMap[event.type];
-  
-  // Verificar se o tipo de evento está habilitado
-  if (internalEventType && !settings.events[internalEventType]) {
-    console.log(`Notificações para ${String(internalEventType)} desabilitadas`);
-    return;
-  }
+  const internalType = eventTypeMap[event.type] || event.type;
 
-  // Criar notificação baseada no tipo de evento
-  const notificationData = getNotificationDataForEvent(event);
-  if (notificationData) {
-    notificationManager.addNotification({
-      type: notificationData.type,
-      title: notificationData.title,
-      message: notificationData.message,
-      deviceId: event.deviceId,
-      deviceName: event.attributes?.deviceName || `Veículo #${event.deviceId}`,
-      eventType: String(internalEventType || event.type),
-    });
-  }
+  // Valores padrão para todos os tipos de evento
+  const DEFAULT_EVENTS: Record<string, boolean> = {
+    speedLimit: true,
+    geofenceEnter: true,
+    geofenceExit: true,
+    ignitionOn: false,
+    ignitionOff: false,
+    deviceOffline: true,
+    deviceOnline: false,
+    deviceMoving: false,
+    deviceStopped: false,
+    lowBattery: true,
+    maintenance: true,
+    sos: true,
+  };
+
+  // Verificar se o tipo de evento está habilitado nas configurações do usuário.
+  // Mescla defaults com o que está salvo → tipos novos nunca "escapam" por falta de chave.
+  try {
+    const settingsStr = localStorage.getItem('notificationSettings');
+    const saved = settingsStr ? JSON.parse(settingsStr) : {};
+    const eventsConfig: Record<string, boolean> = { ...DEFAULT_EVENTS, ...(saved.events || {}) };
+    const isEnabled = eventsConfig[internalType] ?? false;
+    if (!isEnabled) {
+      console.debug(`[Notificações] Tipo "${internalType}" desabilitado — ignorado`);
+      return;
+    }
+  } catch { /* se não conseguir ler, bloqueia por segurança */ return; }
+
+  const notificationData = getNotificationDataForEvent(event, displayName, matchedDevice?.speedLimit);
+  if (!notificationData) return;
+
+  notificationManager.addNotification({
+    type: notificationData.type,
+    title: notificationData.title,
+    message: notificationData.message,
+    deviceId: event.deviceId,
+    deviceName,
+    vehicleName,
+    eventType: internalType,
+    latitude,
+    longitude,
+    speedAlertId,
+  });
 }
 
 /**
  * Gera dados de notificação baseado no tipo de evento
  */
-function getNotificationDataForEvent(event: Event) {
-  const deviceName = event.attributes?.deviceName || `Veículo #${event.deviceId}`;
+function getNotificationDataForEvent(event: Event, displayName: string, deviceSpeedLimit?: number) {
+  const deviceName = displayName;
   
   const eventNotifications: Record<string, {
     type: 'info' | 'warning' | 'error' | 'success';
@@ -176,9 +257,21 @@ function getNotificationDataForEvent(event: Event) {
       title: '⚡ Excesso de Velocidade',
       message: (() => {
         const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
-        const speedLimit = event.attributes?.speedLimit || 0;
-        if (speed && speedLimit) {
-          return `${deviceName} atingiu ${speed} km/h (limite: ${speedLimit} km/h)`;
+        const limit = event.attributes?.speedLimit || event.attributes?.limit || deviceSpeedLimit || 0;
+        if (speed && limit) {
+          return `${deviceName} atingiu ${speed} km/h (limite: ${limit} km/h)`;
+        }
+        return `${deviceName} excedeu o limite de velocidade`;
+      })(),
+    },
+    'speedLimit': {
+      type: 'warning',
+      title: '⚡ Excesso de Velocidade',
+      message: (() => {
+        const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
+        const limit = event.attributes?.speedLimit || event.attributes?.limit || deviceSpeedLimit || 0;
+        if (speed && limit) {
+          return `${deviceName} atingiu ${speed} km/h (limite: ${limit} km/h)`;
         }
         return `${deviceName} excedeu o limite de velocidade`;
       })(),

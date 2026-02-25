@@ -358,7 +358,8 @@ export default function GeofencesPage() {
                             </span>
                           )}
                         </span>
-                        {showDeviceList ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <ChevronUp   className={`w-4 h-4 ${showDeviceList ? '' : 'hidden'}`} />
+                        <ChevronDown className={`w-4 h-4 ${showDeviceList ? 'hidden' : ''}`} />
                       </button>
 
                       {showDeviceList && (

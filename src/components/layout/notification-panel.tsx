@@ -22,7 +22,8 @@ import {
   Info,
   CheckCircle2,
   X,
-  Settings
+  Settings,
+  MapPin
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,67 +38,18 @@ export interface InAppNotification {
   read: boolean;
   timestamp: string;
   deviceId?: number;
-  deviceName?: string;
+  deviceName?: string;  // placa (ex: ABC-1234)
+  vehicleName?: string; // nome descritivo (ex: Caminhão SP)
   eventType?: string;
+  latitude?: number;
+  longitude?: number;
+  speedAlertId?: string;
 }
 
-// Mock API - substituir por API real
+// Lê notificações do localStorage (sem mock data)
 const getInAppNotifications = async (): Promise<InAppNotification[]> => {
-  // Simular delay de rede
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
   const stored = localStorage.getItem('inAppNotifications');
-  if (stored) {
-    return JSON.parse(stored);
-  }
-  
-  // Notificações de exemplo
-  return [
-    {
-      id: '1',
-      type: 'warning',
-      title: 'Velocidade Excedida',
-      message: 'Veículo ABC-1234 excedeu 80 km/h na Via Expressa',
-      read: false,
-      timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-      deviceId: 1,
-      deviceName: 'ABC-1234',
-      eventType: 'speedLimit'
-    },
-    {
-      id: '2',
-      type: 'info',
-      title: 'Entrada em Cerca',
-      message: 'Veículo XYZ-5678 entrou na cerca "Depósito Central"',
-      read: false,
-      timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-      deviceId: 2,
-      deviceName: 'XYZ-5678',
-      eventType: 'geofenceEnter'
-    },
-    {
-      id: '3',
-      type: 'error',
-      title: 'Dispositivo Offline',
-      message: 'Veículo DEF-9012 está sem comunicação há 2 horas',
-      read: true,
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      deviceId: 3,
-      deviceName: 'DEF-9012',
-      eventType: 'deviceOffline'
-    },
-    {
-      id: '4',
-      type: 'success',
-      title: 'Manutenção Concluída',
-      message: 'Manutenção preventiva do veículo GHI-3456 foi concluída',
-      read: true,
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      deviceId: 4,
-      deviceName: 'GHI-3456',
-      eventType: 'maintenance'
-    },
-  ];
+  return stored ? JSON.parse(stored) : [];
 };
 
 const markAsRead = async (id: string): Promise<void> => {
@@ -122,20 +74,44 @@ const markAllAsRead = async (): Promise<void> => {
 
 const deleteNotification = async (id: string): Promise<void> => {
   const stored = localStorage.getItem('inAppNotifications');
-  if (stored) {
-    const notifications = JSON.parse(stored);
-    const updated = notifications.filter((n: InAppNotification) => n.id !== id);
-    localStorage.setItem('inAppNotifications', JSON.stringify(updated));
+  if (!stored) return;
+  const notifications: InAppNotification[] = JSON.parse(stored);
+  const toDelete = notifications.find((n) => n.id === id);
+  const updated = notifications.filter((n) => n.id !== id);
+  localStorage.setItem('inAppNotifications', JSON.stringify(updated));
+
+  // Se a notificação tinha um SpeedAlert associado, removê-lo do mapa também
+  if (toDelete?.speedAlertId) {
+    try {
+      const alerts = JSON.parse(localStorage.getItem('speedAlerts') || '[]');
+      const updatedAlerts = alerts.filter((a: { id: string }) => a.id !== toDelete.speedAlertId);
+      localStorage.setItem('speedAlerts', JSON.stringify(updatedAlerts));
+      window.dispatchEvent(new CustomEvent('speedAlertRemoved', { detail: { id: toDelete.speedAlertId } }));
+    } catch { /* ignore */ }
   }
 };
 
 const clearAllNotifications = async (): Promise<void> => {
   localStorage.setItem('inAppNotifications', JSON.stringify([]));
+  localStorage.setItem('speedAlerts', JSON.stringify([]));
+  window.dispatchEvent(new CustomEvent('speedAlertsCleared'));
 };
 
 interface NotificationPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+/** Extrai velocidade registrada da mensagem: "atingiu 95 km/h" → 95 */
+function extractSpeedFromMessage(msg: string): number {
+  const m = msg.match(/atingiu\s+(\d+)\s*km\/h/i) || msg.match(/(\d+)\s*km\/h/i);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/** Extrai limite de velocidade da mensagem: "limite: 80 km/h" → 80 */
+function extractSpeedLimitFromMessage(msg: string): number {
+  const m = msg.match(/limite[:\s]+(\d+)\s*km\/h/i) || msg.match(/excedeu\s+(\d+)\s*km\/h/i);
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps) {
@@ -145,22 +121,12 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['inAppNotifications'],
     queryFn: getInAppNotifications,
-    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    refetchInterval: 10000,
+    refetchOnMount: true,
   });
 
-  // Escutar evento de nova notificação para atualizar imediatamente
-  useEffect(() => {
-    const handleNewNotification = () => {
-      console.log('🔔 Nova notificação detectada, atualizando lista...');
-      queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
-    };
-
-    window.addEventListener('notificationAdded', handleNewNotification);
-    
-    return () => {
-      window.removeEventListener('notificationAdded', handleNewNotification);
-    };
-  }, [queryClient]);
+  // Nota: o listener 'notificationAdded' está no Header (sempre montado).
+  // O painel re-renderiza automaticamente via cache compartilhado do React Query.
 
   const markAsReadMutation = useMutation({
     mutationFn: markAsRead,
@@ -213,10 +179,44 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
       markAsReadMutation.mutate(notification.id);
     }
     
-    // Navegar para detalhes do dispositivo se disponível
-    if (notification.deviceId) {
-      onOpenChange(false);
-      router.push(`/vehicles?device=${notification.deviceId}`);
+    if (!notification.deviceId) return;
+
+    // Para notificações de excesso de velocidade: restaurar marcador ⚡ no mapa
+    const isSpeedEvent = notification.eventType === 'speedLimit' || notification.eventType === 'deviceOverspeed';
+    let targetAlertId: string | null = null;
+
+    if (isSpeedEvent && notification.latitude != null && notification.longitude != null) {
+      // Coordenadas registradas no momento do evento → criar/restaurar SpeedAlert
+      try {
+        const alertId = notification.speedAlertId || `notif-${notification.id}`;
+        targetAlertId = alertId;
+        const alert = {
+          id: alertId,
+          deviceId: notification.deviceId,
+          deviceName: notification.deviceName || `Veículo #${notification.deviceId}`,
+          vehicleName: notification.vehicleName,
+          speed: extractSpeedFromMessage(notification.message),
+          speedLimit: extractSpeedLimitFromMessage(notification.message),
+          latitude: notification.latitude,
+          longitude: notification.longitude,
+          timestamp: notification.timestamp,
+        };
+        const stored = localStorage.getItem('speedAlerts');
+        const alerts = stored ? JSON.parse(stored) : [];
+        const filtered = alerts.filter((a: { id: string }) => a.id !== alert.id);
+        filtered.unshift(alert);
+        localStorage.setItem('speedAlerts', JSON.stringify(filtered.slice(0, 100)));
+        window.dispatchEvent(new CustomEvent('speedAlertAdded', { detail: alert }));
+      } catch { /* ignore */ }
+    }
+
+    onOpenChange(false);
+
+    // Montar URL: para excesso com coordenadas, incluir alertId para o mapa centralizar
+    if (targetAlertId) {
+      router.push(`/map?deviceId=${notification.deviceId}&alertId=${encodeURIComponent(targetAlertId)}`);
+    } else {
+      router.push(`/map?deviceId=${notification.deviceId}`);
     }
   };
 
@@ -347,10 +347,37 @@ export function NotificationPanel({ open, onOpenChange }: NotificationPanelProps
                       <p className="text-sm text-muted-foreground mt-1">
                         {notification.message}
                       </p>
-                      {notification.deviceName && (
-                        <Badge variant="outline" className="mt-2">
-                          {notification.deviceName}
-                        </Badge>
+                      {(notification.vehicleName || notification.deviceName) && (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {notification.vehicleName && (
+                            <Badge variant="secondary" className="text-xs font-medium">
+                              {notification.vehicleName}
+                            </Badge>
+                          )}
+                          {notification.deviceName && (
+                            <Badge variant="outline" className="text-xs font-mono">
+                              {notification.deviceName}
+                            </Badge>
+                          )}
+                          {notification.deviceId && !notification.latitude && (
+                            <span className="text-xs text-blue-500 flex items-center gap-0.5 hover:underline">
+                              <MapPin className="w-3 h-3" />
+                              Ver no mapa
+                            </span>
+                          )}
+                          {notification.latitude && notification.longitude && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNotificationClick(notification);
+                              }}
+                              className="text-xs text-amber-500 flex items-center gap-0.5 hover:underline"
+                            >
+                              <MapPin className="w-3 h-3" />
+                              Ver local do excesso
+                            </button>
+                          )}
+                        </div>
                       )}
                       <p className="text-xs text-muted-foreground mt-2">
                         {formatDistanceToNow(new Date(notification.timestamp), {

@@ -438,7 +438,8 @@ export default function RouteReplayPage() {
                       <SkipBack className="h-3 w-3" />
                     </Button>
                     <Button size="icon" className="h-10 w-10 bg-blue-600 hover:bg-blue-700" onClick={handlePlayPause}>
-                      {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      <Pause className={`h-4 w-4 ${isPlaying ? '' : 'hidden'}`} />
+                      <Play  className={`h-4 w-4 ${isPlaying ? 'hidden' : ''}`} />
                     </Button>
                     <Button variant="outline" size="icon" className="h-8 w-8 bg-white/5 border-white/10" onClick={() => handleSeek(currentIndex + 10)} disabled={currentIndex >= route.length - 1}>
                       <SkipForward className="h-3 w-3" />

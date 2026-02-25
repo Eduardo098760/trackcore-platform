@@ -1,4 +1,4 @@
-import { ReportFilter, TripReport, StopReport, Event } from '@/types';
+import { ReportFilter, TripReport, StopReport, Event, RoutePosition } from '@/types';
 
 const API_URL = '/api';
 
@@ -153,6 +153,32 @@ export async function generateSummaryReport(filter: ReportFilter): Promise<any[]
 
   if (!response.ok) {
     throw new Error('Failed to generate summary report');
+  }
+
+  return response.json();
+}
+
+/**
+ * Busca todas as posições registradas de um dispositivo em um intervalo de tempo.
+ * Utiliza o endpoint Traccar /reports/route via proxy Next.js.
+ */
+export async function getRoutePositions(
+  deviceId: number,
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+): Promise<RoutePosition[]> {
+  const response = await fetch(`${API_URL}/reports/positions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    signal,
+    body: JSON.stringify({ deviceId, from, to }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Erro ao buscar histórico de rota: ${text || response.status}`);
   }
 
   return response.json();

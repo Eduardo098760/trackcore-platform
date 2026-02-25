@@ -50,6 +50,16 @@ export async function getPositionByDevice(deviceId: number): Promise<Position> {
   return positions[0];
 }
 
+// Busca uma posição histórica específica pelo seu ID (útil para eventos com positionId)
+export async function getPositionById(id: number): Promise<Position | null> {
+  try {
+    const positions = await api.get<Position[]>('/positions', { id });
+    return positions?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Events API (usando Traccar - Reports endpoint)
 // O Traccar exige deviceId(s) ou groupId para reports/events
 // Para obter todos os eventos, buscamos de todos os dispositivos

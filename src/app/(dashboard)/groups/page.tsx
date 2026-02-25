@@ -117,14 +117,13 @@ export default function GroupsPage() {
               <div className="flex items-center gap-2 flex-1">
                 {hasChildren && (
                   <button onClick={() => toggleExpand(group.id)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
-                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    <ChevronDown  className={`w-4 h-4 ${isExpanded ? '' : 'hidden'}`} />
+                    <ChevronRight className={`w-4 h-4 ${isExpanded ? 'hidden' : ''}`} />
                   </button>
                 )}
                 {!hasChildren && <div className="w-6" />}
-                {isExpanded || !hasChildren ? 
-                  <FolderOpen className="w-4 h-4 text-blue-500" /> : 
-                  <Folder className="w-4 h-4 text-blue-500" />
-                }
+                <FolderOpen className={`w-4 h-4 text-blue-500 ${(isExpanded || !hasChildren) ? '' : 'hidden'}`} />
+                <Folder     className={`w-4 h-4 text-blue-500 ${(isExpanded || !hasChildren) ? 'hidden' : ''}`} />
                 <div className="flex-1">
                   <p className="font-medium">{group.name}</p>
                   {group.description && (

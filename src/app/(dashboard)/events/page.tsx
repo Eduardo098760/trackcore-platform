@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEvents, markEventAsResolved, getDevices, getClients } from '@/lib/api';
+import { getEvents, markEventAsResolved, getDevices, getClients, getPositions } from '@/lib/api';
+import { getPositionById } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,8 +98,74 @@ export default function EventsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [deviceFilter, setDeviceFilter] = useState<string>('all');
   const [periodDays, setPeriodDays] = useState<string>('30');
+  const [loadingMapEventId, setLoadingMapEventId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const router = useRouter();
+
+  // Handler para "Ver no mapa" de eventos de velocidade
+  // Cria um SpeedAlert no localStorage para aparecer o ⚡ no mapa
+  const handleViewSpeedOnMap = useCallback(async (event: Event, device: Device | undefined) => {
+    setLoadingMapEventId(event.id);
+    try {
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+
+      // 1º: tentar buscar posição histórica exata do evento pelo positionId
+      if (event.positionId) {
+        try {
+          const pos = await getPositionById(event.positionId);
+          if (pos) {
+            latitude = pos.latitude;
+            longitude = pos.longitude;
+          }
+        } catch { /* fallback abaixo */ }
+      }
+
+      // 2º: fallback - usar posição atual do dispositivo
+      if (latitude == null) {
+        try {
+          const positions = await getPositions({ deviceId: event.deviceId });
+          const pos = positions?.[0];
+          if (pos) {
+            latitude = pos.latitude;
+            longitude = pos.longitude;
+          }
+        } catch { /* sem posição */ }
+      }
+
+      // Criar SpeedAlert no localStorage para o mapa exibir o ⚡
+      if (latitude != null && longitude != null) {
+        const vehicleName = device?.name;
+        const deviceName = device?.plate || device?.uniqueId || `Veículo #${event.deviceId}`;
+        const speed = Math.round(event.attributes?.speed || 0);
+        const speedLimit = event.attributes?.speedLimit ?? event.attributes?.limit ?? device?.speedLimit ?? 0;
+
+        const alert = {
+          id: `event-${event.id}`,
+          deviceId: event.deviceId,
+          deviceName,
+          vehicleName,
+          speed,
+          speedLimit,
+          latitude,
+          longitude,
+          timestamp: event.serverTime,
+        };
+
+        try {
+          const stored = localStorage.getItem('speedAlerts');
+          const alerts = stored ? JSON.parse(stored) : [];
+          const filtered = alerts.filter((a: { id: string }) => a.id !== alert.id);
+          filtered.unshift(alert);
+          localStorage.setItem('speedAlerts', JSON.stringify(filtered.slice(0, 100)));
+          window.dispatchEvent(new CustomEvent('speedAlertAdded', { detail: alert }));
+        } catch { /* ignore */ }
+      }
+    } catch { /* se falhar, navega normalmente sem o marcador */ }
+    setLoadingMapEventId(null);
+    router.push(`/map?deviceId=${event.deviceId}`);
+  }, [router]);
 
   const { data: devices = [], isLoading: devicesLoading } = useQuery({
     queryKey: ['devices'],
@@ -366,12 +434,24 @@ export default function EventsPage() {
                           Resolver
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/map?deviceId=${event.deviceId}`}>
+                      {(event.type === 'speedLimit' || event.type === 'deviceOverspeed') ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loadingMapEventId === event.id}
+                          onClick={() => handleViewSpeedOnMap(event, device)}
+                        >
                           <MapPin className="w-4 h-4 mr-1" />
-                          Ver no mapa
-                        </Link>
-                      </Button>
+                          {loadingMapEventId === event.id ? 'Abrindo...' : 'Ver no mapa'}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/map?deviceId=${event.deviceId}`}>
+                            <MapPin className="w-4 h-4 mr-1" />
+                            Ver no mapa
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

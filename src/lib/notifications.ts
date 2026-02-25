@@ -166,7 +166,7 @@ export class NotificationManager {
     }> = {
       speedLimit: {
         type: 'warning',
-        title: '⚡ Velocidade Excedida',
+        title: 'Velocidade Excedida',
         message: `${deviceName} ${details || 'excedeu o limite de velocidade'}`,
       },
       geofenceEnter: {

@@ -129,19 +129,13 @@
 }
 
 .leaflet-popup-tip {
-  background: rgba(17, 24, 39, 0.98) !important;
+  background: #0d1117 !important;
   border: none !important;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 .leaflet-container a.leaflet-popup-close-button {
-  color: #9ca3af !important;
-  font-size: 20px !important;
-  padding: 8px 8px 0 0 !important;
-}
-
-.leaflet-container a.leaflet-popup-close-button:hover {
-  color: #fff !important;
+  display: none !important;
 }
 
 /* Sidebar: thinner scrollbar (width only) */

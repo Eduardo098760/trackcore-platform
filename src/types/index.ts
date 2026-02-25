@@ -122,13 +122,23 @@ export interface Position {
 export type EventType = 
   | 'ignitionOn' 
   | 'ignitionOff' 
-  | 'speedLimit' 
-  | 'geofence' 
+  | 'speedLimit'
+  | 'deviceOverspeed'
+  | 'geofence'
+  | 'geofenceEnter'
+  | 'geofenceExit'
+  | 'alarm'
+  | 'deviceOnline'
+  | 'deviceOffline'
+  | 'deviceMoving'
+  | 'deviceStopped'
   | 'lowBattery' 
   | 'connectionLost'
   | 'connectionRestored'
   | 'deviceBlocked'
-  | 'deviceUnblocked';
+  | 'deviceUnblocked'
+  | 'maintenance'
+  | string; // fallback para tipos não mapeados
 
 export interface Event {
   id: number;
@@ -138,6 +148,19 @@ export interface Event {
   serverTime: string;
   attributes: Record<string, any>;
   resolved: boolean;
+}
+
+// Speed Alert - registra localização de excesso de velocidade
+export interface SpeedAlert {
+  id: string;
+  deviceId: number;
+  deviceName: string;   // placa
+  vehicleName?: string; // nome descritivo
+  speed: number;
+  speedLimit: number;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
 }
 
 // Command Types
@@ -346,7 +369,7 @@ export interface MaintenanceRule {
 }
 
 // Report Types
-export type ReportType = 'trips' | 'stops' | 'events' | 'summary' | 'fuel';
+export type ReportType = 'trips' | 'stops' | 'events' | 'summary' | 'fuel' | 'speed';
 
 export interface ReportFilter {
   deviceIds: number[];
@@ -377,6 +400,36 @@ export interface StopReport {
   }[];
   totalStops: number;
   totalDuration: number;
+}
+
+// Posição retornada pelo endpoint Traccar /reports/route
+export interface RoutePosition {
+  id: number;
+  deviceId: number;
+  serverTime: string;
+  deviceTime: string;
+  fixTime: string;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+  speed: number; // km/h
+  course: number;
+  address?: string;
+  attributes: Record<string, any>;
+}
+
+// Segmento contínuo onde velocidade >= minSpeed
+export interface SpeedSegment {
+  index: number;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  maxSpeed: number;
+  avgSpeed: number;
+  positions: RoutePosition[];
+  polyline: [number, number][]; // [lat, lng][]
+  startLatLng: [number, number];
+  endLatLng: [number, number];
 }
 
 // Group Types

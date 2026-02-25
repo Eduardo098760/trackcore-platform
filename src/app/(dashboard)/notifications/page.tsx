@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Info,
   CheckCircle2,
+  CheckCheck,
   Save,
   Volume2,
   VolumeX
@@ -58,6 +59,8 @@ interface NotificationSettings {
     ignitionOff: boolean;
     deviceOffline: boolean;
     deviceOnline: boolean;
+    deviceMoving: boolean;
+    deviceStopped: boolean;
     lowBattery: boolean;
     maintenance: boolean;
     sos: boolean;
@@ -98,6 +101,8 @@ const getSettings = async (): Promise<NotificationSettings> => {
       ignitionOff: false,
       deviceOffline: true,
       deviceOnline: false,
+      deviceMoving: false,
+      deviceStopped: false,
       lowBattery: true,
       maintenance: true,
       sos: true,
@@ -113,6 +118,9 @@ const saveSettings = async (settings: NotificationSettings): Promise<void> => {
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  // Referência do último estado salvo para comparar se há alterações
+  const savedSettings = useRef<NotificationSettings | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['notificationSettings'],
@@ -122,11 +130,20 @@ export default function NotificationsPage() {
   // Inicializar settings quando data estiver disponível
   if (data && !settings) {
     setSettings(data);
+    savedSettings.current = data;
   }
+
+  // Detectar se há alterações não salvas
+  const isDirty = useMemo(() => {
+    if (!settings || !savedSettings.current) return false;
+    return JSON.stringify(settings) !== JSON.stringify(savedSettings.current);
+  }, [settings]);
 
   const saveMutation = useMutation({
     mutationFn: saveSettings,
     onSuccess: () => {
+      savedSettings.current = settings;
+      setSavedAt(Date.now());
       queryClient.invalidateQueries({ queryKey: ['notificationSettings'] });
       toast.success('Configurações salvas com sucesso!');
     },
@@ -138,6 +155,13 @@ export default function NotificationsPage() {
   const handleSave = () => {
     if (settings) {
       saveMutation.mutate(settings);
+    }
+  };
+
+  const handleCancel = () => {
+    if (savedSettings.current) {
+      setSettings(savedSettings.current);
+      toast.info('Alterações descartadas');
     }
   };
 
@@ -207,6 +231,8 @@ export default function NotificationsPage() {
     ignitionOff: { label: 'Ignição Desligada', icon: Info, color: 'text-gray-500' },
     deviceOffline: { label: 'Dispositivo Offline', icon: AlertCircle, color: 'text-red-500' },
     deviceOnline: { label: 'Dispositivo Online', icon: CheckCircle2, color: 'text-green-500' },
+    deviceMoving: { label: 'Dispositivo em Movimento', icon: Info, color: 'text-blue-400' },
+    deviceStopped: { label: 'Dispositivo Parado', icon: Info, color: 'text-gray-400' },
     lowBattery: { label: 'Bateria Fraca', icon: AlertTriangle, color: 'text-amber-500' },
     maintenance: { label: 'Manutenção', icon: Info, color: 'text-blue-500' },
     sos: { label: 'SOS / Emergência', icon: AlertCircle, color: 'text-red-500' },
@@ -252,7 +278,8 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="flex items-center gap-2">
-                  {settings.inApp.sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  <Volume2 className={`w-4 h-4 ${settings.inApp.sound ? '' : 'hidden'}`} />
+                  <VolumeX className={`w-4 h-4 ${settings.inApp.sound ? 'hidden' : ''}`} />
                   Som de notificação
                 </Label>
                 <p className="text-sm text-muted-foreground">
@@ -338,9 +365,11 @@ export default function NotificationsPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {settings.email.frequency === 'instant' && 'Enviar email imediatamente ao ocorrer evento'}
-                {settings.email.frequency === 'hourly' && 'Agrupar eventos e enviar a cada hora'}
-                {settings.email.frequency === 'daily' && 'Enviar resumo diário com todos os eventos'}
+                {settings.email.frequency === 'instant'
+                  ? 'Enviar email imediatamente ao ocorrer evento'
+                  : settings.email.frequency === 'hourly'
+                  ? 'Agrupar eventos e enviar a cada hora'
+                  : 'Enviar resumo diário com todos os eventos'}
               </p>
             </div>
           </CardContent>
@@ -457,25 +486,33 @@ export default function NotificationsPage() {
       </Card>
 
       {/* Save Button */}
-      <div className="flex justify-end gap-4">
-        <Button
-          onClick={() => {
-            if (data) {
-              setSettings(data);
-              toast.info('Alterações descartadas');
-            }
-          }}
-          variant="outline"
-        >
-          Cancelar
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={saveMutation.isPending}
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {saveMutation.isPending ? 'Salvando...' : 'Salvar Configurações'}
-        </Button>
+      <div className="flex items-center justify-end gap-4 min-h-[40px]">
+        {/* Confirmação de salvo — visível quando não há alterações e foi salvo recentemente */}
+        {!isDirty && savedAt !== null && (
+          <span className="flex items-center gap-1.5 text-sm text-green-500 animate-in fade-in">
+            <CheckCheck className="w-4 h-4" />
+            Configurações atualizadas
+          </span>
+        )}
+
+        {/* Botões só aparecem quando há alterações */}
+        {isDirty && (
+          <>
+            <Button
+              onClick={handleCancel}
+              variant="outline"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar Configurações'}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

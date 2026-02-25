@@ -135,7 +135,8 @@ export function VideoPlayer({
                       className="h-8 w-8 text-white hover:bg-white/20"
                       onClick={handlePlayPause}
                     >
-                      {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      <Pause className={`h-4 w-4 ${isPlaying ? '' : 'hidden'}`} />
+                      <Play  className={`h-4 w-4 ${isPlaying ? 'hidden' : ''}`} />
                     </Button>
                     <Button 
                       size="icon" 
@@ -143,7 +144,8 @@ export function VideoPlayer({
                       className="h-8 w-8 text-white hover:bg-white/20"
                       onClick={handleMute}
                     >
-                      {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                      <VolumeX className={`h-4 w-4 ${isMuted ? '' : 'hidden'}`} />
+                      <Volume2 className={`h-4 w-4 ${isMuted ? 'hidden' : ''}`} />
                     </Button>
                     <Badge className={`${statusColor} text-white`}>
                       {camera.status}

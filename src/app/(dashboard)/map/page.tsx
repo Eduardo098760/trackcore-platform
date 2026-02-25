@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { getDevices, getPositions } from '@/lib/api';
 import { updateDevice } from '@/lib/api/devices';
-import { Device, Position, VehicleCategory } from '@/types';
+import { Device, Position, VehicleCategory, SpeedAlert } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,11 @@ const LeafletCircle = dynamic(
   { ssr: false }
 );
 
+const LeafletPopup = dynamic(
+  () => import('react-leaflet').then((mod) => mod.Popup),
+  { ssr: false }
+);
+
 type TileLayerKey = 'dark' | 'light' | 'streets' | 'satellite';
 
 const TILE_LAYERS: Record<TileLayerKey, { url: string; attribution: string; label: string; subdomains?: string | string[]; maxNativeZoom?: number }> = {
@@ -97,13 +102,187 @@ const TILE_LAYERS: Record<TileLayerKey, { url: string; attribution: string; labe
   },
 };
 
+// Componente de marcador de excesso de velocidade — FORA do MapPage para
+// evitar que cada re-render crie uma nova referência de função e feche o popup
+function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
+  const { useMap } = require('react-leaflet');
+  const map = useMap();
+  if (!L) return null;
+  return (
+    <Marker
+      position={[alert.latitude, alert.longitude]}
+      icon={L.divIcon({
+        className: 'speed-alert-icon',
+        html: `<div style="
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          border: 2.5px solid #fff;
+          border-radius: 50%;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          box-shadow: 0 0 0 3px rgba(245,158,11,0.35), 0 3px 10px rgba(0,0,0,0.7);
+        ">&#x26A1;</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      })}
+    >
+      <LeafletPopup minWidth={270} maxWidth={270} closeButton={false}>
+        <div style={{
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          background: '#111827',
+          borderRadius: 12,
+          overflow: 'hidden',
+          margin: '-14px -20px',
+          width: 270,
+          border: '1px solid #1a2535',
+        }}>
+
+          {/* Header */}
+          <div style={{
+            background: '#0d1117',
+            borderLeft: '3px solid #f59e0b',
+            padding: '9px 10px 9px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                Excesso de Velocidade
+              </span>
+            </div>
+            <button
+              onClick={() => { try { map.closePopup(); } catch { /* ignore */ } }}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#4b5563',
+                fontSize: 20,
+                lineHeight: 1,
+                padding: '0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#cbd5e1'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#4b5563'; }}
+              title="Fechar"
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Nome do veículo + placa */}
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', lineHeight: 1.3 }}>
+                {alert.vehicleName || alert.deviceName}
+              </div>
+              {alert.vehicleName && (
+                <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2, fontFamily: 'monospace', letterSpacing: 0.5 }}>
+                  {alert.deviceName}
+                </div>
+              )}
+            </div>
+
+            {/* Divisória */}
+            <div style={{ borderTop: '1px solid #1a2335' }} />
+
+            {/* Velocidades lado a lado */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {/* Registrado */}
+              <div style={{
+                flex: 1,
+                background: '#0d1117',
+                borderRadius: 8,
+                padding: '8px 10px',
+                border: '1px solid #1a2535',
+                borderTop: '2px solid #f59e0b',
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+                  Registrado
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                  <span style={{ fontSize: 26, fontWeight: 800, color: '#fbbf24', lineHeight: 1 }}>{alert.speed}</span>
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>km/h</span>
+                </div>
+              </div>
+
+              {/* Limite definido — sempre visível */}
+              <div style={{
+                flex: 1,
+                background: '#0d1117',
+                borderRadius: 8,
+                padding: '8px 10px',
+                border: '1px solid #1a2535',
+                borderTop: '2px solid #2d3a4a',
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+                  Limite
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                  <span style={{ fontSize: 26, fontWeight: 800, color: '#94a3b8', lineHeight: 1 }}>
+                    {alert.speedLimit > 0 ? alert.speedLimit : '—'}
+                  </span>
+                  {alert.speedLimit > 0 && <span style={{ fontSize: 11, color: '#6b7280' }}>km/h</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Badge de excesso — sempre visível quando há limite */}
+            {alert.speedLimit > 0 && (
+              <div style={{
+                background: 'rgba(245,158,11,0.08)',
+                border: '1px solid rgba(245,158,11,0.22)',
+                borderRadius: 6,
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>Ultrapassou o limite em</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#fbbf24' }}>
+                  +{alert.speed - alert.speedLimit} km/h
+                </span>
+              </div>
+            )}
+
+            {/* Data e hora */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <span style={{ fontSize: 11, color: '#4b5563' }}>
+                {new Date(alert.timestamp).toLocaleString('pt-BR', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit'
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+      </LeafletPopup>
+    </Marker>
+  );
+}
+
 export default function MapPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { searchTerm } = useSearchStore();
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const hasAppliedUrlDevice = useRef(false);
+  const hasAppliedUrlDevice = useRef<number | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [isHighDpi, setIsHighDpi] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
@@ -117,6 +296,14 @@ export default function MapPage() {
   const [geofenceDialogDevice, setGeofenceDialogDevice] = useState<Device | null>(null);
   const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(null);
   const [showGeofences, setShowGeofences] = useState(true);
+  const [showSpeedAlerts, setShowSpeedAlerts] = useState(true);
+  const [speedAlerts, setSpeedAlerts] = useState<SpeedAlert[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem('speedAlerts');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [editForm, setEditForm] = useState({
     name: '',
     uniqueId: '',
@@ -149,6 +336,51 @@ export default function MapPage() {
     } catch {
       setIsHighDpi(false);
     }
+  }, []);
+
+  // Ouvir novos SpeedAlerts e eventos de limpeza em tempo real
+  useEffect(() => {
+    const addHandler = (e: Event) => {
+      const alert = (e as CustomEvent<SpeedAlert>).detail;
+      setSpeedAlerts((prev) => {
+        // Evitar duplicatas
+        if (prev.some((a) => a.id === alert.id)) return prev;
+        return [alert, ...prev].slice(0, 100);
+      });
+    };
+
+    // Limpar todos os alertas (notificações limpas no painel)
+    const clearHandler = () => {
+      setSpeedAlerts([]);
+    };
+
+    // Remover alerta individual (notificação excluída no painel)
+    const removeHandler = (e: Event) => {
+      const { id } = (e as CustomEvent<{ id: string }>).detail;
+      setSpeedAlerts((prev) => prev.filter((a) => a.id !== id));
+    };
+
+    window.addEventListener('speedAlertAdded', addHandler);
+    window.addEventListener('speedAlertsCleared', clearHandler);
+    window.addEventListener('speedAlertRemoved', removeHandler);
+
+    // Re-sincronizar com localStorage ao montar (captura alertas criados antes da montagem,
+    // ex: quando o usuário clica "Ver no mapa" na página de eventos e navega aqui)
+    try {
+      const stored = localStorage.getItem('speedAlerts');
+      if (stored) {
+        const parsed: SpeedAlert[] = JSON.parse(stored);
+        if (parsed.length > 0) {
+          setSpeedAlerts(parsed);
+        }
+      }
+    } catch { /* ignore */ }
+
+    return () => {
+      window.removeEventListener('speedAlertAdded', addHandler);
+      window.removeEventListener('speedAlertsCleared', clearHandler);
+      window.removeEventListener('speedAlertRemoved', removeHandler);
+    };
   }, []);
 
   function MapResizeInvalidator() {
@@ -233,7 +465,7 @@ export default function MapPage() {
 
   // Evita que o effect do WebSocket reconecte a cada mudança de `devices`
   const devicesRef = useRef<Device[]>([]);
-  useEffect(() => {
+  useEffect(() => {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
     devicesRef.current = devices;
   }, [devices]);
 
@@ -244,7 +476,7 @@ export default function MapPage() {
   }, [deviceTrails]);
 
   const { data: plannedRoute } = useQuery({
-    queryKey: ['planned-route', routeIdFromUrl],
+    queryKey: ['planned-route', routeIdFromUrl],                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
     queryFn: () => getPlannedRouteById(routeIdFromUrl as string),
     enabled: typeof routeIdFromUrl === 'string' && routeIdFromUrl.length > 0,
   });
@@ -262,15 +494,55 @@ export default function MapPage() {
   // Abrir mapa com veículo da URL (?deviceId=123): selecionar dispositivo e centralizar
   useEffect(() => {
     const deviceIdParam = searchParams?.get('deviceId');
-    if (!deviceIdParam || hasAppliedUrlDevice.current || !devices.length || !positions.length) return;
+    // Não exige positions.length > 0: a seleção pode acontecer antes das posições carregarem
+    // O MapFollowHandler aguarda a posição antes de animar
+    if (!deviceIdParam || !devices.length) return;
     const deviceId = parseInt(deviceIdParam, 10);
     if (!Number.isFinite(deviceId)) return;
+    // Evitar re-aplicar o mesmo device (mas permitir trocar de device)
+    if (hasAppliedUrlDevice.current === deviceId) return;
     const device = devices.find((d) => d.id === deviceId);
     if (!device) return;
-    hasAppliedUrlDevice.current = true;
+    hasAppliedUrlDevice.current = deviceId;
     setSelectedDevice(device);
     setFollowVehicle(true);
-  }, [searchParams, devices, positions]);
+  }, [searchParams, devices]);
+
+  // Centralizar no local do excesso de velocidade quando alertId está na URL
+  const hasAppliedUrlAlert = useRef<string | null>(null);
+  useEffect(() => {
+    const alertId = searchParams?.get('alertId');
+    if (!alertId || hasAppliedUrlAlert.current === alertId) return;
+
+    // Tentar encontrar o alerta no estado atual
+    const tryFocus = () => {
+      const alert = speedAlerts.find((a) => a.id === alertId);
+      if (!alert) {
+        // Ainda não sincronizou — tentar via localStorage diretamente
+        try {
+          const stored = localStorage.getItem('speedAlerts');
+          const parsed: SpeedAlert[] = stored ? JSON.parse(stored) : [];
+          const found = parsed.find((a) => a.id === alertId);
+          if (found) {
+            // Garantir que está no estado
+            setSpeedAlerts((prev) => {
+              if (prev.some((a) => a.id === found.id)) return prev;
+              return [found, ...prev];
+            });
+            window.dispatchEvent(new CustomEvent('speedAlertFocus', { detail: found }));
+            hasAppliedUrlAlert.current = alertId;
+          }
+        } catch { /* ignore */ }
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('speedAlertFocus', { detail: alert }));
+      hasAppliedUrlAlert.current = alertId;
+    };
+
+    // Pequeno delay para garantir que o mapa e os alertas já estão montados
+    const t = window.setTimeout(tryFocus, 400);
+    return () => window.clearTimeout(t);
+  }, [searchParams, speedAlerts]);
 
   const tileLayerProps = useMemo(() => {
     const layer = TILE_LAYERS[mapStyle];
@@ -509,6 +781,25 @@ export default function MapPage() {
     const prev = useRef<{lat:number;lng:number} | null>(null);
     const transitionRunning = useRef(false);
     const animatedSelectionForId = useRef<number | null>(null);
+
+    // Centralizar no local exato do excesso de velocidade ao receber speedAlertFocus
+    useEffect(() => {
+      if (!map) return;
+      const handler = (e: Event) => {
+        const alert = (e as CustomEvent<SpeedAlert>).detail;
+        if (!alert?.latitude || !alert?.longitude) return;
+        transitionRunning.current = true;
+        try { map.stop?.(); } catch { /* ignore */ }
+        try {
+          map.flyTo([alert.latitude, alert.longitude], 17, { duration: 1.0 });
+        } catch {
+          try { map.setView([alert.latitude, alert.longitude], 17); } catch { /* ignore */ }
+        }
+        window.setTimeout(() => { transitionRunning.current = false; }, 1200);
+      };
+      window.addEventListener('speedAlertFocus', handler);
+      return () => window.removeEventListener('speedAlertFocus', handler);
+    }, [map]);
 
     // Se o usuário mexer no mapa (drag/zoom), desativa o follow para não "brigar".
     useEffect(() => {
@@ -839,6 +1130,22 @@ export default function MapPage() {
           <ShieldCheck className="w-3.5 h-3.5" />
           Cercas {allGeofences.length > 0 && `(${allGeofences.length})`}
         </button>
+
+        {/* Toggle de alertas de velocidade */}
+        <button
+          type="button"
+          onClick={() => setShowSpeedAlerts((v) => !v)}
+          title={showSpeedAlerts ? 'Ocultar alertas de velocidade' : 'Mostrar alertas de velocidade'}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+            showSpeedAlerts && speedAlerts.length > 0
+              ? 'bg-amber-500/80 border-amber-400/50 text-white'
+              : 'bg-black/40 border-white/10 text-gray-400 hover:bg-white/10'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5" />
+          Excessos {speedAlerts.length > 0 && `(${speedAlerts.length})`}
+        </button>
+
         </div>
       </div>
 
@@ -977,6 +1284,11 @@ export default function MapPage() {
             </div>
           );
         })}
+
+        {/* ⚡ Marcadores de Excesso de Velocidade */}
+        {showSpeedAlerts && L && speedAlerts.map((alert) => (
+          <SpeedAlertMarker key={alert.id} alert={alert} />
+        ))}
 
         {/* Markers para cada dispositivo */}
         {devices.map((device) => {

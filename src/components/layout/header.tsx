@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Bell, Moon, Sun, LogOut, User, Settings } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
@@ -37,10 +37,20 @@ export function Header() {
       const stored = localStorage.getItem('inAppNotifications');
       return stored ? JSON.parse(stored) : [];
     },
-    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    refetchInterval: 10000,
   });
 
   const unreadCount = notifications.filter((n: any) => !n.read).length;
+
+  // Listener SEMPRE ATIVO (Header nunca desmonta) para atualizar badge e cache
+  // assim que uma notificação é criada — independentemente do painel estar aberto
+  useEffect(() => {
+    const handleNewNotification = () => {
+      queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
+    };
+    window.addEventListener('notificationAdded', handleNewNotification);
+    return () => window.removeEventListener('notificationAdded', handleNewNotification);
+  }, [queryClient]);
 
   const handleLogout = () => {
     queryClient.clear(); // limpa todo o cache ao sair
