@@ -1,5 +1,7 @@
 import { Device, Position, Event, Command, Client, User, DashboardStats, DeviceStatistics } from '@/types';
 import { api } from './client';
+import { getDevices as getDevicesFromDevices, getDevice } from './devices';
+import { deriveDeviceStatus } from '@/lib/utils';
 
 /**
  * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
@@ -49,17 +51,14 @@ function mapTraccarToUser(traccarUser: any): User {
 }
 
 // Devices API (usando Traccar)
+// Usa a versão de devices.ts que normaliza os campos customizados
+// (plate, year, color, speedLimit) de attributes para o nível raiz.
 export async function getDevices(): Promise<Device[]> {
-  const impersonatingUserId = getImpersonatingUserId();
-  if (impersonatingUserId) {
-    console.log('[getDevices/index] Impersonação ativa — filtrando por userId:', impersonatingUserId);
-    return api.get<Device[]>('/devices', { userId: impersonatingUserId });
-  }
-  return api.get<Device[]>('/devices');
+  return getDevicesFromDevices();
 }
 
 export async function getDeviceById(id: number): Promise<Device> {
-  return api.get<Device>(`/devices/${id}`);
+  return getDevice(id);
 }
 
 // Positions API (usando Traccar)
@@ -566,20 +565,32 @@ export async function updateUserPassword(userId: number, newPassword: string): P
 // Dashboard Stats API
 // deviceIds opcional: quando informado (ex.: cliente vendo só seus veículos), filtra dispositivos e eventos
 export async function getDashboardStats(options?: { deviceIds?: number[] }): Promise<DashboardStats> {
-  const devices = await getDevices();
+  const [devices, positions] = await Promise.all([
+    getDevices(),
+    api.get<any[]>('/positions').catch(() => [] as any[]),
+  ]);
   const deviceIds = options?.deviceIds;
   const filteredDevices = deviceIds?.length
     ? devices.filter((d) => deviceIds.includes(d.id))
     : devices;
 
+  const posMap = new Map((positions as any[]).map((p: any) => [p.deviceId, p]));
+
   const deviceStats: DeviceStatistics = {
     total: filteredDevices.length,
-    online: filteredDevices.filter(d => d.status === 'online' || d.status === 'moving').length,
-    offline: filteredDevices.filter(d => d.status === 'offline').length,
-    moving: filteredDevices.filter(d => d.status === 'moving').length,
-    stopped: filteredDevices.filter(d => d.status === 'stopped').length,
-    blocked: filteredDevices.filter(d => d.status === 'blocked').length
+    online: 0, offline: 0, moving: 0, stopped: 0, blocked: 0,
   };
+  for (const d of filteredDevices) {
+    const s = deriveDeviceStatus(d.status, posMap.get(d.id));
+    if (s === 'moving')       deviceStats.moving++;
+    else if (s === 'stopped') deviceStats.stopped++;
+    else if (s === 'blocked') deviceStats.blocked++;
+    else if (s === 'offline') deviceStats.offline++;
+    else                       deviceStats.online++;
+    if (s !== 'offline' && s !== 'blocked') deviceStats.online = deviceStats.moving + deviceStats.stopped + (deviceStats.online - deviceStats.moving - deviceStats.stopped);
+  }
+  // recalculate online as total minus offline/blocked
+  deviceStats.online = filteredDevices.length - deviceStats.offline - deviceStats.blocked;
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);

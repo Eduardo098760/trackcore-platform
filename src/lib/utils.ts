@@ -53,6 +53,39 @@ export function getDeviceStatusColor(status: string): string {
   }
 }
 
+/**
+ * Deriva o status efetivo de um veículo combinando device.status + dados da posição.
+ * O Traccar frequentemente retorna status='unknown' — nesse caso usamos a posição
+ * para inferir se está em movimento, parado, online ou offline.
+ */
+export function deriveDeviceStatus(
+  deviceStatus: string,
+  position?: { fixTime?: string; deviceTime?: string; speed?: number; attributes?: { motion?: boolean; ignition?: boolean; blocked?: boolean } } | null
+): string {
+  // Status definitivos do Traccar têm prioridade
+  if (deviceStatus === 'blocked') return 'blocked';
+  if (deviceStatus === 'online' || deviceStatus === 'moving' || deviceStatus === 'stopped' || deviceStatus === 'offline') {
+    // Mesmo com status definitivo, refina com dados da posição se disponível
+    if (position) {
+      if (position.attributes?.blocked) return 'blocked';
+      if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
+      if (deviceStatus === 'online' || deviceStatus === 'moving' || deviceStatus === 'stopped') {
+        return position.attributes?.ignition ? 'stopped' : 'online';
+      }
+    }
+    return deviceStatus;
+  }
+  // Status 'unknown' ou ausente: inferir da posição
+  if (!position) return 'offline';
+  const ts = position.fixTime || position.deviceTime;
+  const ageMin = ts ? (Date.now() - new Date(ts).getTime()) / 60_000 : Infinity;
+  if (ageMin > 15) return 'offline';
+  if (position.attributes?.blocked) return 'blocked';
+  if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
+  if (position.attributes?.ignition) return 'stopped';
+  return 'online';
+}
+
 export function getDeviceStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     online: 'Online',

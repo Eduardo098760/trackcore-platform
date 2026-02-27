@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDevices, getPositions } from '@/lib/api';
-import { createDevice, updateDevice, deleteDevice } from '@/lib/api/devices';
+import { createDevice, updateDevice, deleteDevice, updateAccumulators } from '@/lib/api/devices';
 import { Device } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,10 +28,38 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, History, Terminal, Filter, Plus, Edit, Trash2, Car, Gauge, Zap, Activity, Satellite } from 'lucide-react';
+import { Search, MapPin, History, Terminal, Filter, Plus, Edit, Trash2, Car, Gauge, Zap, Activity, Satellite, Share2, Wifi, ShieldOff, ChevronDown, Clock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getDeviceStatusColor, getDeviceStatusLabel, formatDate } from '@/lib/utils';
+import { getDeviceStatusColor, getDeviceStatusLabel, formatDate, deriveDeviceStatus } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ShareLocationDialog } from '@/components/vehicles/share-location-dialog';
+
+interface ActiveShare {
+  shareId:    string;
+  deviceId:   number;
+  deviceName: string;
+  plate:      string;
+  createdAt:  number;
+  expiresAt:  number;
+}
+
+// Countdown ao vivo para sub-linha de shares inline
+function ShareCountdown({ expiresAt }: { expiresAt: number }) {
+  const [ms, setMs] = useState(Math.max(0, expiresAt - Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => setMs(Math.max(0, expiresAt - Date.now())), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  const s = Math.floor((ms % 60_000) / 1_000);
+  const urgent = ms < 5 * 60_000;
+  return (
+    <span className={`font-mono text-xs font-bold shrink-0 ${urgent ? 'text-red-400' : 'text-amber-400'}`}>
+      {h > 0 ? `${h}h ` : ''}{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+    </span>
+  );
+}
 
 export default function VehiclesPage() {
   const queryClient = useQueryClient();
@@ -40,6 +68,63 @@ export default function VehiclesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [shareDevice, setShareDevice] = useState<Device | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
+  // shares ativos: map deviceId -> lista de shares
+  const [activeSharesMap, setActiveSharesMap] = useState<Map<number, ActiveShare[]>>(new Map());
+  const [expandedShares, setExpandedShares] = useState<Set<number>>(new Set());
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  const refreshActiveShares = useCallback(async () => {
+    try {
+      const res = await fetch('/api/share/active');
+      if (res.ok) {
+        const shares: ActiveShare[] = await res.json();
+        const map = new Map<number, ActiveShare[]>();
+        for (const s of shares) {
+          const arr = map.get(s.deviceId) || [];
+          arr.push(s);
+          map.set(s.deviceId, arr);
+        }
+        setActiveSharesMap(map);
+      }
+    } catch { /* silencioso */ }
+  }, []);
+
+  const handleRevokeInline = async (shareId: string, deviceId: number) => {
+    setRevokingId(shareId);
+    try {
+      const res = await fetch('/api/share/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shareId }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Acesso revogado');
+      setActiveSharesMap(prev => {
+        const next = new Map(prev);
+        const arr = (next.get(deviceId) || []).filter(s => s.shareId !== shareId);
+        if (arr.length === 0) {
+          next.delete(deviceId);
+          setExpandedShares(e => { const n = new Set(e); n.delete(deviceId); return n; });
+        } else {
+          next.set(deviceId, arr);
+        }
+        return next;
+      });
+    } catch {
+      toast.error('Erro ao revogar acesso');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  useEffect(() => {
+    refreshActiveShares();
+    const id = setInterval(refreshActiveShares, 30_000);
+    return () => clearInterval(id);
+  }, [refreshActiveShares]);
   const [formData, setFormData] = useState({
     name: '',
     uniqueId: '',
@@ -49,6 +134,7 @@ export default function VehiclesPage() {
     category: 'car' as const,
     plate: '',
     speedLimit: 80,
+    odometer: 0,
     attributes: {} as Record<string, any>,
   });
 
@@ -156,6 +242,7 @@ export default function VehiclesPage() {
       category: 'car',
       plate: '',
       speedLimit: 80,
+      odometer: 0,
       attributes: {},
     });
     setEditingDevice(null);
@@ -163,29 +250,58 @@ export default function VehiclesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { odometer, ...formRest } = formData;
 
     if (editingDevice) {
-      // Para update: preservar campos existentes do device e não sobrescrever campos read-only
       const updateData = {
-        ...editingDevice,   // garante groupId, geofenceIds, positionId, etc.
-        ...formData,        // aplica as alterações do formulário
+        ...editingDevice,
+        ...formRest,
         id: editingDevice.id,
         disabled: editingDevice.disabled ?? false,
       };
-      updateMutation.mutate({ id: editingDevice.id, data: updateData });
+      try {
+        await updateMutation.mutateAsync({ id: editingDevice.id, data: updateData });
+        if (odometer >= 0) {
+          const pos = positionsMap.get(editingDevice.id);
+          const currentHours = (pos?.attributes as any)?.hours ?? 0;
+          await updateAccumulators(editingDevice.id, odometer, currentHours);
+          // Atualiza o cache de posições imediatamente — o Traccar não altera
+          // a posição já armazenada ao mudar o acumulador, apenas posições futuras.
+          queryClient.setQueryData<any[]>(['positions'], (old = []) =>
+            old.map(p =>
+              p.deviceId === editingDevice.id
+                ? { ...p, attributes: { ...p.attributes, totalDistance: odometer * 1000, odometer: undefined } }
+                : p
+            )
+          );
+        }
+      } catch { /* tratado pelos callbacks da mutation */ }
     } else {
       const deviceData = {
-        ...formData,
+        ...formRest,
         status: 'offline' as const,
         lastUpdate: new Date().toISOString(),
         disabled: false,
       };
-      createMutation.mutate(deviceData);
+      try {
+        const created = await createMutation.mutateAsync(deviceData);
+        if (odometer > 0) {
+          await updateAccumulators(created.id, odometer);
+          queryClient.setQueryData<any[]>(['positions'], (old = []) => [
+            ...old,
+            { deviceId: created.id, attributes: { totalDistance: odometer * 1000 } },
+          ]);
+        }
+      } catch { /* tratado pelos callbacks da mutation */ }
     }
   };
 
   const handleEdit = (device: Device) => {
     setEditingDevice(device);
+    const pos = positionsMap.get(device.id);
+    const currentOdoKm = pos?.attributes?.totalDistance
+      ? Math.round(pos.attributes.totalDistance / 1000)
+      : (pos?.attributes?.odometer ?? 0);
     setFormData({
       name: device.name ?? '',
       uniqueId: device.uniqueId ?? '',
@@ -195,6 +311,7 @@ export default function VehiclesPage() {
       category: device.category ?? 'car',
       plate: device.plate ?? '',
       speedLimit: device.speedLimit ?? 80,
+      odometer: currentOdoKm,
       attributes: device.attributes ?? {},
     });
     setIsDialogOpen(true);
@@ -365,21 +482,37 @@ export default function VehiclesPage() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="speedLimit">Limite de Velocidade (km/h) *</Label>
-                  <Input
-                    id="speedLimit"
-                    type="number"
-                    value={formData.speedLimit}
-                    onChange={(e) => setFormData({ ...formData, speedLimit: parseInt(e.target.value) || 80 })}
-                    placeholder="80"
-                    min="10"
-                    max="200"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Alerta quando o veículo exceder este limite
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="speedLimit">Limite de Velocidade (km/h) *</Label>
+                    <Input
+                      id="speedLimit"
+                      type="number"
+                      value={formData.speedLimit}
+                      onChange={(e) => setFormData({ ...formData, speedLimit: parseInt(e.target.value) || 80 })}
+                      placeholder="80"
+                      min="10"
+                      max="200"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Alerta ao exceder este limite
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="odometer">Hodômetro (km)</Label>
+                    <Input
+                      id="odometer"
+                      type="number"
+                      value={formData.odometer}
+                      onChange={(e) => setFormData({ ...formData, odometer: parseFloat(e.target.value) || 0 })}
+                      placeholder="0"
+                      min="0"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ajusta o hodômetro do veículo
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-4">
@@ -402,6 +535,89 @@ export default function VehiclesPage() {
           </Dialog>
         }
       />
+
+      {/* ── Painel de Compartilhamentos Ativos ──────────────────────────────── */}
+      {Array.from(activeSharesMap.values()).flat().length > 0 && (
+        <div className="rounded-2xl border border-green-500/25 bg-green-500/[0.04] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/15">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-green-500/15 border border-green-500/25">
+                <Wifi className="w-3.5 h-3.5 text-green-400" />
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-green-500 text-[8px] font-bold text-white flex items-center justify-center">
+                  {Array.from(activeSharesMap.values()).flat().length}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-green-400">Compartilhamentos Ativos</p>
+                <p className="text-[11px] text-green-500/70">Terceiros podem ver a localização em tempo real</p>
+              </div>
+            </div>
+            <Button
+              size="sm" variant="ghost"
+              className="h-7 text-[11px] text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 px-3"
+              onClick={async () => {
+                const all = Array.from(activeSharesMap.values()).flat();
+                for (const s of all) await handleRevokeInline(s.shareId, s.deviceId);
+              }}
+              disabled={!!revokingId}
+            >
+              <ShieldOff className="w-3.5 h-3.5 mr-1.5" />
+              Encerrar todos
+            </Button>
+          </div>
+
+          {/* Lista de shares */}
+          <div className="divide-y divide-green-500/10">
+            {Array.from(activeSharesMap.entries()).map(([deviceId, shares]) =>
+              shares.map(share => (
+                <div key={share.shareId} className="flex items-center gap-4 px-4 py-2.5 hover:bg-green-500/[0.04] transition-colors">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+                  <div className="w-48 shrink-0">
+                    <p className="text-sm font-semibold text-white leading-tight truncate">{share.deviceName}</p>
+                    {share.plate && <p className="text-[10px] font-mono text-gray-400">{share.plate}</p>}
+                  </div>
+                  <div className="hidden md:flex items-center gap-1.5 text-[11px] text-gray-500 w-36 shrink-0">
+                    <Clock className="w-3 h-3 shrink-0" />
+                    Criado às {new Date(share.createdAt).toLocaleTimeString('pt-BR')}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="text-[10px] text-gray-600 shrink-0">Expira em</span>
+                    <ShareCountdown expiresAt={share.expiresAt} />
+                    <span className="text-[10px] text-gray-600 hidden sm:inline shrink-0">
+                      ({new Date(share.expiresAt).toLocaleTimeString('pt-BR')})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm" variant="ghost"
+                      className="h-7 px-2 text-[11px] text-gray-400 hover:text-white hover:bg-white/5 border border-white/10"
+                      onClick={() => {
+                        const device = devices.find(d => d.id === deviceId);
+                        if (device) { setShareDevice(device); setIsShareOpen(true); }
+                      }}
+                    >
+                      <Share2 className="w-3 h-3 mr-1" />
+                      Gerenciar
+                    </Button>
+                    <Button
+                      size="sm" variant="ghost"
+                      className="h-7 px-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20"
+                      onClick={() => handleRevokeInline(share.shareId, deviceId)}
+                      disabled={revokingId === share.shareId}
+                    >
+                      {revokingId === share.shareId
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <><ShieldOff className="w-3.5 h-3.5 mr-1" />Encerrar</>
+                      }
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
@@ -479,9 +695,12 @@ export default function VehiclesPage() {
               <TableBody>
                 {filteredDevices.map((device) => {
                   const position = positionsMap.get(device.id);
+                  const deviceShares = activeSharesMap.get(device.id) || [];
+                  const hasShares = deviceShares.length > 0;
+                  const isExpanded = expandedShares.has(device.id);
                   return (
-                    <TableRow 
-                      key={device.id}
+                    <Fragment key={device.id}>
+                    <TableRow
                       className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-950/20 dark:hover:to-purple-950/20 transition-all"
                     >
                       <TableCell className="font-bold">{device.plate}</TableCell>
@@ -504,9 +723,14 @@ export default function VehiclesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge className={getDeviceStatusColor(device.status)}>
-                          {getDeviceStatusLabel(device.status)}
-                        </Badge>
+                        {(() => {
+                          const effectiveStatus = deriveDeviceStatus(device.status, position);
+                          return (
+                            <Badge className={getDeviceStatusColor(effectiveStatus)}>
+                              {getDeviceStatusLabel(effectiveStatus)}
+                            </Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
@@ -547,6 +771,7 @@ export default function VehiclesPage() {
                             variant="ghost"
                             onClick={() => handleEdit(device)}
                             className="hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                            title="Editar"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -554,20 +779,107 @@ export default function VehiclesPage() {
                             size="sm"
                             variant="ghost"
                             className="hover:bg-purple-50 dark:hover:bg-purple-950/20"
+                            title="Ver no mapa"
                           >
                             <MapPin className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => {
+                              if (hasShares) {
+                                setExpandedShares(prev => {
+                                  const n = new Set(prev);
+                                  n.has(device.id) ? n.delete(device.id) : n.add(device.id);
+                                  return n;
+                                });
+                              } else {
+                                setShareDevice(device);
+                                setIsShareOpen(true);
+                              }
+                            }}
+                            className={`relative hover:bg-sky-50 dark:hover:bg-sky-950/20 ${hasShares ? 'text-green-500' : 'text-sky-500'}`}
+                            title={hasShares ? `${deviceShares.length} compartilhamento(s) ativo(s)` : 'Compartilhar localização'}
+                          >
+                            <Share2 className="w-4 h-4" />
+                            {hasShares && (
+                              <>
+                                <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-green-400 border border-background animate-pulse" />
+                                <ChevronDown className={`w-2.5 h-2.5 ml-0.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => handleDelete(device.id)}
                             className="hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600"
+                            title="Remover"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
+
+                    {/* Sub-linha de shares ativos */}
+                    {hasShares && isExpanded && (
+                      <TableRow key={`share-${device.id}`} className="bg-green-500/[0.03] hover:bg-green-500/[0.05]">
+                        <TableCell colSpan={9} className="py-0">
+                          <div className="py-2 px-3 space-y-1.5">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] font-semibold text-green-500 flex items-center gap-1.5">
+                                <Wifi className="w-3 h-3" />
+                                {deviceShares.length} link{deviceShares.length > 1 ? 's' : ''} de compartilhamento ativo{deviceShares.length > 1 ? 's' : ''}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {deviceShares.length > 1 && (
+                                  <Button
+                                    size="sm" variant="ghost"
+                                    className="h-6 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/10 px-2"
+                                    onClick={async () => { for (const s of deviceShares) await handleRevokeInline(s.shareId, device.id); }}
+                                    disabled={!!revokingId}
+                                  >
+                                    <ShieldOff className="w-3 h-3 mr-1" />Revogar todos
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="h-6 text-[10px] text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 px-2"
+                                  onClick={() => { setShareDevice(device); setIsShareOpen(true); }}
+                                >
+                                  <Share2 className="w-3 h-3 mr-1" />Novo link
+                                </Button>
+                              </div>
+                            </div>
+                            {deviceShares.map(share => (
+                              <div key={share.shareId} className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-black/10 border border-green-500/15">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                                <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                                <ShareCountdown expiresAt={share.expiresAt} />
+                                <span className="text-[10px] text-muted-foreground flex-1">
+                                  Criado às {new Date(share.createdAt).toLocaleTimeString('pt-BR')}
+                                  {' • '}
+                                  Expira {new Date(share.expiresAt).toLocaleTimeString('pt-BR')}
+                                </span>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
+                                  onClick={() => handleRevokeInline(share.shareId, device.id)}
+                                  disabled={revokingId === share.shareId}
+                                >
+                                  {revokingId === share.shareId
+                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                    : <><ShieldOff className="w-3 h-3 mr-1" />Revogar</>
+                                  }
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -584,6 +896,13 @@ export default function VehiclesPage() {
           )}
         </CardContent>
       </Card>
+
+      <ShareLocationDialog
+        open={isShareOpen}
+        onOpenChange={setIsShareOpen}
+        device={shareDevice}
+        onShareChange={refreshActiveShares}
+      />
     </div>
   );
 }

@@ -2,18 +2,19 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getDashboardStats, getDevices, getEvents, getClients } from '@/lib/api';
+import { getDashboardStats, getDevices, getEvents, getClients, getPositions } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/auth';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DeviceStatusChart } from '@/components/dashboard/device-status-chart';
 import { RecentEvents } from '@/components/dashboard/recent-events';
 import { Skeleton } from '@/components/ui/skeleton';
+import { deriveDeviceStatus } from '@/lib/utils';
 import type { UserRole } from '@/types';
 
-/** Admin/operador: todos os dispositivos. Cliente: apenas dispositivos do seu clientId. */
+/** Admin/operador/superadmin: todos os dispositivos. Cliente: apenas dispositivos do seu clientId. */
 function getDeviceIdsForUser(deviceList: { id: number; clientId?: number }[], user: { role?: UserRole; clientId?: number } | null): number[] {
   if (!deviceList.length) return [];
-  if (!user?.role || user.role === 'admin' || user.role === 'operator') {
+  if (!user?.role || user.role === 'superadmin' || user.role === 'admin' || user.role === 'operator') {
     return deviceList.map((d) => d.id);
   }
   if (user.role === 'client') {
@@ -32,6 +33,17 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
+  const { data: positions = [] } = useQuery({
+    queryKey: ['positions'],
+    queryFn: getPositions,
+    refetchInterval: 10000,
+  });
+
+  const positionsMap = useMemo(
+    () => new Map(positions.map(p => [p.deviceId, p])),
+    [positions]
+  );
+
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
     queryFn: getClients,
@@ -45,6 +57,15 @@ export default function DashboardPage() {
   const filteredDevices = useMemo(
     () => (devices ?? []).filter((d) => deviceIds.includes(d.id)),
     [devices, deviceIds]
+  );
+
+  // Enriquece devices com status derivado das posições (corrige 'unknown' do Traccar)
+  const enrichedDevices = useMemo(
+    () => filteredDevices.map(d => ({
+      ...d,
+      status: deriveDeviceStatus(d.status, positionsMap.get(d.id)) as typeof d.status,
+    })),
+    [filteredDevices, positionsMap]
   );
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -105,7 +126,7 @@ export default function DashboardPage() {
         {devicesLoading ? (
           <Skeleton className="h-80" />
         ) : (
-          <DeviceStatusChart devices={filteredDevices} />
+        <DeviceStatusChart devices={enrichedDevices} />
         )}
 
         {/* Recent Events */}

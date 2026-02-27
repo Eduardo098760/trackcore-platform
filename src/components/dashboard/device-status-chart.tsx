@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Device } from '@/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { deriveDeviceStatus } from '@/lib/utils';
 
 interface DeviceStatusChartProps {
   devices: Device[];
@@ -10,7 +11,8 @@ interface DeviceStatusChartProps {
 
 export function DeviceStatusChart({ devices }: DeviceStatusChartProps) {
   const statusCounts = devices.reduce((acc, device) => {
-    acc[device.status] = (acc[device.status] || 0) + 1;
+    const s = deriveDeviceStatus(device.status);
+    acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -21,6 +23,21 @@ export function DeviceStatusChart({ devices }: DeviceStatusChartProps) {
     { name: 'Offline', value: statusCounts.offline || 0, color: '#6b7280' },
     { name: 'Bloqueado', value: statusCounts.blocked || 0, color: '#ef4444' },
   ].filter(item => item.value > 0);
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Status dos Veículos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+            Nenhum veículo encontrado
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

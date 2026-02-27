@@ -27,7 +27,7 @@ import {
   ExternalLink,
   ShieldCheck,
 } from 'lucide-react';
-import { formatDate, getDeviceStatusColor } from '@/lib/utils';
+import { formatDate, getDeviceStatusColor, deriveDeviceStatus, getDeviceStatusLabel } from '@/lib/utils';
 import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
 
 interface VehicleDetailsPanelProps {
@@ -104,9 +104,14 @@ export function VehicleDetailsPanel({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-base font-semibold truncate">{device.name || device.plate}</h2>
-            <Badge className={getDeviceStatusColor(device.status)}>
-              {device.status}
-            </Badge>
+            {(() => {
+              const effectiveStatus = deriveDeviceStatus(device.status, position);
+              return (
+                <Badge className={getDeviceStatusColor(effectiveStatus)}>
+                  {getDeviceStatusLabel(effectiveStatus)}
+                </Badge>
+              );
+            })()}
           </div>
           {device.plate && (
             <p className="text-sm text-muted-foreground">{device.plate}</p>

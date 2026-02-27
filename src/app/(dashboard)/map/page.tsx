@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Navigation, Zap, ZapOff, Circle, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Route, ShieldCheck } from 'lucide-react';
+import { Navigation, Zap, ZapOff, Circle, Wifi, WifiOff, Edit, Gauge, Car, Calendar, Palette, Phone, Route, ShieldCheck, Tag } from 'lucide-react';
 import { formatSpeed, formatDate, getDeviceStatusColor } from '@/lib/utils';
 import { getVehicleIconSVG } from '@/lib/vehicle-icons';
 import { getWebSocketClient } from '@/lib/websocket';
@@ -297,6 +297,10 @@ export default function MapPage() {
   const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(null);
   const [showGeofences, setShowGeofences] = useState(true);
   const [showSpeedAlerts, setShowSpeedAlerts] = useState(true);
+  const [showVehicleLabels, setShowVehicleLabels] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try { return localStorage.getItem('mapShowVehicleLabels') !== 'false'; } catch { return true; }
+  });
   const [speedAlerts, setSpeedAlerts] = useState<SpeedAlert[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -954,13 +958,26 @@ export default function MapPage() {
 
   const iconCacheRef = useRef(new Map<number, { key: string; icon: any }>());
 
-  const createCustomIcon = (device: Device, position: Position, bearing?: number) => {
+  const createCustomIcon = (device: Device, position: Position, bearing?: number, showLabel = true) => {
     if (!L) return null;
     
     const color = getMarkerColor(device.status);
     const isPulsing = device.status === 'moving';
     const course = typeof bearing === 'number' ? bearing : (position.course || 0);
     const vehicleIcon = getVehicleIconSVG(device.category, '#ffffff', 0);
+    const plate = (device.plate || '').trim();
+    const hasLabel = showLabel && !!plate;
+    // Placa posicionada logo abaixo do círculo (52px do topo do container 48px)
+    const labelHtml = hasLabel ? `
+      <div style="position:absolute;left:50%;transform:translateX(-50%);top:52px;background:rgba(0,0,0,0.78);border:1px solid rgba(255,255,255,0.18);border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700;color:#fff;font-family:monospace;letter-spacing:0.6px;white-space:nowrap;pointer-events:none;user-select:none;">
+        ${plate}
+      </div>` : '';
+    // Badge de velocidade: afasta mais quando a placa está visível
+    const speedTop = hasLabel ? '70px' : '56px';
+    const speedHtml = isPulsing && position.speed > 0 ? `
+      <div style="position:absolute;left:50%;transform:translateX(-50%);top:${speedTop};background:#2563eb;color:#fff;font-size:11px;padding:1px 7px;border-radius:999px;white-space:nowrap;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.5);pointer-events:none;">
+        ${Math.round(position.speed)} km/h
+      </div>` : '';
     
     return L.divIcon({
       className: 'custom-marker',
@@ -997,11 +1014,8 @@ export default function MapPage() {
             </svg>
           </div>
           
-          ${isPulsing && position.speed > 0 ? `
-            <div class="absolute -bottom-8 left-1/2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap font-bold shadow-lg" style="transform: translate(-50%, 0);">
-              ${Math.round(position.speed)} km/h
-            </div>
-          ` : ''}
+          ${labelHtml}
+          ${speedHtml}
         </div>
       `,
       iconSize: [48, 48],
@@ -1010,7 +1024,7 @@ export default function MapPage() {
     });
   };
 
-  const getDeviceIcon = (device: Device, position: Position, bearing?: number) => {
+  const getDeviceIcon = (device: Device, position: Position, bearing?: number, showLabel = true) => {
     if (!L) return null;
 
     const rawCourse = typeof bearing === 'number' ? bearing : (typeof position.course === 'number' ? position.course : 0);
@@ -1018,7 +1032,7 @@ export default function MapPage() {
     const speedBucket = device.status === 'moving' ? Math.round((position.speed || 0) / 5) * 5 : Math.round(position.speed || 0);
     const blocked = device.attributes?.blocked ? 1 : 0;
 
-    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}`;
+    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}|${showLabel ? 1 : 0}`;
     const cached = iconCacheRef.current.get(device.id);
     if (cached?.key === cacheKey) return cached.icon;
 
@@ -1026,7 +1040,7 @@ export default function MapPage() {
       ? position
       : ({ ...position, speed: speedBucket } as Position);
 
-    const icon = createCustomIcon(device, positionForIcon, courseBucket);
+    const icon = createCustomIcon(device, positionForIcon, courseBucket, showLabel);
     iconCacheRef.current.set(device.id, { key: cacheKey, icon });
     return icon;
   };
@@ -1171,6 +1185,29 @@ export default function MapPage() {
         >
           <Zap className="w-3.5 h-3.5" />
           Excessos {visibleSpeedAlerts.length > 0 && `(${visibleSpeedAlerts.length})`}
+        </button>
+
+        {/* Toggle de placas nos marcadores */}
+        <button
+          type="button"
+          onClick={() => {
+            setShowVehicleLabels((v) => {
+              const next = !v;
+              try { localStorage.setItem('mapShowVehicleLabels', next ? 'true' : 'false'); } catch { /* ignore */ }
+              return next;
+            });
+            // Limpar cache de ícones para forçar recriação com/sem label
+            iconCacheRef.current.clear();
+          }}
+          title={showVehicleLabels ? 'Ocultar placas nos marcadores' : 'Mostrar placas nos marcadores'}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+            showVehicleLabels
+              ? 'bg-sky-500/80 border-sky-400/50 text-white'
+              : 'bg-black/40 border-white/10 text-gray-400 hover:bg-white/10'
+          }`}
+        >
+          <Tag className="w-3.5 h-3.5" />
+          Placas
         </button>
 
         </div>
@@ -1343,7 +1380,7 @@ export default function MapPage() {
             <Marker
               key={device.id}
               position={[position.latitude, position.longitude]}
-              icon={getDeviceIcon(device, position, bearing)}
+              icon={getDeviceIcon(device, position, bearing, showVehicleLabels)}
               eventHandlers={{
                 click: () => handleDeviceClick(device),
               }}

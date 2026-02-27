@@ -216,3 +216,19 @@ export async function updateDevice(id: number, device: Partial<Device> & Record<
 export async function deleteDevice(id: number): Promise<void> {
   return api.delete<void>(`/devices/${id}`);
 }
+
+/**
+ * Atualiza os acumuladores do dispositivo (hodômetro e horas de motor).
+ * totalDistanceKm: valor em km — convertido para metros internamente.
+ * currentHours: horas de motor atuais (em segundos no Traccar) — preserva valor existente.
+ */
+export async function updateAccumulators(
+  deviceId: number,
+  totalDistanceKm: number,
+  currentHours = 0,
+): Promise<void> {
+  await api.put<void>(`/devices/${deviceId}/accumulators`, {
+    totalDistance: Math.round(totalDistanceKm * 1000),
+    hours: currentHours,
+  });
+}
