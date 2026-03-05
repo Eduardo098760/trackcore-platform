@@ -81,9 +81,15 @@ export function Header() {
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
-      admin: 'Administrador',
-      operator: 'Operador',
-      client: 'Cliente'
+      admin:          'Administrador',
+      manager:        'Gerente',
+      user:           'Usuário',
+      readonly:       'Somente Leitura',
+      deviceReadonly: 'Leit. Dispositivos',
+      // retrocompat
+      superadmin: 'Administrador',
+      operator:   'Usuário',
+      client:     'Somente Leitura',
     };
     return labels[role] || role;
   };

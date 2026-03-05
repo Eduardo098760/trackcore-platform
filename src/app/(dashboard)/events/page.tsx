@@ -65,8 +65,9 @@ function getDeviceIdsForUser(
   user: { role?: UserRole; clientId?: number } | null
 ): number[] {
   if (!deviceList.length) return [];
-  if (!user?.role || user.role === 'admin' || user.role === 'operator') return deviceList.map((d) => d.id);
-  if (user.role === 'client') {
+  const fullAccessRoles: UserRole[] = ['admin', 'manager', 'user', 'deviceReadonly'];
+  if (!user?.role || fullAccessRoles.includes(user.role)) return deviceList.map((d) => d.id);
+  if (user.role === 'readonly') {
     if (user.clientId == null) return deviceList.map((d) => d.id);
     return deviceList.filter((d) => d.clientId === user.clientId).map((d) => d.id);
   }

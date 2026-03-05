@@ -23,7 +23,13 @@ export interface TenantContext {
 }
 
 // User Types
-export type UserRole = 'superadmin' | 'admin' | 'operator' | 'client';
+// Roles alinhados ao modelo nativo do Traccar:
+//   admin         → administrator: true  (acesso irrestrito)
+//   manager       → userLimit != 0        (gerencia usuários e dispositivos)
+//   user          → usuário regular        (acesso operacional próprio)
+//   readonly      → readonly: true         (somente leitura)
+//   deviceReadonly→ deviceReadonly: true   (leitura de dispositivos)
+export type UserRole = 'admin' | 'manager' | 'user' | 'readonly' | 'deviceReadonly';
 
 export interface User {
   id: number;
@@ -35,8 +41,10 @@ export interface User {
   phone?: string;
   avatar?: string;
   disabled?: boolean; // Status da conta
-  deviceLimit?: number; // Limite de dispositivos
-  userLimit?: number; // Limite de usuários subordinados
+  readonly?: boolean; // Traccar: usuário somente leitura
+  deviceReadonly?: boolean; // Traccar: usuário somente leitura de dispositivos
+  deviceLimit?: number; // Limite de dispositivos (-1 = ilimitado, 0 = sem adicionar)
+  userLimit?: number; // Limite de usuários subordinados (-1 = ilimitado, 0 = não é gerente)
   token?: string; // Token de sessão atual
   expirationTime?: string; // Expiracao do token
   lastLogin?: string; // Última conexão

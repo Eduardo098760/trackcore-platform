@@ -45,13 +45,14 @@ export function usePermissions(): UsePermissionsReturn {
       role: user.role,
       companyPermissions:  companyPerms,
       userPermissions:     userPerms,
-      // Bloqueia bypass superadmin e usa CLIENT_PERMISSIONS como fallback
+      // Bloqueia bypass admin e usa READONLY_PERMISSIONS como fallback durante impersonação
       isImpersonating,
     });
   }, [user, companyPerms, userPerms, isImpersonating]);
 
   // Durante impersonação: isSuperAdmin é SEMPRE false, independente da role do alvo
-  const isSuperAdmin = !isImpersonating && (user?.role === 'superadmin' || user?.role === 'admin');
+  // 'admin' = Traccar administrator (acesso irrestrito); 'manager' usa o sistema de permissões normalmente
+  const isSuperAdmin = !isImpersonating && user?.role === 'admin';
 
   const can = (key: RouteKey): boolean => {
     if (isSuperAdmin) return true;

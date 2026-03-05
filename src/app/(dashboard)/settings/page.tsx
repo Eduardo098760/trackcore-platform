@@ -92,18 +92,21 @@ export default function SettingsPage() {
                 {user?.email}
               </p>
               <div className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold ${
-                user?.role === 'superadmin'
+                (user?.role === 'admin' || user?.role === 'superadmin')
                   ? 'bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300'
-                  : user?.role === 'admin'
-                  ? 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300'
-                  : user?.role === 'operator'
+                  : user?.role === 'manager'
                   ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                  : 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300'
+                  : user?.role === 'user' || user?.role === 'operator'
+                  ? 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300'
+                  : user?.role === 'readonly' || user?.role === 'client'
+                  ? 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400'
+                  : 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300'
               }`}>
-                {user?.role === 'superadmin' ? 'Super Admin'
-                  : user?.role === 'admin'    ? 'Administrador'
-                  : user?.role === 'operator' ? 'Operador'
-                  : 'Cliente'}
+                {(user?.role === 'admin' || user?.role === 'superadmin')  ? 'Administrador'
+                  : user?.role === 'manager'                              ? 'Gerente'
+                  : (user?.role === 'user' || user?.role === 'operator')  ? 'Usuário'
+                  : (user?.role === 'readonly' || user?.role === 'client')? 'Somente Leitura'
+                  : 'Leit. Dispositivos'}
               </div>
             </div>
 

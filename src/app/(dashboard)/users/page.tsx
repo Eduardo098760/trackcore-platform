@@ -88,14 +88,16 @@ export default function UsersPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'operator' as UserRole,
+    role: 'user' as UserRole,
     phone: '',
-    password: ''
+    password: '',
+    deviceLimit: -1 as number,  // -1 = ilimitado
+    userLimit: 0 as number,     // 0 = não é gerente
   });
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['users'],
-    queryFn: getUsers,
+    queryKey: ['users', isSuperAdmin ? 'all' : adminUser?.id],
+    queryFn: () => getUsers(isSuperAdmin ? undefined : adminUser?.id ?? undefined),
   });
 
   const { data: allDevices = [] } = useQuery({
@@ -225,9 +227,11 @@ export default function UsersPage() {
     setFormData({
       name: '',
       email: '',
-      role: 'operator',
+      role: 'user',
       phone: '',
-      password: ''
+      password: '',
+      deviceLimit: -1,
+      userLimit: 0,
     });
     setEditingUser(null);
   };
@@ -239,7 +243,9 @@ export default function UsersPage() {
       email: user.email,
       role: user.role,
       phone: user.phone || '',
-      password: ''
+      password: '',
+      deviceLimit: user.deviceLimit ?? -1,
+      userLimit: user.userLimit ?? 0,
     });
     setIsDialogOpen(true);
   };
@@ -267,10 +273,12 @@ export default function UsersPage() {
       // com apenas os campos editados pelo form
       const mergedData = {
         ...editingUser,
-        name:  updateData.name,
-        email: updateData.email,
-        role:  updateData.role,
-        phone: updateData.phone,
+        name:        updateData.name,
+        email:       updateData.email,
+        role:        updateData.role,
+        phone:       updateData.phone,
+        deviceLimit: updateData.deviceLimit,
+        userLimit:   updateData.userLimit,
         ...(password ? { password } : {}),
       };
       updateMutation.mutate({ 
@@ -361,7 +369,7 @@ export default function UsersPage() {
   });
 
   // ── Seleção em massa ───────────────────────────────────────────
-  const eligibleUsers  = filteredUsers.filter(u => u.role !== 'superadmin');
+  const eligibleUsers  = filteredUsers.filter(u => u.role !== 'admin');
   const isAllSelected  = eligibleUsers.length > 0 && eligibleUsers.every(u => selectedUserIds.has(u.id));
   const isSomeSelected = eligibleUsers.some(u => selectedUserIds.has(u.id));
 
@@ -384,14 +392,16 @@ export default function UsersPage() {
 
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
-      case 'superadmin':
-        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20"><Shield className="w-3 h-3 mr-1" />Super Admin</Badge>;
       case 'admin':
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
-      case 'operator':
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20"><UserIcon className="w-3 h-3 mr-1" />Operador</Badge>;
-      case 'client':
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><Users className="w-3 h-3 mr-1" />Cliente</Badge>;
+        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20"><Shield className="w-3 h-3 mr-1" />Administrador</Badge>;
+      case 'manager':
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Shield className="w-3 h-3 mr-1" />Gerente</Badge>;
+      case 'user':
+        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><UserIcon className="w-3 h-3 mr-1" />Usuário</Badge>;
+      case 'readonly':
+        return <Badge className="bg-gray-500/10 text-gray-400 border-gray-500/20"><Users className="w-3 h-3 mr-1" />Somente Leitura</Badge>;
+      case 'deviceReadonly':
+        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20"><Users className="w-3 h-3 mr-1" />Leit. Dispositivos</Badge>;
       default:
         return <Badge variant="secondary">{role}</Badge>;
     }
@@ -399,10 +409,11 @@ export default function UsersPage() {
 
   const getRoleLabel = (role: UserRole) => {
     switch (role) {
-      case 'superadmin': return 'Super Administrador';
-      case 'admin': return 'Administrador';
-      case 'operator': return 'Operador';
-      case 'client': return 'Cliente';
+      case 'admin':          return 'Administrador';
+      case 'manager':        return 'Gerente';
+      case 'user':           return 'Usuário';
+      case 'readonly':       return 'Somente Leitura';
+      case 'deviceReadonly': return 'Leit. Dispositivos';
       default: return role;
     }
   };
@@ -418,9 +429,9 @@ export default function UsersPage() {
 
   const stats = {
     total: users.length,
-    admins: users.filter(u => u.role === 'admin').length,
-    operators: users.filter(u => u.role === 'operator').length,
-    clients: users.filter(u => u.role === 'client').length
+    admins:    users.filter(u => u.role === 'admin' || u.role === 'manager').length,
+    users:     users.filter(u => u.role === 'user').length,
+    readonlys: users.filter(u => u.role === 'readonly' || u.role === 'deviceReadonly').length
   };
 
   return (
@@ -445,31 +456,31 @@ export default function UsersPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Administradores</CardTitle>
-            <Shield className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium">Admins / Gerentes</CardTitle>
+            <Shield className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats.admins}</div>
+            <div className="text-2xl font-bold text-purple-500">{stats.admins}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Operadores</CardTitle>
-            <UserIcon className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-medium">Usuários</CardTitle>
+            <UserIcon className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{stats.operators}</div>
+            <div className="text-2xl font-bold text-green-500">{stats.users}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes</CardTitle>
-            <Users className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Somente Leitura</CardTitle>
+            <Users className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.clients}</div>
+            <div className="text-2xl font-bold text-gray-500">{stats.readonlys}</div>
           </CardContent>
         </Card>
       </div>
@@ -494,10 +505,11 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas Funções</SelectItem>
-                <SelectItem value="superadmin">Super Admin</SelectItem>
                 <SelectItem value="admin">Administrador</SelectItem>
-                <SelectItem value="operator">Operador</SelectItem>
-                <SelectItem value="client">Cliente</SelectItem>
+                <SelectItem value="manager">Gerente</SelectItem>
+                <SelectItem value="user">Usuário</SelectItem>
+                <SelectItem value="readonly">Somente Leitura</SelectItem>
+                <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
               </SelectContent>
             </Select>
 
@@ -579,12 +591,45 @@ export default function UsersPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="superadmin">Super Administrador</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="operator">Operador</SelectItem>
-                        <SelectItem value="client">Cliente</SelectItem>
+                        <SelectItem value="manager">Gerente</SelectItem>
+                        <SelectItem value="user">Usuário</SelectItem>
+                        <SelectItem value="readonly">Somente Leitura</SelectItem>
+                        <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Limites Traccar */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="deviceLimit" className="flex items-center gap-2 text-sm">
+                        <Car className="w-4 h-4 text-blue-500" />
+                        Limite de Veículos
+                      </Label>
+                      <Input
+                        id="deviceLimit"
+                        type="number"
+                        min={-1}
+                        value={formData.deviceLimit}
+                        onChange={(e) => setFormData({ ...formData, deviceLimit: parseInt(e.target.value) || -1 })}
+                      />
+                      <p className="text-[11px] text-muted-foreground">-1 = ilimitado · 0 = sem cadastrar</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="userLimit" className="flex items-center gap-2 text-sm">
+                        <Users className="w-4 h-4 text-purple-500" />
+                        Limite de Usuários
+                      </Label>
+                      <Input
+                        id="userLimit"
+                        type="number"
+                        min={-1}
+                        value={formData.userLimit}
+                        onChange={(e) => setFormData({ ...formData, userLimit: parseInt(e.target.value) || 0 })}
+                      />
+                      <p className="text-[11px] text-muted-foreground">-1 = ilimitado · 0 = não gerente</p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -872,6 +917,7 @@ export default function UsersPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>Função</TableHead>
+                  {isSuperAdmin && <TableHead>Limites</TableHead>}
                   {isSuperAdmin && <TableHead>Permissões</TableHead>}
                   <TableHead>Conexão</TableHead>
                   <TableHead>Criado em</TableHead>
@@ -894,7 +940,7 @@ export default function UsersPage() {
                       <TableRow key={user.id}>
                         {isSuperAdmin && (
                           <TableCell className="w-10">
-                            {user.role !== 'superadmin' && (
+                            {user.role !== 'admin' && (
                               <Checkbox
                                 checked={selectedUserIds.has(user.id)}
                                 onCheckedChange={() => toggleSelectUser(user.id)}
@@ -928,9 +974,27 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell>{getRoleBadge(user.role)}</TableCell>
+                        {isSuperAdmin && (
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5 text-[11px]">
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <Car className="w-3 h-3 text-blue-400" />
+                                {user.deviceLimit === -1 ? <span className="text-green-400">Ilimitado</span>
+                                  : user.deviceLimit === 0 ? <span className="text-red-400">Bloqueado</span>
+                                  : <span className="text-yellow-400">{user.deviceLimit} veíc.</span>}
+                              </span>
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <Users className="w-3 h-3 text-purple-400" />
+                                {user.userLimit === -1 ? <span className="text-green-400">Ilimitado</span>
+                                  : user.userLimit === 0 ? <span className="text-gray-400">Nenhum</span>
+                                  : <span className="text-yellow-400">{user.userLimit} usuár.</span>}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
                         {isSuperAdmin && (() => {
                           const entry = permUsers[user.id];
-                          if (user.role === 'superadmin') {
+                          if (user.role === 'admin') {
                             return (
                               <TableCell>
                                 <span className="text-[11px] text-purple-400/70 flex items-center gap-1">
@@ -978,7 +1042,7 @@ export default function UsersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            {isSuperAdmin && user.role !== 'superadmin' && (
+                            {isSuperAdmin && user.role !== 'admin' && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -991,7 +1055,7 @@ export default function UsersPage() {
                                 <LogIn className="w-4 h-4" />
                               </Button>
                             )}
-                            {isSuperAdmin && user.role !== 'superadmin' && (
+                            {isSuperAdmin && user.role !== 'admin' && (
                               <Button
                                 size="sm"
                                 variant="ghost"

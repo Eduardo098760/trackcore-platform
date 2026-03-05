@@ -11,13 +11,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { deriveDeviceStatus } from '@/lib/utils';
 import type { UserRole } from '@/types';
 
-/** Admin/operador/superadmin: todos os dispositivos. Cliente: apenas dispositivos do seu clientId. */
+/** admin/manager/user: todos os dispositivos vinculados. readonly/deviceReadonly: apenas do seu clientId. */
 function getDeviceIdsForUser(deviceList: { id: number; clientId?: number }[], user: { role?: UserRole; clientId?: number } | null): number[] {
   if (!deviceList.length) return [];
-  if (!user?.role || user.role === 'superadmin' || user.role === 'admin' || user.role === 'operator') {
+  const fullAccessRoles: UserRole[] = ['admin', 'manager', 'user', 'deviceReadonly'];
+  if (!user?.role || fullAccessRoles.includes(user.role)) {
     return deviceList.map((d) => d.id);
   }
-  if (user.role === 'client') {
+  // readonly: apenas dispositivos do seu clientId
+  if (user.role === 'readonly') {
     if (user.clientId == null) return deviceList.map((d) => d.id);
     return deviceList.filter((d) => d.clientId === user.clientId).map((d) => d.id);
   }

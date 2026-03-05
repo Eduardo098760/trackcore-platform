@@ -1,6 +1,16 @@
 import { RoutePermissions } from './types';
 
-/** SUPER_ADMIN: acesso irrestrito a tudo */
+/**
+ * Permissões padrão por role — alinhadas ao modelo nativo do Traccar:
+ *
+ *   admin          → administrator: true  → acesso irrestrito
+ *   manager        → userLimit != 0        → gerencia usuários e dispositivos
+ *   user           → usuário regular       → acesso operacional
+ *   readonly       → readonly: true        → somente leitura
+ *   deviceReadonly → deviceReadonly: true  → leitura de dispositivos
+ */
+
+/** ADMIN (Traccar administrator): acesso irrestrito a tudo */
 export const SUPER_ADMIN_PERMISSIONS: RoutePermissions = {
   dashboard: true, map: true, routes: true, vehicles: true, history: true, events: true, commands: true,
   video: true, videoAlerts: true, cameras: true,
@@ -9,8 +19,8 @@ export const SUPER_ADMIN_PERMISSIONS: RoutePermissions = {
   clients: true, users: true, audit: true, settings: true, accessControl: true,
 };
 
-/** Admin: quase tudo, sem controle de acesso e logs de auditoria */
-export const ADMIN_PERMISSIONS: RoutePermissions = {
+/** MANAGER (Traccar userLimit != 0): gerencia usuários e dispositivos, sem auditoria e controle de acesso */
+export const MANAGER_PERMISSIONS: RoutePermissions = {
   dashboard: true, map: true, routes: true, vehicles: true, history: true, events: true, commands: true,
   video: true, videoAlerts: true, cameras: true,
   geofences: true, notifications: true, reports: true, groups: true, calendars: true,
@@ -18,8 +28,8 @@ export const ADMIN_PERMISSIONS: RoutePermissions = {
   clients: true, users: true, audit: false, settings: true, accessControl: false,
 };
 
-/** Operador: acesso operacional, sem gerenciamento */
-export const OPERATOR_PERMISSIONS: RoutePermissions = {
+/** USER (usuário regular Traccar): acesso operacional aos próprios recursos */
+export const USER_PERMISSIONS: RoutePermissions = {
   dashboard: true, map: true, routes: true, vehicles: true, history: true, events: true, commands: true,
   video: true, videoAlerts: true, cameras: true,
   geofences: true, notifications: true, reports: true, groups: false, calendars: false,
@@ -27,12 +37,21 @@ export const OPERATOR_PERMISSIONS: RoutePermissions = {
   clients: false, users: false, audit: false, settings: false, accessControl: false,
 };
 
-/** Cliente: visualização básica de seus veículos */
-export const CLIENT_PERMISSIONS: RoutePermissions = {
-  dashboard: true, map: true, routes: false, vehicles: true, history: true, events: false, commands: false,
-  video: false, videoAlerts: false, cameras: false,
+/** READONLY (Traccar readonly: true): somente leitura — monitora mas não modifica nada */
+export const READONLY_PERMISSIONS: RoutePermissions = {
+  dashboard: true, map: true, routes: true, vehicles: true, history: true, events: true, commands: false,
+  video: true, videoAlerts: true, cameras: false,
   geofences: false, notifications: false, reports: true, groups: false, calendars: false,
-  computedAttributes: false, obd: false, statistics: false,
+  computedAttributes: false, obd: false, statistics: true,
+  clients: false, users: false, audit: false, settings: false, accessControl: false,
+};
+
+/** DEVICE_READONLY (Traccar deviceReadonly: true): operacional mas sem editar dispositivos */
+export const DEVICE_READONLY_PERMISSIONS: RoutePermissions = {
+  dashboard: true, map: true, routes: true, vehicles: true, history: true, events: true, commands: false,
+  video: true, videoAlerts: true, cameras: true,
+  geofences: true, notifications: true, reports: true, groups: false, calendars: false,
+  computedAttributes: false, obd: false, statistics: true,
   clients: false, users: false, audit: false, settings: false, accessControl: false,
 };
 
@@ -45,13 +64,26 @@ export const DENIED_ALL_PERMISSIONS: RoutePermissions = {
   clients: false, users: false, audit: false, settings: false, accessControl: false,
 };
 
+// Aliases retrocompatíveis (não remover sem migrar todos os importadores)
+/** @deprecated Use MANAGER_PERMISSIONS */
+export const ADMIN_PERMISSIONS = MANAGER_PERMISSIONS;
+/** @deprecated Use USER_PERMISSIONS */
+export const OPERATOR_PERMISSIONS = USER_PERMISSIONS;
+/** @deprecated Use READONLY_PERMISSIONS */
+export const CLIENT_PERMISSIONS = READONLY_PERMISSIONS;
+
 /** Retorna as permissões padrão de acordo com o role do usuário */
 export function getDefaultPermissionsByRole(role: string): RoutePermissions {
   switch (role) {
-    case 'superadmin': return SUPER_ADMIN_PERMISSIONS;
-    case 'admin':      return ADMIN_PERMISSIONS;
-    case 'operator':   return OPERATOR_PERMISSIONS;
-    case 'client':     return CLIENT_PERMISSIONS;
-    default:           return CLIENT_PERMISSIONS;
+    case 'admin':          return SUPER_ADMIN_PERMISSIONS;
+    case 'manager':        return MANAGER_PERMISSIONS;
+    case 'user':           return USER_PERMISSIONS;
+    case 'readonly':       return READONLY_PERMISSIONS;
+    case 'deviceReadonly': return DEVICE_READONLY_PERMISSIONS;
+    // retrocompatibilidade com roles antigas salvas no banco
+    case 'superadmin':     return SUPER_ADMIN_PERMISSIONS;
+    case 'operator':       return USER_PERMISSIONS;
+    case 'client':         return READONLY_PERMISSIONS;
+    default:               return READONLY_PERMISSIONS;
   }
 }

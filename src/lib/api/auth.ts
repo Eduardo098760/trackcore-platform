@@ -3,17 +3,44 @@ import { api } from './client';
 import { getOrganizationBySlug } from './organizations';
 
 /**
- * Extrai a role correta do usuário Traccar:
- * Prioridade: attributes.role > administrator > fallback 'operator'
- * 
- * No Traccar: administrator = true → dono da plataforma → superadmin
+ * Extrai a role correta do usuário Traccar alinhada ao modelo nativo:
+ *
+ *   Prioridade de detecção:
+ *   1. administrator: true           → 'admin'
+ *   2. attributes.role (novo modelo) → 'admin'|'manager'|'user'|'readonly'|'deviceReadonly'
+ *   3. attributes.role (retrocompat) → 'superadmin'→'admin' | 'operator'→'user' | 'client'→'readonly'
+ *   4. readonly: true                → 'readonly'
+ *   5. deviceReadonly: true          → 'deviceReadonly'
+ *   6. userLimit != 0                → 'manager'
+ *   7. fallback                      → 'user'
  */
 function mapTraccarRole(traccarUser: any): string {
+  // 1. Campo nativo Traccar: administrator
+  if (traccarUser?.administrator) return 'admin';
+
+  // 2 & 3. Role salva em attributes (novo modelo ou retrocompatibilidade)
   const savedRole = traccarUser?.attributes?.role as string | undefined;
-  const validRoles = ['superadmin', 'admin', 'operator', 'client'];
-  if (savedRole && validRoles.includes(savedRole)) return savedRole;
-  // administrator: true no Traccar = dono da plataforma = superadmin
-  return traccarUser?.administrator ? 'superadmin' : 'operator';
+  const newRoles = ['admin', 'manager', 'user', 'readonly', 'deviceReadonly'];
+  const oldToNew: Record<string, string> = {
+    superadmin: 'admin',
+    operator:   'user',
+    client:     'readonly',
+  };
+  if (savedRole) {
+    if (newRoles.includes(savedRole)) return savedRole;
+    if (oldToNew[savedRole]) return oldToNew[savedRole];
+  }
+
+  // 4. Campo nativo Traccar: readonly
+  if (traccarUser?.readonly) return 'readonly';
+
+  // 5. Campo nativo Traccar: deviceReadonly
+  if (traccarUser?.deviceReadonly) return 'deviceReadonly';
+
+  // 6. Manager: userLimit diferente de 0 (gerente no Traccar)
+  if (traccarUser?.userLimit != null && traccarUser.userLimit !== 0) return 'manager';
+
+  return 'user';
 }
 
 function applyRole(traccarUser: any): User {

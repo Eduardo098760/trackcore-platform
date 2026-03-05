@@ -21,27 +21,55 @@ function getImpersonatingUserId(): number | undefined {
  */
 function mapUserToTraccar(user: Partial<User>): any {
   const { role, createdAt, updatedAt, avatar, clientId, organizationId, ...traccarUser } = user as any;
-  
-  // Mapear role para administrator
+
   if (role) {
-    traccarUser.administrator = role === 'admin' || role === 'superadmin';
-    // Persistir a role customizada em attributes para não perder superadmin/client
+    // Mapear role para campos nativos do Traccar
+    traccarUser.administrator   = role === 'admin';
+    traccarUser.readonly        = role === 'readonly';
+    traccarUser.deviceReadonly  = role === 'deviceReadonly';
+    // Manager: só define userLimit padrão se ainda não foi especificado
+    if (role === 'manager' && (traccarUser.userLimit == null || traccarUser.userLimit === 0)) {
+      traccarUser.userLimit = -1; // ilimitado por padrão
+    }
+    // user: garante que não é gerente, mas só se não veio um valor explícito
+    if (role === 'user' && traccarUser.userLimit == null) {
+      traccarUser.userLimit = 0;
+    }
+    // deviceLimit padrão: ilimitado se não informado
+    if (traccarUser.deviceLimit == null) {
+      traccarUser.deviceLimit = -1;
+    }
+    // Persistir role nos attributes para retrocompatibilidade e leitura rápida
     traccarUser.attributes = { ...(traccarUser.attributes ?? {}), role };
   }
-  
-  // Remover campos que não existem no Traccar
+
   return traccarUser;
 }
 
 function mapTraccarToUser(traccarUser: any): User {
-  // Ler role de attributes.role primeiro (suporta superadmin/client),
-  // senão inferir pelo campo administrator do Traccar
+  // 1. administrator: true → admin
+  if (traccarUser.administrator) {
+    return { ...traccarUser, role: 'admin',
+      createdAt: traccarUser.createdAt || new Date().toISOString(),
+      updatedAt: traccarUser.updatedAt || new Date().toISOString(),
+    } as User;
+  }
+
+  // 2 & 3. Role salva em attributes
   const savedRole = traccarUser.attributes?.role as string | undefined;
-  const validRoles = ['superadmin', 'admin', 'operator', 'client'];
-  const role = (savedRole && validRoles.includes(savedRole))
-    ? savedRole
-    : traccarUser.administrator ? 'superadmin' : 'operator';
-  
+  const newRoles = ['admin', 'manager', 'user', 'readonly', 'deviceReadonly'];
+  const oldToNew: Record<string, string> = { superadmin: 'admin', operator: 'user', client: 'readonly' };
+  let role: string = 'user';
+  if (savedRole) {
+    role = newRoles.includes(savedRole) ? savedRole : (oldToNew[savedRole] ?? 'user');
+  } else if (traccarUser.readonly) {
+    role = 'readonly';
+  } else if (traccarUser.deviceReadonly) {
+    role = 'deviceReadonly';
+  } else if (traccarUser.userLimit != null && traccarUser.userLimit !== 0) {
+    role = 'manager';
+  }
+
   return {
     ...traccarUser,
     role,
@@ -250,14 +278,20 @@ export async function deleteClient(id: number): Promise<void> {
 }
 
 // Users API (usando Traccar)
-export async function getUsers(): Promise<User[]> {
+export async function getUsers(ownerUserId?: number): Promise<User[]> {
   // Quando em impersonação, filtra apenas os usuários gerenciados pelo usuário alvo
   // evitando que usuários do admin apareçam na conta do cliente impersonado.
   const impersonatingUserId = getImpersonatingUserId();
-  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+
+  let params: Record<string, any> | undefined;
   if (impersonatingUserId) {
+    params = { userId: impersonatingUserId };
     console.log('[getUsers] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+  } else if (ownerUserId) {
+    params = { userId: ownerUserId };
+    console.log('[getUsers] Filtrando usuários do owner:', ownerUserId);
   }
+
   const traccarUsers = await api.get<any[]>('/users', params);
   return traccarUsers.map(mapTraccarToUser);
 }

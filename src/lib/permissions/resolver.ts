@@ -1,5 +1,5 @@
 import { RoutePermissions, ALL_ROUTE_KEYS } from './types';
-import { SUPER_ADMIN_PERMISSIONS, DENIED_ALL_PERMISSIONS, CLIENT_PERMISSIONS } from './defaults';
+import { SUPER_ADMIN_PERMISSIONS, DENIED_ALL_PERMISSIONS, READONLY_PERMISSIONS } from './defaults';
 
 interface ResolveOptions {
   role: string;
@@ -30,18 +30,20 @@ interface ResolveOptions {
 export function resolvePermissions(options: ResolveOptions): RoutePermissions {
   const { role, companyPermissions, userPermissions, isImpersonating = false } = options;
 
-  // ── 1. SUPER_ADMIN: bypass total — NUNCA durante impersonação ─────────────
+  // ── 1. ADMIN (Traccar administrator): bypass total — NUNCA durante impersonação ──
+  if (!isImpersonating && role === 'admin') return { ...SUPER_ADMIN_PERMISSIONS };
+  // retrocompatibilidade: 'superadmin' gravado no banco antes da migração
   if (!isImpersonating && role === 'superadmin') return { ...SUPER_ADMIN_PERMISSIONS };
 
   // ── 2. Sem nenhuma configuração salva ────────────────────────────────
-  // Durante impersonação: CLIENT_PERMISSIONS (visão do cliente, não do admin)
+  // Durante impersonação: READONLY_PERMISSIONS (visão do usuário somente leitura)
   // Fora da impersonação: libera tudo (open by default para novos usuários)
   const hasCompanyConfig = companyPermissions !== undefined && companyPermissions !== null;
   const hasUserConfig    = userPermissions    !== undefined && userPermissions    !== null;
 
   if (!hasCompanyConfig && !hasUserConfig) {
     return isImpersonating
-      ? { ...CLIENT_PERMISSIONS }
+      ? { ...READONLY_PERMISSIONS }
       : { ...SUPER_ADMIN_PERMISSIONS };
   }
 

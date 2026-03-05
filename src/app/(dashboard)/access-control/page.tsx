@@ -25,15 +25,25 @@ import { Organization, User } from '@/types';
 type TabId = 'companies' | 'users';
 
 const ROLE_LABELS: Record<string, string> = {
-  superadmin: 'Super Admin',
-  admin:      'Administrador',
-  operator:   'Operador',
-  client:     'Cliente',
+  admin:          'Administrador',
+  manager:        'Gerente',
+  user:           'Usuário',
+  readonly:       'Somente Leitura',
+  deviceReadonly: 'Leit. Dispositivos',
+  // retrocompat
+  superadmin: 'Administrador',
+  operator:   'Usuário',
+  client:     'Somente Leitura',
 };
 
 const ROLE_COLORS: Record<string, string> = {
+  admin:          'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  manager:        'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  user:           'bg-green-500/20 text-green-300 border-green-500/30',
+  readonly:       'bg-gray-500/20 text-gray-300 border-gray-500/30',
+  deviceReadonly: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  // retrocompat
   superadmin: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  admin:      'bg-blue-500/20 text-blue-300 border-blue-500/30',
   operator:   'bg-green-500/20 text-green-300 border-green-500/30',
   client:     'bg-gray-500/20 text-gray-300 border-gray-500/30',
 };
@@ -303,7 +313,7 @@ function UsersTab() {
         ) : (
           allUsers.map((u) => {
             const entry   = users[u.id];
-            const isSuperA = u.role === 'superadmin';
+            const isSuperA = u.role === 'admin';
             return (
               <button
                 key={u.id}
