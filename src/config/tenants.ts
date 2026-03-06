@@ -104,7 +104,7 @@ export const TENANTS_CONFIG: Record<string, TenantConfig> = {
  * - localhost:3000 → localhost
  */
 export function normalizeHostname(hostname: string): string {
-  if (!hostname) return process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv03.rastrear.app.br";
+  if (!hostname) return process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
 
   // Remove porta (localhost:3000 → localhost)
   const host = hostname.split(":")[0];
@@ -119,14 +119,14 @@ export function normalizeHostname(hostname: string): string {
 
 /**
  * Obtém a configuração do tenant pelo hostname
- * Com fallback automático para "sv02.rastrear.app.br" se não encontrada
+ * Com fallback automático para o tenant definido em NEXT_PUBLIC_DEFAULT_TENANT se não encontrada
  *
  * @param hostname - Hostname completo (ex: sv02.rastrear.app.br, www.sv02.rastrear.app.br)
  */
 export function getTenantConfig(hostname?: string): TenantConfig {
   if (!hostname) {
-    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv03.rastrear.app.br";
-    return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv03.rastrear.app.br"];
+    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
+    return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv02.rastrear.app.br"];
   }
 
   // Normalizar hostname (remover www, porta)
@@ -139,16 +139,16 @@ export function getTenantConfig(hostname?: string): TenantConfig {
 
   // Fallback especial para localhost em desenvolvimento
   if (normalized === "localhost" || normalized === "127.0.0.1") {
-    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv03.rastrear.app.br";
-    return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv03.rastrear.app.br"];
+    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
+    return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv02.rastrear.app.br"];
   }
 
   // Fallback: usar padrão
-  const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv03.rastrear.app.br";
+  const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
   console.warn(
     `[Tenant] Hostname "${normalized}" não encontrado. Usando fallback "${defaultTenant}".`,
   );
-  return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv03.rastrear.app.br"];
+  return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv02.rastrear.app.br"];
 }
 
 /**
