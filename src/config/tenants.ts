@@ -63,29 +63,9 @@ export const TENANTS_CONFIG: Record<string, TenantConfig> = {
     logoUrl: "/logos/rastrear-logo-light.webp", // Usar logo claro por padrão, o dark mode ajustará via CSS
     faviconUrl: "/logos/rastrear-icone-light.png",
     colors: {
-      primaryLight: process.env.NEXT_PUBLIC_PRIMARY_LIGHT || "270 100% 50%",
-      primaryForegroundLight:
-        process.env.NEXT_PUBLIC_PRIMARY_FOREGROUND_LIGHT || "222.2 47.4% 11.2%",
-      primaryDark: process.env.NEXT_PUBLIC_PRIMARY_DARK || "270 85% 65%",
-      primaryForegroundDark: process.env.NEXT_PUBLIC_PRIMARY_FOREGROUND_DARK || "0 0% 100%",
-    },
-    metadata: {
-      title: "Rastrear - Plataforma de Rastreamento Veicular",
-      description: "Sistema completo de rastreamento de frota em tempo real",
-      website: "https://sv02.rastrear.app.br",
-      serverUrl: "http://sv01.rastrear.app.br",
-    },
-  },
-  "sv03.rastrear.app.br": {
-    id: "1",
-    companyName: "Rastrear",
-    slug: "sv02.rastrear.app.br",
-    logoUrl: "/logos/rastrear-logo-light.webp", // Usar logo claro por padrão, o dark mode ajustará via CSS
-    faviconUrl: "/logos/rastrear-icone-light.png",
-    colors: {
-      primaryLight: "270 100% 50%",
-      primaryForegroundLight: "222.2 47.4% 11.2%",
-      primaryDark: "270 85% 65%",
+      primaryLight: "221 100% 50%",
+      primaryForegroundLight: "221 80% 15%",
+      primaryDark: "221 85% 65%",
       primaryForegroundDark: "0 0% 100%",
     },
     metadata: {
@@ -125,7 +105,7 @@ export function normalizeHostname(hostname: string): string {
  */
 export function getTenantConfig(hostname?: string): TenantConfig {
   if (!hostname) {
-    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
+    const defaultTenant = "sv02.rastrear.app.br";
     return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv02.rastrear.app.br"];
   }
 
@@ -139,12 +119,12 @@ export function getTenantConfig(hostname?: string): TenantConfig {
 
   // Fallback especial para localhost em desenvolvimento
   if (normalized === "localhost" || normalized === "127.0.0.1") {
-    const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
+    const defaultTenant = "sv02.rastrear.app.br";
     return TENANTS_CONFIG[defaultTenant] || TENANTS_CONFIG["sv02.rastrear.app.br"];
   }
 
   // Fallback: usar padrão
-  const defaultTenant = process.env.NEXT_PUBLIC_DEFAULT_TENANT || "sv02.rastrear.app.br";
+  const defaultTenant = "sv02.rastrear.app.br";
   console.warn(
     `[Tenant] Hostname "${normalized}" não encontrado. Usando fallback "${defaultTenant}".`,
   );

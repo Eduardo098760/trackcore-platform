@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { login } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useTenant } from "@/lib/hooks/useTenant";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Loader2, MapPin, ArrowRight } from "lucide-react";
 
 /* Ícones sociais (outline) */
@@ -39,6 +40,7 @@ export default function LoginPage() {
   const { setAuth } = useAuthStore();
   const queryClient = useQueryClient();
   const { tenant } = useTenant();
+  const colors = useTenantColors();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +70,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Coluna esquerda - Welcome (desktop) */}
-      <div className="hidden lg:flex lg:w-[42%] relative overflow-hidden bg-primary">
+      <div
+        className="hidden lg:flex lg:w-[42%] relative overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+        }}
+      >
         <div className="absolute inset-0 flex items-center justify-center opacity-20">
           <div className="w-72 h-72 rounded-3xl bg-white/30 rotate-12 translate-x-1/4" />
           <div className="absolute w-56 h-56 rounded-3xl bg-white/20 -rotate-6 -translate-x-1/4 translate-y-1/4" />
@@ -87,7 +94,12 @@ export default function LoginPage() {
       </div>
 
       {/* Mobile: barra superior com marca */}
-      <div className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full bg-primary shrink-0 [color:hsl(var(--primary-foreground))]">
+      <div
+        className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full shrink-0 [color:hsl(var(--primary-foreground))]"
+        style={{
+          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+        }}
+      >
         <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
         <span className="text-xl font-bold">{tenant?.companyName || "TrackCore"}</span>
       </div>
@@ -153,7 +165,10 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
+                style={{
+                  background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                }}
+                className="w-full h-12 rounded-xl font-semibold text-white hover:shadow-lg transition-shadow focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
               >
                 {loading ? (
                   <>
