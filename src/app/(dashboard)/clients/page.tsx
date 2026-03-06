@@ -1,17 +1,28 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Client } from '@/types';
-import { getClients, createClient, updateClient, deleteClient } from '@/lib/api';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { PermissionSheet } from '@/components/layout/permission-sheet';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { PageHeader } from '@/components/ui/page-header';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Client } from "@/types";
+import {
+  getClients,
+  createClient,
+  updateClient,
+  deleteClient,
+} from "@/lib/api";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { PermissionSheet } from "@/components/layout/permission-sheet";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Table,
   TableBody,
@@ -19,91 +30,106 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Users, Building2, Mail, Phone, MapPin, CreditCard, Ban, Check, ShieldCheck } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Users,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  Ban,
+  Check,
+  ShieldCheck,
+} from "lucide-react";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
   const { isSuperAdmin } = usePermissions();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [planFilter, setPlanFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [planFilter, setPlanFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isPermSheetOpen, setIsPermSheetOpen] = useState(false);
   const [permSheetClient, setPermSheetClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    document: '',
-    email: '',
-    phone: '',
-    address: '',
-    plan: 'basic' as 'basic' | 'professional' | 'enterprise',
-    status: 'active' as 'active' | 'suspended' | 'canceled'
+    name: "",
+    document: "",
+    email: "",
+    phone: "",
+    address: "",
+    plan: "basic" as "basic" | "professional" | "enterprise",
+    status: "active" as "active" | "suspended" | "canceled",
   });
 
   const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: getClients,
+    queryKey: ["clients"],
+    queryFn: () => getClients(),
   });
 
   const createMutation = useMutation({
     mutationFn: createClient,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      toast.success('Cliente criado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente criado com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao criar cliente');
+      toast.error("Erro ao criar cliente");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Client> }) => updateClient(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Client> }) =>
+      updateClient(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      toast.success('Cliente atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente atualizado com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar cliente');
+      toast.error("Erro ao atualizar cliente");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteClient,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-      toast.success('Cliente excluído com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      toast.success("Cliente excluído com sucesso!");
     },
     onError: () => {
-      toast.error('Erro ao excluir cliente');
+      toast.error("Erro ao excluir cliente");
     },
   });
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      document: '',
-      email: '',
-      phone: '',
-      address: '',
-      plan: 'basic',
-      status: 'active'
+      name: "",
+      document: "",
+      email: "",
+      phone: "",
+      address: "",
+      plan: "basic",
+      status: "active",
     });
     setEditingClient(null);
   };
@@ -115,9 +141,9 @@ export default function ClientsPage() {
       document: client.document,
       email: client.email,
       phone: client.phone,
-      address: client.address || '',
+      address: client.address || "",
       plan: client.plan,
-      status: client.status
+      status: client.status,
     });
     setIsDialogOpen(true);
   };
@@ -131,31 +157,47 @@ export default function ClientsPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este cliente?')) {
+    if (confirm("Tem certeza que deseja excluir este cliente?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const filteredClients = clients.filter(client => {
-    const matchesSearch = 
+  const filteredClients = clients.filter((client) => {
+    const matchesSearch =
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.document.includes(searchQuery);
-    
-    const matchesStatus = statusFilter === 'all' || client.status === statusFilter;
-    const matchesPlan = planFilter === 'all' || client.plan === planFilter;
+
+    const matchesStatus =
+      statusFilter === "all" || client.status === statusFilter;
+    const matchesPlan = planFilter === "all" || client.plan === planFilter;
 
     return matchesSearch && matchesStatus && matchesPlan;
   });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'active':
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><Check className="w-3 h-3 mr-1" />Ativo</Badge>;
-      case 'suspended':
-        return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20"><Ban className="w-3 h-3 mr-1" />Suspenso</Badge>;
-      case 'canceled':
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><Trash2 className="w-3 h-3 mr-1" />Cancelado</Badge>;
+      case "active":
+        return (
+          <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+            <Check className="w-3 h-3 mr-1" />
+            Ativo
+          </Badge>
+        );
+      case "suspended":
+        return (
+          <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+            <Ban className="w-3 h-3 mr-1" />
+            Suspenso
+          </Badge>
+        );
+      case "canceled":
+        return (
+          <Badge className="bg-red-500/10 text-red-500 border-red-500/20">
+            <Trash2 className="w-3 h-3 mr-1" />
+            Cancelado
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -163,12 +205,30 @@ export default function ClientsPage() {
 
   const getPlanBadge = (plan: string) => {
     switch (plan) {
-      case 'basic':
-        return <Badge variant="outline" className="text-blue-500 border-blue-500/50">Básico</Badge>;
-      case 'professional':
-        return <Badge variant="outline" className="text-purple-500 border-purple-500/50">Profissional</Badge>;
-      case 'enterprise':
-        return <Badge variant="outline" className="text-amber-500 border-amber-500/50">Empresarial</Badge>;
+      case "basic":
+        return (
+          <Badge variant="outline" className="text-blue-500 border-blue-500/50">
+            Básico
+          </Badge>
+        );
+      case "professional":
+        return (
+          <Badge
+            variant="outline"
+            className="text-purple-500 border-purple-500/50"
+          >
+            Profissional
+          </Badge>
+        );
+      case "enterprise":
+        return (
+          <Badge
+            variant="outline"
+            className="text-amber-500 border-amber-500/50"
+          >
+            Empresarial
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{plan}</Badge>;
     }
@@ -176,9 +236,9 @@ export default function ClientsPage() {
 
   const stats = {
     total: clients.length,
-    active: clients.filter(c => c.status === 'active').length,
-    suspended: clients.filter(c => c.status === 'suspended').length,
-    totalDevices: clients.reduce((sum, c) => sum + c.devicesCount, 0)
+    active: clients.filter((c) => c.status === "active").length,
+    suspended: clients.filter((c) => c.status === "suspended").length,
+    totalDevices: clients.reduce((sum, c) => sum + c.devicesCount, 0),
   };
 
   return (
@@ -193,7 +253,9 @@ export default function ClientsPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total de Clientes
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -203,11 +265,15 @@ export default function ClientsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Clientes Ativos
+            </CardTitle>
             <Check className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
+            <div className="text-2xl font-bold text-green-500">
+              {stats.active}
+            </div>
           </CardContent>
         </Card>
 
@@ -217,13 +283,17 @@ export default function ClientsPage() {
             <Ban className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{stats.suspended}</div>
+            <div className="text-2xl font-bold text-orange-500">
+              {stats.suspended}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Veículos</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total de Veículos
+            </CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -280,7 +350,7 @@ export default function ClientsPage() {
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
+                    {editingClient ? "Editar Cliente" : "Novo Cliente"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -292,20 +362,27 @@ export default function ClientsPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       placeholder="Ex: Transportadora ABC Ltda"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="document" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="document"
+                      className="flex items-center gap-2"
+                    >
                       <CreditCard className="w-4 h-4 text-green-500" />
                       CPF/CNPJ
                     </Label>
                     <Input
                       id="document"
                       value={formData.document}
-                      onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, document: e.target.value })
+                      }
                       placeholder="00.000.000/0000-00"
                     />
                   </div>
@@ -319,7 +396,9 @@ export default function ClientsPage() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                       placeholder="contato@empresa.com"
                     />
                   </div>
@@ -332,7 +411,9 @@ export default function ClientsPage() {
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -341,28 +422,37 @@ export default function ClientsPage() {
                     <Label htmlFor="plan">Plano</Label>
                     <Select
                       value={formData.plan}
-                      onValueChange={(value) => setFormData({ ...formData, plan: value as any })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, plan: value as any })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="basic">Básico</SelectItem>
-                        <SelectItem value="professional">Profissional</SelectItem>
+                        <SelectItem value="professional">
+                          Profissional
+                        </SelectItem>
                         <SelectItem value="enterprise">Empresarial</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="address"
+                      className="flex items-center gap-2"
+                    >
                       <MapPin className="w-4 h-4 text-red-500" />
                       Endereço
                     </Label>
                     <Input
                       id="address"
                       value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, address: e.target.value })
+                      }
                       placeholder="Rua, número - Cidade, UF"
                     />
                   </div>
@@ -372,7 +462,9 @@ export default function ClientsPage() {
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
-                        onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, status: value as any })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -389,9 +481,12 @@ export default function ClientsPage() {
 
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleSubmit} className="flex-1">
-                    {editingClient ? 'Atualizar' : 'Criar'} Cliente
+                    {editingClient ? "Atualizar" : "Criar"} Cliente
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
                     Cancelar
                   </Button>
                 </div>
@@ -427,7 +522,10 @@ export default function ClientsPage() {
               <TableBody>
                 {filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
@@ -437,11 +535,15 @@ export default function ClientsPage() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{client.name}</div>
-                          <div className="text-sm text-muted-foreground">{client.email}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {client.email}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{client.document}</code>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {client.document}
+                        </code>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -465,7 +567,10 @@ export default function ClientsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => { setPermSheetClient(client); setIsPermSheetOpen(true); }}
+                              onClick={() => {
+                                setPermSheetClient(client);
+                                setIsPermSheetOpen(true);
+                              }}
                               title="Controle de acesso"
                               className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
                             >
@@ -501,9 +606,12 @@ export default function ClientsPage() {
       <PermissionSheet
         mode="company"
         targetId={permSheetClient?.id ?? null}
-        targetName={permSheetClient?.name ?? ''}
+        targetName={permSheetClient?.name ?? ""}
         open={isPermSheetOpen}
-        onClose={() => { setIsPermSheetOpen(false); setPermSheetClient(null); }}
+        onClose={() => {
+          setIsPermSheetOpen(false);
+          setPermSheetClient(null);
+        }}
       />
     </div>
   );

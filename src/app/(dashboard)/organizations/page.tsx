@@ -1,14 +1,20 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Organization } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { PageHeader } from '@/components/ui/page-header';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Organization } from "@/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Table,
   TableBody,
@@ -16,122 +22,139 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Building2, Globe, Users, HardDrive, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Building2,
+  Globe,
+  Users,
+  HardDrive,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // API functions
 const getOrganizations = async (): Promise<Organization[]> => {
-  const res = await fetch('/api/organizations');
-  if (!res.ok) throw new Error('Failed to fetch');
+  const res = await fetch("/api/organizations");
+  if (!res.ok) throw new Error("Failed to fetch");
   return res.json();
 };
 
-const createOrganization = async (data: Partial<Organization>): Promise<Organization> => {
-  const res = await fetch('/api/organizations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+const createOrganization = async (
+  data: Partial<Organization>,
+): Promise<Organization> => {
+  const res = await fetch("/api/organizations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create');
+  if (!res.ok) throw new Error("Failed to create");
   return res.json();
 };
 
-const updateOrganization = async (id: number, data: Partial<Organization>): Promise<Organization> => {
+const updateOrganization = async (
+  id: number,
+  data: Partial<Organization>,
+): Promise<Organization> => {
   const res = await fetch(`/api/organizations/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to update');
+  if (!res.ok) throw new Error("Failed to update");
   return res.json();
 };
 
 const deleteOrganization = async (id: number): Promise<void> => {
-  const res = await fetch(`/api/organizations/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete');
+  const res = await fetch(`/api/organizations/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete");
 };
 
 export default function OrganizationsPage() {
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    slug: '',
-    domain: '',
-    plan: 'professional' as 'basic' | 'professional' | 'enterprise',
-    status: 'active' as 'active' | 'suspended' | 'trial',
+    name: "",
+    slug: "",
+    domain: "",
+    plan: "professional" as "basic" | "professional" | "enterprise",
+    status: "active" as "active" | "suspended" | "trial",
     maxDevices: 50,
     maxUsers: 10,
-    features: [] as string[]
+    features: [] as string[],
   });
 
   const { data: organizations = [], isLoading } = useQuery({
-    queryKey: ['organizations'],
-    queryFn: getOrganizations,
+    queryKey: ["organizations"],
+    queryFn: () => getOrganizations(),
   });
 
   const createMutation = useMutation({
     mutationFn: createOrganization,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      toast.success('Organização criada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      toast.success("Organização criada com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao criar organização');
+      toast.error("Erro ao criar organização");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Organization> }) => 
+    mutationFn: ({ id, data }: { id: number; data: Partial<Organization> }) =>
       updateOrganization(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      toast.success('Organização atualizada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      toast.success("Organização atualizada com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar organização');
+      toast.error("Erro ao atualizar organização");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteOrganization,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      toast.success('Organização excluída com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      toast.success("Organização excluída com sucesso!");
     },
     onError: () => {
-      toast.error('Erro ao excluir organização');
+      toast.error("Erro ao excluir organização");
     },
   });
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      slug: '',
-      domain: '',
-      plan: 'professional',
-      status: 'active',
+      name: "",
+      slug: "",
+      domain: "",
+      plan: "professional",
+      status: "active",
       maxDevices: 50,
       maxUsers: 10,
-      features: []
+      features: [],
     });
     setEditingOrg(null);
   };
@@ -141,12 +164,12 @@ export default function OrganizationsPage() {
     setFormData({
       name: org.name,
       slug: org.slug,
-      domain: org.domain || '',
+      domain: org.domain || "",
       plan: org.plan,
       status: org.status,
       maxDevices: org.settings.maxDevices,
       maxUsers: org.settings.maxUsers,
-      features: org.settings.features
+      features: org.settings.features,
     });
     setIsDialogOpen(true);
   };
@@ -157,8 +180,8 @@ export default function OrganizationsPage() {
       settings: {
         maxDevices: formData.maxDevices,
         maxUsers: formData.maxUsers,
-        features: formData.features
-      }
+        features: formData.features,
+      },
     };
 
     if (editingOrg) {
@@ -169,34 +192,69 @@ export default function OrganizationsPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir esta organização?')) {
+    if (confirm("Tem certeza que deseja excluir esta organização?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const filteredOrgs = organizations.filter(org => {
-    const matchesSearch = org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         org.slug.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || org.status === statusFilter;
+  const filteredOrgs = organizations.filter((org) => {
+    const matchesSearch =
+      org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      org.slug.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || org.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      active: <Badge className="bg-green-500"><CheckCircle2 className="w-3 h-3 mr-1" />Ativo</Badge>,
-      suspended: <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Suspenso</Badge>,
-      trial: <Badge variant="outline" className="text-amber-500"><Clock className="w-3 h-3 mr-1" />Trial</Badge>
+      active: (
+        <Badge className="bg-green-500">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          Ativo
+        </Badge>
+      ),
+      suspended: (
+        <Badge variant="destructive">
+          <XCircle className="w-3 h-3 mr-1" />
+          Suspenso
+        </Badge>
+      ),
+      trial: (
+        <Badge variant="outline" className="text-amber-500">
+          <Clock className="w-3 h-3 mr-1" />
+          Trial
+        </Badge>
+      ),
     };
-    return variants[status as keyof typeof variants] || <Badge variant="outline">{status}</Badge>;
+    return (
+      variants[status as keyof typeof variants] || (
+        <Badge variant="outline">{status}</Badge>
+      )
+    );
   };
 
   const getPlanBadge = (plan: string) => {
     const variants = {
       basic: <Badge variant="outline">Básico</Badge>,
-      professional: <Badge variant="outline" className="text-blue-500 border-blue-500/50">Profissional</Badge>,
-      enterprise: <Badge variant="outline" className="text-purple-500 border-purple-500/50">Enterprise</Badge>
+      professional: (
+        <Badge variant="outline" className="text-blue-500 border-blue-500/50">
+          Profissional
+        </Badge>
+      ),
+      enterprise: (
+        <Badge
+          variant="outline"
+          className="text-purple-500 border-purple-500/50"
+        >
+          Enterprise
+        </Badge>
+      ),
     };
-    return variants[plan as keyof typeof variants] || <Badge variant="outline">{plan}</Badge>;
+    return (
+      variants[plan as keyof typeof variants] || (
+        <Badge variant="outline">{plan}</Badge>
+      )
+    );
   };
 
   return (
@@ -225,7 +283,7 @@ export default function OrganizationsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {organizations.filter(o => o.status === 'active').length}
+              {organizations.filter((o) => o.status === "active").length}
             </div>
           </CardContent>
         </Card>
@@ -236,7 +294,7 @@ export default function OrganizationsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {organizations.filter(o => o.status === 'trial').length}
+              {organizations.filter((o) => o.status === "trial").length}
             </div>
           </CardContent>
         </Card>
@@ -247,7 +305,7 @@ export default function OrganizationsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {organizations.filter(o => o.status === 'suspended').length}
+              {organizations.filter((o) => o.status === "suspended").length}
             </div>
           </CardContent>
         </Card>
@@ -279,7 +337,12 @@ export default function OrganizationsPage() {
             </Select>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+                <Button
+                  onClick={() => {
+                    resetForm();
+                    setIsDialogOpen(true);
+                  }}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Nova Organização
                 </Button>
@@ -287,7 +350,7 @@ export default function OrganizationsPage() {
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingOrg ? 'Editar Organização' : 'Nova Organização'}
+                    {editingOrg ? "Editar Organização" : "Nova Organização"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -297,7 +360,9 @@ export default function OrganizationsPage() {
                       <Input
                         id="name"
                         value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, name: e.target.value })
+                        }
                         placeholder="Ex: Transportadora ABC"
                       />
                     </div>
@@ -306,11 +371,17 @@ export default function OrganizationsPage() {
                       <Input
                         id="slug"
                         value={formData.slug}
-                        onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            slug: e.target.value.toLowerCase(),
+                          })
+                        }
                         placeholder="transportadora-abc"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Usado no subdomínio: {formData.slug || 'slug'}.trackcore.com
+                        Usado no subdomínio: {formData.slug || "slug"}
+                        .trackcore.com
                       </p>
                     </div>
                     <div>
@@ -318,26 +389,40 @@ export default function OrganizationsPage() {
                       <Input
                         id="domain"
                         value={formData.domain}
-                        onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, domain: e.target.value })
+                        }
                         placeholder="rastreamento.empresa.com.br"
                       />
                     </div>
                     <div>
                       <Label htmlFor="plan">Plano</Label>
-                      <Select value={formData.plan} onValueChange={(v: any) => setFormData({ ...formData, plan: v })}>
+                      <Select
+                        value={formData.plan}
+                        onValueChange={(v: any) =>
+                          setFormData({ ...formData, plan: v })
+                        }
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="basic">Básico</SelectItem>
-                          <SelectItem value="professional">Profissional</SelectItem>
+                          <SelectItem value="professional">
+                            Profissional
+                          </SelectItem>
                           <SelectItem value="enterprise">Enterprise</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label htmlFor="status">Status</Label>
-                      <Select value={formData.status} onValueChange={(v: any) => setFormData({ ...formData, status: v })}>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(v: any) =>
+                          setFormData({ ...formData, status: v })
+                        }
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -354,7 +439,12 @@ export default function OrganizationsPage() {
                         id="maxDevices"
                         type="number"
                         value={formData.maxDevices}
-                        onChange={(e) => setFormData({ ...formData, maxDevices: parseInt(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            maxDevices: parseInt(e.target.value) || 0,
+                          })
+                        }
                       />
                     </div>
                     <div>
@@ -363,16 +453,24 @@ export default function OrganizationsPage() {
                         id="maxUsers"
                         type="number"
                         value={formData.maxUsers}
-                        onChange={(e) => setFormData({ ...formData, maxUsers: parseInt(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            maxUsers: parseInt(e.target.value) || 0,
+                          })
+                        }
                       />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
                       Cancelar
                     </Button>
                     <Button onClick={handleSubmit}>
-                      {editingOrg ? 'Atualizar' : 'Criar'}
+                      {editingOrg ? "Atualizar" : "Criar"}
                     </Button>
                   </div>
                 </div>
@@ -403,7 +501,10 @@ export default function OrganizationsPage() {
               <TableBody>
                 {filteredOrgs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       Nenhuma organização encontrada
                     </TableCell>
                   </TableRow>
@@ -415,7 +516,9 @@ export default function OrganizationsPage() {
                           <Building2 className="w-4 h-4 text-muted-foreground" />
                           <div>
                             <div className="font-medium">{org.name}</div>
-                            <div className="text-xs text-muted-foreground">ID: {org.id}</div>
+                            <div className="text-xs text-muted-foreground">
+                              ID: {org.id}
+                            </div>
                           </div>
                         </div>
                       </TableCell>

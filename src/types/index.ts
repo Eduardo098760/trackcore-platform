@@ -10,8 +10,8 @@ export interface Organization {
     features: string[]; // enabled features
   };
   traccarUserId: number; // Maps to Traccar admin user for this tenant
-  status: 'active' | 'suspended' | 'trial';
-  plan: 'basic' | 'professional' | 'enterprise';
+  status: "active" | "suspended" | "trial";
+  plan: "basic" | "professional" | "enterprise";
   createdAt: string;
   updatedAt: string;
 }
@@ -29,7 +29,12 @@ export interface TenantContext {
 //   user          → usuário regular        (acesso operacional próprio)
 //   readonly      → readonly: true         (somente leitura)
 //   deviceReadonly→ deviceReadonly: true   (leitura de dispositivos)
-export type UserRole = 'admin' | 'manager' | 'user' | 'readonly' | 'deviceReadonly';
+export type UserRole =
+  | "admin"
+  | "manager"
+  | "user"
+  | "readonly"
+  | "deviceReadonly";
 
 export interface User {
   id: number;
@@ -65,8 +70,22 @@ export interface AuthResponse {
 }
 
 // Device Types (Baseado no Traccar)
-export type DeviceStatus = 'online' | 'offline' | 'moving' | 'stopped' | 'blocked';
-export type VehicleCategory = 'car' | 'motorcycle' | 'truck' | 'bus' | 'trailer' | 'bicycle' | 'airplane' | 'boat' | 'van';
+export type DeviceStatus =
+  | "online"
+  | "offline"
+  | "moving"
+  | "stopped"
+  | "blocked";
+export type VehicleCategory =
+  | "car"
+  | "motorcycle"
+  | "truck"
+  | "bus"
+  | "trailer"
+  | "bicycle"
+  | "airplane"
+  | "boat"
+  | "van";
 
 export interface Device {
   id: number;
@@ -127,25 +146,25 @@ export interface Position {
 }
 
 // Event Types
-export type EventType = 
-  | 'ignitionOn' 
-  | 'ignitionOff' 
-  | 'speedLimit'
-  | 'deviceOverspeed'
-  | 'geofence'
-  | 'geofenceEnter'
-  | 'geofenceExit'
-  | 'alarm'
-  | 'deviceOnline'
-  | 'deviceOffline'
-  | 'deviceMoving'
-  | 'deviceStopped'
-  | 'lowBattery' 
-  | 'connectionLost'
-  | 'connectionRestored'
-  | 'deviceBlocked'
-  | 'deviceUnblocked'
-  | 'maintenance'
+export type EventType =
+  | "ignitionOn"
+  | "ignitionOff"
+  | "speedLimit"
+  | "deviceOverspeed"
+  | "geofence"
+  | "geofenceEnter"
+  | "geofenceExit"
+  | "alarm"
+  | "deviceOnline"
+  | "deviceOffline"
+  | "deviceMoving"
+  | "deviceStopped"
+  | "lowBattery"
+  | "connectionLost"
+  | "connectionRestored"
+  | "deviceBlocked"
+  | "deviceUnblocked"
+  | "maintenance"
   | string; // fallback para tipos não mapeados
 
 export interface Event {
@@ -162,7 +181,7 @@ export interface Event {
 export interface SpeedAlert {
   id: string;
   deviceId: number;
-  deviceName: string;   // placa
+  deviceName: string; // placa
   vehicleName?: string; // nome descritivo
   speed: number;
   speedLimit: number;
@@ -172,14 +191,18 @@ export interface SpeedAlert {
 }
 
 // Command Types
-export type CommandType = 'positionRequest' | 'engineStop' | 'engineResume' | 'deviceReboot';
+export type CommandType =
+  | "positionRequest"
+  | "engineStop"
+  | "engineResume"
+  | "deviceReboot";
 
 export interface Command {
   id: number;
   deviceId: number;
   type: CommandType;
   sentTime: string;
-  status: 'pending' | 'sent' | 'delivered' | 'failed';
+  status: "pending" | "sent" | "delivered" | "failed";
   attributes?: Record<string, any>;
 }
 
@@ -191,8 +214,8 @@ export interface Client {
   email: string;
   phone: string;
   address?: string;
-  plan: 'basic' | 'professional' | 'enterprise';
-  status: 'active' | 'suspended' | 'canceled';
+  plan: "basic" | "professional" | "enterprise";
+  status: "active" | "suspended" | "canceled";
   createdAt: string;
   devicesCount: number;
 }
@@ -203,12 +226,12 @@ export interface Driver {
   name: string;
   document: string; // CPF
   licenseNumber: string; // CNH
-  licenseCategory: 'A' | 'B' | 'C' | 'D' | 'E' | 'AB' | 'AC' | 'AD' | 'AE';
+  licenseCategory: "A" | "B" | "C" | "D" | "E" | "AB" | "AC" | "AD" | "AE";
   licenseExpiry: string;
   phone: string;
   email?: string;
   photo?: string;
-  status: 'active' | 'inactive' | 'suspended';
+  status: "active" | "inactive" | "suspended";
   clientId?: number;
   currentDeviceId?: number;
   createdAt: string;
@@ -220,9 +243,14 @@ export interface Maintenance {
   id: number;
   deviceId: number;
   deviceName?: string;
-  type: 'oil_change' | 'tire_rotation' | 'brake_service' | 'general_inspection' | 'other';
+  type:
+    | "oil_change"
+    | "tire_rotation"
+    | "brake_service"
+    | "general_inspection"
+    | "other";
   description: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'overdue';
+  status: "scheduled" | "in_progress" | "completed" | "overdue";
   scheduledDate?: string;
   completedDate?: string;
   cost?: number;
@@ -282,7 +310,7 @@ export interface DashboardStats {
 }
 
 // Geofence Types
-export type GeofenceType = 'polygon' | 'circle' | 'rectangle';
+export type GeofenceType = "polygon" | "circle" | "rectangle";
 
 export interface Geofence {
   id: number;
@@ -302,8 +330,12 @@ export interface Geofence {
 }
 
 // Notification Types
-export type NotificationType = 'email' | 'sms' | 'push' | 'webhook';
-export type NotificationEvent = EventType | 'geofenceEnter' | 'geofenceExit' | 'maintenance';
+export type NotificationType = "email" | "sms" | "push" | "webhook";
+export type NotificationEvent =
+  | EventType
+  | "geofenceEnter"
+  | "geofenceExit"
+  | "maintenance";
 
 export interface Notification {
   id: number;
@@ -328,56 +360,18 @@ export interface NotificationLog {
   deviceId: number;
   eventId: number;
   sentTime: string;
-  status: 'sent' | 'failed' | 'pending';
+  status: "sent" | "failed" | "pending";
   message?: string;
 }
 
-// Driver Types
-export interface Driver {
-  id: number;
-  name: string;
-  document: string; // CPF
-  license: string; // CNH
-  licenseCategory: string;
-  licenseExpiry: string;
-  phone: string;
-  email?: string;
-  photo?: string;
-  clientId: number;
-  active: boolean;
-  attributes?: Record<string, any>;
-  createdAt: string;
-}
-
-// Maintenance Types
-export interface Maintenance {
-  id: number;
-  deviceId: number;
-  type: 'preventive' | 'corrective' | 'inspection';
-  description: string;
-  scheduledDate?: string;
-  completedDate?: string;
-  odometer?: number;
-  cost?: number;
-  status: 'scheduled' | 'in-progress' | 'completed' | 'canceled';
-  notes?: string;
-  createdAt: string;
-}
-
-export interface MaintenanceRule {
-  id: number;
-  deviceId: number;
-  name: string;
-  type: 'odometer' | 'time' | 'engineHours';
-  interval: number; // km, days, or hours
-  lastMaintenance?: number;
-  nextMaintenance: number;
-  enabled: boolean;
-  notifyBefore: number; // days or km
-}
-
 // Report Types
-export type ReportType = 'trips' | 'stops' | 'events' | 'summary' | 'fuel' | 'speed';
+export type ReportType =
+  | "trips"
+  | "stops"
+  | "events"
+  | "summary"
+  | "fuel"
+  | "speed";
 
 export interface ReportFilter {
   deviceIds: number[];
@@ -469,7 +463,7 @@ export interface ComputedAttribute {
   description?: string;
   attribute: string; // Nome do atributo resultante
   expression: string; // Fórmula de cálculo
-  type: 'string' | 'number' | 'boolean';
+  type: "string" | "number" | "boolean";
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -508,7 +502,7 @@ export interface SystemSettings {
   id: number;
   key: string;
   value: string;
-  type: 'string' | 'number' | 'boolean' | 'json';
+  type: "string" | "number" | "boolean" | "json";
   description?: string;
   updatedAt: string;
   updatedBy?: number;
@@ -516,13 +510,13 @@ export interface SystemSettings {
 
 export interface UserPreferences {
   userId: number;
-  language: 'pt-BR' | 'en-US' | 'es-ES';
+  language: "pt-BR" | "en-US" | "es-ES";
   timezone: string;
   units: {
-    distance: 'km' | 'mi';
-    speed: 'kmh' | 'mph';
-    temperature: 'celsius' | 'fahrenheit';
-    volume: 'liter' | 'gallon';
+    distance: "km" | "mi";
+    speed: "kmh" | "mph";
+    temperature: "celsius" | "fahrenheit";
+    volume: "liter" | "gallon";
   };
   notifications: {
     email: boolean;
@@ -555,7 +549,7 @@ export interface OBDData {
 
 export interface OBDStatistics {
   deviceId: number;
-  period: 'day' | 'week' | 'month';
+  period: "day" | "week" | "month";
   averageRPM: number;
   maxRPM: number;
   averageSpeed: number;
@@ -583,10 +577,16 @@ export interface PaginatedResponse<T> {
 }
 
 // Video Telemetry Types
-export type CameraPosition = 'front' | 'rear' | 'left' | 'right' | 'cabin' | 'cargo';
-export type CameraStatus = 'online' | 'offline' | 'recording' | 'error';
-export type VideoQuality = 'auto' | 'hd' | 'sd' | 'low';
-export type StorageType = 'local' | 'cloud' | 'hybrid';
+export type CameraPosition =
+  | "front"
+  | "rear"
+  | "left"
+  | "right"
+  | "cabin"
+  | "cargo";
+export type CameraStatus = "online" | "offline" | "recording" | "error";
+export type VideoQuality = "auto" | "hd" | "sd" | "low";
+export type StorageType = "local" | "cloud" | "hybrid";
 
 export interface Camera {
   id: number;
@@ -628,7 +628,7 @@ export interface VideoRecording {
   url: string;
   thumbnailUrl?: string;
   hasGPS: boolean;
-  eventType?: 'alarm' | 'collision' | 'harsh_brake' | 'manual';
+  eventType?: "alarm" | "collision" | "harsh_brake" | "manual";
   storageType: StorageType;
   metadata?: {
     speed?: number;
@@ -642,12 +642,26 @@ export interface VideoEvent {
   deviceId: number;
   cameraId: number;
   recordingId?: number;
-  type: 'motion' | 'alarm' | 'collision' | 'harsh_brake' | 'harsh_turn' | 'speeding' | 'smoking' | 'drowsiness' | 'distraction' | 'phone_use' | 'no_seatbelt' | 'dangerous_overtake' | 'tailgating' | 'lane_departure';
+  type:
+    | "motion"
+    | "alarm"
+    | "collision"
+    | "harsh_brake"
+    | "harsh_turn"
+    | "speeding"
+    | "smoking"
+    | "drowsiness"
+    | "distraction"
+    | "phone_use"
+    | "no_seatbelt"
+    | "dangerous_overtake"
+    | "tailgating"
+    | "lane_departure";
   timestamp: string;
   snapshotUrl?: string;
   clipUrl?: string;
   duration?: number; // seconds of clip
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  severity: "low" | "medium" | "high" | "critical";
   acknowledged: boolean;
   metadata?: Record<string, any>;
 }
@@ -656,7 +670,7 @@ export interface CameraSettings {
   deviceId: number;
   recordingQuality: VideoQuality;
   streamQuality: VideoQuality;
-  recordingMode: 'continuous' | 'event' | 'manual';
+  recordingMode: "continuous" | "event" | "manual";
   motionDetection: boolean;
   audioRecording: boolean;
   storageType: StorageType;

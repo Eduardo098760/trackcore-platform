@@ -141,7 +141,7 @@ export default function NotificationTemplatesPage() {
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["notificationTemplates"],
-    queryFn: getTemplates,
+    queryFn: () => getTemplates(),
   });
 
   const saveMutation = useMutation({

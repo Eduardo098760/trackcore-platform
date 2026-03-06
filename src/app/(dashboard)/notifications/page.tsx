@@ -1,14 +1,20 @@
-'use client';
+"use client";
 
-import { useState, useRef, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
-import { PageHeader } from '@/components/ui/page-header';
+import { useState, useRef, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Bell,
   Mail,
@@ -21,17 +27,17 @@ import {
   CheckCheck,
   Save,
   Volume2,
-  VolumeX
-} from 'lucide-react';
-import { toast } from 'sonner';
+  VolumeX,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface NotificationSettings {
   inApp: {
@@ -42,7 +48,7 @@ interface NotificationSettings {
   email: {
     enabled: boolean;
     address: string;
-    frequency: 'instant' | 'hourly' | 'daily';
+    frequency: "instant" | "hourly" | "daily";
   };
   sms: {
     enabled: boolean;
@@ -68,13 +74,13 @@ interface NotificationSettings {
 }
 
 const getSettings = async (): Promise<NotificationSettings> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  const stored = localStorage.getItem('notificationSettings');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const stored = localStorage.getItem("notificationSettings");
   if (stored) {
     return JSON.parse(stored);
   }
-  
+
   return {
     inApp: {
       enabled: true,
@@ -83,12 +89,12 @@ const getSettings = async (): Promise<NotificationSettings> => {
     },
     email: {
       enabled: false,
-      address: '',
-      frequency: 'instant',
+      address: "",
+      frequency: "instant",
     },
     sms: {
       enabled: false,
-      phone: '',
+      phone: "",
     },
     push: {
       enabled: false,
@@ -111,8 +117,8 @@ const getSettings = async (): Promise<NotificationSettings> => {
 };
 
 const saveSettings = async (settings: NotificationSettings): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, 500));
-  localStorage.setItem('notificationSettings', JSON.stringify(settings));
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  localStorage.setItem("notificationSettings", JSON.stringify(settings));
 };
 
 export default function NotificationsPage() {
@@ -123,8 +129,8 @@ export default function NotificationsPage() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['notificationSettings'],
-    queryFn: getSettings,
+    queryKey: ["notificationSettings"],
+    queryFn: () => getSettings(),
   });
 
   // Inicializar settings quando data estiver disponível
@@ -144,11 +150,11 @@ export default function NotificationsPage() {
     onSuccess: () => {
       savedSettings.current = settings;
       setSavedAt(Date.now());
-      queryClient.invalidateQueries({ queryKey: ['notificationSettings'] });
-      toast.success('Configurações salvas com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["notificationSettings"] });
+      toast.success("Configurações salvas com sucesso!");
     },
     onError: () => {
-      toast.error('Erro ao salvar configurações');
+      toast.error("Erro ao salvar configurações");
     },
   });
 
@@ -161,11 +167,14 @@ export default function NotificationsPage() {
   const handleCancel = () => {
     if (savedSettings.current) {
       setSettings(savedSettings.current);
-      toast.info('Alterações descartadas');
+      toast.info("Alterações descartadas");
     }
   };
 
-  const updateInApp = (key: keyof NotificationSettings['inApp'], value: boolean) => {
+  const updateInApp = (
+    key: keyof NotificationSettings["inApp"],
+    value: boolean,
+  ) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -174,7 +183,10 @@ export default function NotificationsPage() {
     }
   };
 
-  const updateEmail = (key: keyof NotificationSettings['email'], value: any) => {
+  const updateEmail = (
+    key: keyof NotificationSettings["email"],
+    value: any,
+  ) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -183,7 +195,7 @@ export default function NotificationsPage() {
     }
   };
 
-  const updateSms = (key: keyof NotificationSettings['sms'], value: any) => {
+  const updateSms = (key: keyof NotificationSettings["sms"], value: any) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -201,7 +213,10 @@ export default function NotificationsPage() {
     }
   };
 
-  const updateEvent = (event: keyof NotificationSettings['events'], enabled: boolean) => {
+  const updateEvent = (
+    event: keyof NotificationSettings["events"],
+    enabled: boolean,
+  ) => {
     if (settings) {
       setSettings({
         ...settings,
@@ -224,18 +239,62 @@ export default function NotificationsPage() {
   }
 
   const eventLabels = {
-    speedLimit: { label: 'Excesso de Velocidade', icon: AlertTriangle, color: 'text-amber-500' },
-    geofenceEnter: { label: 'Entrada em Cerca', icon: Info, color: 'text-blue-500' },
-    geofenceExit: { label: 'Saída de Cerca', icon: AlertCircle, color: 'text-orange-500' },
-    ignitionOn: { label: 'Ignição Ligada', icon: CheckCircle2, color: 'text-green-500' },
-    ignitionOff: { label: 'Ignição Desligada', icon: Info, color: 'text-gray-500' },
-    deviceOffline: { label: 'Dispositivo Offline', icon: AlertCircle, color: 'text-red-500' },
-    deviceOnline: { label: 'Dispositivo Online', icon: CheckCircle2, color: 'text-green-500' },
-    deviceMoving: { label: 'Dispositivo em Movimento', icon: Info, color: 'text-blue-400' },
-    deviceStopped: { label: 'Dispositivo Parado', icon: Info, color: 'text-gray-400' },
-    lowBattery: { label: 'Bateria Fraca', icon: AlertTriangle, color: 'text-amber-500' },
-    maintenance: { label: 'Manutenção', icon: Info, color: 'text-blue-500' },
-    sos: { label: 'SOS / Emergência', icon: AlertCircle, color: 'text-red-500' },
+    speedLimit: {
+      label: "Excesso de Velocidade",
+      icon: AlertTriangle,
+      color: "text-amber-500",
+    },
+    geofenceEnter: {
+      label: "Entrada em Cerca",
+      icon: Info,
+      color: "text-blue-500",
+    },
+    geofenceExit: {
+      label: "Saída de Cerca",
+      icon: AlertCircle,
+      color: "text-orange-500",
+    },
+    ignitionOn: {
+      label: "Ignição Ligada",
+      icon: CheckCircle2,
+      color: "text-green-500",
+    },
+    ignitionOff: {
+      label: "Ignição Desligada",
+      icon: Info,
+      color: "text-gray-500",
+    },
+    deviceOffline: {
+      label: "Dispositivo Offline",
+      icon: AlertCircle,
+      color: "text-red-500",
+    },
+    deviceOnline: {
+      label: "Dispositivo Online",
+      icon: CheckCircle2,
+      color: "text-green-500",
+    },
+    deviceMoving: {
+      label: "Dispositivo em Movimento",
+      icon: Info,
+      color: "text-blue-400",
+    },
+    deviceStopped: {
+      label: "Dispositivo Parado",
+      icon: Info,
+      color: "text-gray-400",
+    },
+    lowBattery: {
+      label: "Bateria Fraca",
+      icon: AlertTriangle,
+      color: "text-amber-500",
+    },
+    maintenance: { label: "Manutenção", icon: Info, color: "text-blue-500" },
+    sos: {
+      label: "SOS / Emergência",
+      icon: AlertCircle,
+      color: "text-red-500",
+    },
   };
 
   return (
@@ -269,7 +328,7 @@ export default function NotificationsPage() {
               </div>
               <Switch
                 checked={settings.inApp.enabled}
-                onCheckedChange={(checked) => updateInApp('enabled', checked)}
+                onCheckedChange={(checked) => updateInApp("enabled", checked)}
               />
             </div>
 
@@ -278,8 +337,12 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="flex items-center gap-2">
-                  <Volume2 className={`w-4 h-4 ${settings.inApp.sound ? '' : 'hidden'}`} />
-                  <VolumeX className={`w-4 h-4 ${settings.inApp.sound ? 'hidden' : ''}`} />
+                  <Volume2
+                    className={`w-4 h-4 ${settings.inApp.sound ? "" : "hidden"}`}
+                  />
+                  <VolumeX
+                    className={`w-4 h-4 ${settings.inApp.sound ? "hidden" : ""}`}
+                  />
                   Som de notificação
                 </Label>
                 <p className="text-sm text-muted-foreground">
@@ -288,7 +351,7 @@ export default function NotificationsPage() {
               </div>
               <Switch
                 checked={settings.inApp.sound}
-                onCheckedChange={(checked) => updateInApp('sound', checked)}
+                onCheckedChange={(checked) => updateInApp("sound", checked)}
                 disabled={!settings.inApp.enabled}
               />
             </div>
@@ -302,7 +365,7 @@ export default function NotificationsPage() {
               </div>
               <Switch
                 checked={settings.inApp.desktop}
-                onCheckedChange={(checked) => updateInApp('desktop', checked)}
+                onCheckedChange={(checked) => updateInApp("desktop", checked)}
                 disabled={!settings.inApp.enabled}
               />
             </div>
@@ -330,7 +393,7 @@ export default function NotificationsPage() {
               </div>
               <Switch
                 checked={settings.email.enabled}
-                onCheckedChange={(checked) => updateEmail('enabled', checked)}
+                onCheckedChange={(checked) => updateEmail("enabled", checked)}
               />
             </div>
 
@@ -343,7 +406,7 @@ export default function NotificationsPage() {
                 type="email"
                 placeholder="seu@email.com"
                 value={settings.email.address}
-                onChange={(e) => updateEmail('address', e.target.value)}
+                onChange={(e) => updateEmail("address", e.target.value)}
                 disabled={!settings.email.enabled}
               />
             </div>
@@ -352,7 +415,7 @@ export default function NotificationsPage() {
               <Label htmlFor="frequency">Frequência de Envio</Label>
               <Select
                 value={settings.email.frequency}
-                onValueChange={(value: any) => updateEmail('frequency', value)}
+                onValueChange={(value: any) => updateEmail("frequency", value)}
                 disabled={!settings.email.enabled}
               >
                 <SelectTrigger id="frequency">
@@ -365,11 +428,11 @@ export default function NotificationsPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {settings.email.frequency === 'instant'
-                  ? 'Enviar email imediatamente ao ocorrer evento'
-                  : settings.email.frequency === 'hourly'
-                  ? 'Agrupar eventos e enviar a cada hora'
-                  : 'Enviar resumo diário com todos os eventos'}
+                {settings.email.frequency === "instant"
+                  ? "Enviar email imediatamente ao ocorrer evento"
+                  : settings.email.frequency === "hourly"
+                    ? "Agrupar eventos e enviar a cada hora"
+                    : "Enviar resumo diário com todos os eventos"}
               </p>
             </div>
           </CardContent>
@@ -381,7 +444,9 @@ export default function NotificationsPage() {
             <div className="flex items-center gap-2">
               <Smartphone className="w-5 h-5 text-purple-500" />
               <CardTitle>Notificações por SMS</CardTitle>
-              <Badge variant="outline" className="ml-auto">Premium</Badge>
+              <Badge variant="outline" className="ml-auto">
+                Premium
+              </Badge>
             </div>
             <CardDescription>
               Receba alertas críticos via mensagem de texto
@@ -397,7 +462,7 @@ export default function NotificationsPage() {
               </div>
               <Switch
                 checked={settings.sms.enabled}
-                onCheckedChange={(checked) => updateSms('enabled', checked)}
+                onCheckedChange={(checked) => updateSms("enabled", checked)}
               />
             </div>
 
@@ -410,7 +475,7 @@ export default function NotificationsPage() {
                 type="tel"
                 placeholder="+55 (11) 99999-9999"
                 value={settings.sms.phone}
-                onChange={(e) => updateSms('phone', e.target.value)}
+                onChange={(e) => updateSms("phone", e.target.value)}
                 disabled={!settings.sms.enabled}
               />
               <p className="text-xs text-muted-foreground">
@@ -449,7 +514,8 @@ export default function NotificationsPage() {
 
             <div className="rounded-lg bg-muted p-4">
               <p className="text-sm text-muted-foreground">
-                Para receber notificações push, instale o aplicativo TrackCore em seu dispositivo móvel e faça login com sua conta.
+                Para receber notificações push, instale o aplicativo TrackCore
+                em seu dispositivo móvel e faça login com sua conta.
               </p>
             </div>
           </CardContent>
@@ -466,21 +532,30 @@ export default function NotificationsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
-            {Object.entries(eventLabels).map(([key, { label, icon: Icon, color }]) => (
-              <div key={key} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-5 h-5 ${color}`} />
-                  <Label className="cursor-pointer" htmlFor={key}>
-                    {label}
-                  </Label>
+            {Object.entries(eventLabels).map(
+              ([key, { label, icon: Icon, color }]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-5 h-5 ${color}`} />
+                    <Label className="cursor-pointer" htmlFor={key}>
+                      {label}
+                    </Label>
+                  </div>
+                  <Switch
+                    id={key}
+                    checked={
+                      settings.events[key as keyof typeof settings.events]
+                    }
+                    onCheckedChange={(checked) =>
+                      updateEvent(key as keyof typeof settings.events, checked)
+                    }
+                  />
                 </div>
-                <Switch
-                  id={key}
-                  checked={settings.events[key as keyof typeof settings.events]}
-                  onCheckedChange={(checked) => updateEvent(key as keyof typeof settings.events, checked)}
-                />
-              </div>
-            ))}
+              ),
+            )}
           </div>
         </CardContent>
       </Card>
@@ -498,18 +573,12 @@ export default function NotificationsPage() {
         {/* Botões só aparecem quando há alterações */}
         {isDirty && (
           <>
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-            >
+            <Button onClick={handleCancel} variant="outline">
               Cancelar
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saveMutation.isPending}
-            >
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
               <Save className="w-4 h-4 mr-2" />
-              {saveMutation.isPending ? 'Salvando...' : 'Salvar Configurações'}
+              {saveMutation.isPending ? "Salvando..." : "Salvar Configurações"}
             </Button>
           </>
         )}

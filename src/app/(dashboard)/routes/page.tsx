@@ -1,72 +1,84 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevices } from '@/lib/api';
+import { useState } from "react";
+import Link from "next/link";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getDevices } from "@/lib/api";
 import {
   getPlannedRoutes,
   createPlannedRoute,
   updatePlannedRoute,
   deletePlannedRoute,
-} from '@/lib/api/routes';
-import type { PlannedRoute, PlannedRouteWaypoint } from '@/types';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/lib/api/routes";
+import type { PlannedRoute, PlannedRouteWaypoint } from "@/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Route, Plus, MapPin, Trash2, Edit, Car } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
+} from "@/components/ui/select";
+import { Route, Plus, MapPin, Trash2, Edit, Car } from "lucide-react";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
 
 export default function RoutesPage() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [name, setName] = useState('');
-  const [deviceId, setDeviceId] = useState<string>('');
+  const [name, setName] = useState("");
+  const [deviceId, setDeviceId] = useState<string>("");
   const [waypoints, setWaypoints] = useState<PlannedRouteWaypoint[]>([
-    { lat: 0, lng: 0, label: 'Início' },
-    { lat: 0, lng: 0, label: 'Fim' },
+    { lat: 0, lng: 0, label: "Início" },
+    { lat: 0, lng: 0, label: "Fim" },
   ]);
 
-  const { data: devices = [] } = useQuery({ queryKey: ['devices'], queryFn: getDevices });
+  const { data: devices = [] } = useQuery({
+    queryKey: ["devices"],
+    queryFn: () => getDevices(),
+  });
   const { data: routes = [], isLoading } = useQuery({
-    queryKey: ['planned-routes'],
-    queryFn: getPlannedRoutes,
+    queryKey: ["planned-routes"],
+    queryFn: () => getPlannedRoutes(),
   });
 
   const createMutation = useMutation({
     mutationFn: createPlannedRoute,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planned-routes'] });
-      toast.success('Rota criada com sucesso');
+      queryClient.invalidateQueries({ queryKey: ["planned-routes"] });
+      toast.success("Rota criada com sucesso");
       resetAndClose();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name?: string; deviceId?: number; waypoints?: PlannedRouteWaypoint[] } }) =>
-      updatePlannedRoute(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        name?: string;
+        deviceId?: number;
+        waypoints?: PlannedRouteWaypoint[];
+      };
+    }) => updatePlannedRoute(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planned-routes'] });
-      toast.success('Rota atualizada');
+      queryClient.invalidateQueries({ queryKey: ["planned-routes"] });
+      toast.success("Rota atualizada");
       resetAndClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -75,18 +87,18 @@ export default function RoutesPage() {
   const deleteMutation = useMutation({
     mutationFn: deletePlannedRoute,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['planned-routes'] });
-      toast.success('Rota excluída');
+      queryClient.invalidateQueries({ queryKey: ["planned-routes"] });
+      toast.success("Rota excluída");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   function resetAndClose() {
-    setName('');
-    setDeviceId('');
+    setName("");
+    setDeviceId("");
     setWaypoints([
-      { lat: 0, lng: 0, label: 'Início' },
-      { lat: 0, lng: 0, label: 'Fim' },
+      { lat: 0, lng: 0, label: "Início" },
+      { lat: 0, lng: 0, label: "Fim" },
     ]);
     setEditingId(null);
     setDialogOpen(false);
@@ -94,11 +106,11 @@ export default function RoutesPage() {
 
   function openCreate() {
     setEditingId(null);
-    setName('');
-    setDeviceId('');
+    setName("");
+    setDeviceId("");
     setWaypoints([
-      { lat: 0, lng: 0, label: 'Início' },
-      { lat: 0, lng: 0, label: 'Fim' },
+      { lat: 0, lng: 0, label: "Início" },
+      { lat: 0, lng: 0, label: "Fim" },
     ]);
     setDialogOpen(true);
   }
@@ -107,16 +119,27 @@ export default function RoutesPage() {
     setEditingId(route.id);
     setName(route.name);
     setDeviceId(String(route.deviceId));
-    setWaypoints(route.waypoints.length >= 2 ? [...route.waypoints] : [
-      { lat: 0, lng: 0, label: 'Início' },
-      { lat: 0, lng: 0, label: 'Fim' },
-    ]);
+    setWaypoints(
+      route.waypoints.length >= 2
+        ? [...route.waypoints]
+        : [
+            { lat: 0, lng: 0, label: "Início" },
+            { lat: 0, lng: 0, label: "Fim" },
+          ],
+    );
     setDialogOpen(true);
   }
 
   function addWaypoint() {
     const last = waypoints[waypoints.length - 1];
-    setWaypoints([...waypoints, { lat: last?.lat ?? 0, lng: last?.lng ?? 0, label: `Ponto ${waypoints.length + 1}` }]);
+    setWaypoints([
+      ...waypoints,
+      {
+        lat: last?.lat ?? 0,
+        lng: last?.lng ?? 0,
+        label: `Ponto ${waypoints.length + 1}`,
+      },
+    ]);
   }
 
   function removeWaypoint(index: number) {
@@ -124,10 +147,15 @@ export default function RoutesPage() {
     setWaypoints(waypoints.filter((_, i) => i !== index));
   }
 
-  function updateWaypoint(index: number, field: 'lat' | 'lng' | 'label', value: number | string) {
+  function updateWaypoint(
+    index: number,
+    field: "lat" | "lng" | "label",
+    value: number | string,
+  ) {
     const next = [...waypoints];
-    if (field === 'lat') next[index] = { ...next[index], lat: Number(value) };
-    else if (field === 'lng') next[index] = { ...next[index], lng: Number(value) };
+    if (field === "lat") next[index] = { ...next[index], lat: Number(value) };
+    else if (field === "lng")
+      next[index] = { ...next[index], lng: Number(value) };
     else next[index] = { ...next[index], label: String(value) };
     setWaypoints(next);
   }
@@ -136,17 +164,25 @@ export default function RoutesPage() {
     e.preventDefault();
     const numDeviceId = parseInt(deviceId, 10);
     if (!name.trim() || !Number.isFinite(numDeviceId) || waypoints.length < 2) {
-      toast.error('Preencha nome, veículo e pelo menos 2 waypoints.');
+      toast.error("Preencha nome, veículo e pelo menos 2 waypoints.");
       return;
     }
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: { name: name.trim(), deviceId: numDeviceId, waypoints } });
+      updateMutation.mutate({
+        id: editingId,
+        data: { name: name.trim(), deviceId: numDeviceId, waypoints },
+      });
     } else {
-      createMutation.mutate({ name: name.trim(), deviceId: numDeviceId, waypoints });
+      createMutation.mutate({
+        name: name.trim(),
+        deviceId: numDeviceId,
+        waypoints,
+      });
     }
   }
 
-  const getDeviceName = (id: number) => devices.find((d) => d.id === id)?.name ?? `Veículo #${id}`;
+  const getDeviceName = (id: number) =>
+    devices.find((d) => d.id === id)?.name ?? `Veículo #${id}`;
 
   return (
     <div className="space-y-6">
@@ -160,9 +196,7 @@ export default function RoutesPage() {
             Nova rota
           </Button>
         }
-        stats={[
-          { label: 'Rotas', value: routes.length, variant: 'default' },
-        ]}
+        stats={[{ label: "Rotas", value: routes.length, variant: "default" }]}
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -175,14 +209,19 @@ export default function RoutesPage() {
                   {route.name}
                 </CardTitle>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(route)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEdit(route)}
+                  >
                     <Edit className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      if (confirm('Excluir esta rota?')) deleteMutation.mutate(route.id);
+                      if (confirm("Excluir esta rota?"))
+                        deleteMutation.mutate(route.id);
                     }}
                   >
                     <Trash2 className="w-4 h-4 text-destructive" />
@@ -202,7 +241,12 @@ export default function RoutesPage() {
               <p className="text-xs text-muted-foreground">
                 Criada em {formatDate(route.createdAt)}
               </p>
-              <Button asChild variant="outline" size="sm" className="w-full mt-2">
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+              >
                 <Link href={`/map?routeId=${route.id}`}>
                   <MapPin className="w-4 h-4 mr-2" />
                   Ver no mapa
@@ -217,7 +261,9 @@ export default function RoutesPage() {
         <Card>
           <CardContent className="py-16 text-center">
             <Route className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">Nenhuma rota planejada ainda.</p>
+            <p className="text-muted-foreground mb-4">
+              Nenhuma rota planejada ainda.
+            </p>
             <Button onClick={openCreate}>
               <Plus className="w-4 h-4 mr-2" />
               Criar primeira rota
@@ -229,7 +275,7 @@ export default function RoutesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Editar rota' : 'Nova rota'}</DialogTitle>
+            <DialogTitle>{editingId ? "Editar rota" : "Nova rota"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -251,7 +297,7 @@ export default function RoutesPage() {
                 <SelectContent>
                   {devices.map((d) => (
                     <SelectItem key={d.id} value={String(d.id)}>
-                      {d.name} {d.plate ? `(${d.plate})` : ''}
+                      {d.name} {d.plate ? `(${d.plate})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -260,34 +306,44 @@ export default function RoutesPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>Waypoints (mín. 2)</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addWaypoint}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addWaypoint}
+                >
                   <Plus className="w-3 h-3 mr-1" /> Adicionar
                 </Button>
               </div>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {waypoints.map((wp, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-muted/50">
+                  <div
+                    key={i}
+                    className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-muted/50"
+                  >
                     <span className="text-xs font-medium w-8">{i + 1}.</span>
                     <Input
                       placeholder="Label"
-                      value={wp.label ?? ''}
-                      onChange={(e) => updateWaypoint(i, 'label', e.target.value)}
+                      value={wp.label ?? ""}
+                      onChange={(e) =>
+                        updateWaypoint(i, "label", e.target.value)
+                      }
                       className="w-24"
                     />
                     <Input
                       type="number"
                       step="any"
                       placeholder="Lat"
-                      value={wp.lat || ''}
-                      onChange={(e) => updateWaypoint(i, 'lat', e.target.value)}
+                      value={wp.lat || ""}
+                      onChange={(e) => updateWaypoint(i, "lat", e.target.value)}
                       className="w-24"
                     />
                     <Input
                       type="number"
                       step="any"
                       placeholder="Lng"
-                      value={wp.lng || ''}
-                      onChange={(e) => updateWaypoint(i, 'lng', e.target.value)}
+                      value={wp.lng || ""}
+                      onChange={(e) => updateWaypoint(i, "lng", e.target.value)}
                       className="w-24"
                     />
                     <Button
@@ -303,7 +359,8 @@ export default function RoutesPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Use coordenadas em graus decimais (ex: -23.55, -46.63). Depois visualize no mapa.
+                Use coordenadas em graus decimais (ex: -23.55, -46.63). Depois
+                visualize no mapa.
               </p>
             </div>
             <DialogFooter>
@@ -312,9 +369,13 @@ export default function RoutesPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending || waypoints.length < 2}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  waypoints.length < 2
+                }
               >
-                {editingId ? 'Salvar' : 'Criar rota'}
+                {editingId ? "Salvar" : "Criar rota"}
               </Button>
             </DialogFooter>
           </form>

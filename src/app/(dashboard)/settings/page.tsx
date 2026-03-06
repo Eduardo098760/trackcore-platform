@@ -1,37 +1,37 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useAuthStore } from '@/lib/stores/auth';
-import { useSettingsStore } from '@/lib/stores/settings';
-import { Settings, User, Bell, Map, Globe, Palette, Save } from 'lucide-react';
-import { useState } from 'react';
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuthStore } from "@/lib/stores/auth";
+import { useSettingsStore } from "@/lib/stores/settings";
+import { Settings, User, Bell, Map, Globe, Palette, Save } from "lucide-react";
+import { useState } from "react";
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
-  const { 
-    theme, 
-    setTheme, 
-    language, 
-    setLanguage, 
-    mapProvider, 
+  const {
+    theme,
+    setTheme,
+    language,
+    setLanguage,
+    mapProvider,
     setMapProvider,
     autoRefresh,
     setAutoRefresh,
     refreshInterval,
-    setRefreshInterval
+    setRefreshInterval,
   } = useSettingsStore();
 
   const [saved, setSaved] = useState(false);
@@ -42,11 +42,11 @@ export default function SettingsPage() {
   };
 
   const getUserInitials = () => {
-    if (!user?.name) return 'U';
+    if (!user?.name) return "U";
     return user.name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -91,22 +91,30 @@ export default function SettingsPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {user?.email}
               </p>
-              <div className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold ${
-                (user?.role === 'admin' || user?.role === 'superadmin')
-                  ? 'bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300'
-                  : user?.role === 'manager'
-                  ? 'bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                  : user?.role === 'user' || user?.role === 'operator'
-                  ? 'bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300'
-                  : user?.role === 'readonly' || user?.role === 'client'
-                  ? 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400'
-                  : 'bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300'
-              }`}>
-                {(user?.role === 'admin' || user?.role === 'superadmin')  ? 'Administrador'
-                  : user?.role === 'manager'                              ? 'Gerente'
-                  : (user?.role === 'user' || user?.role === 'operator')  ? 'Usuário'
-                  : (user?.role === 'readonly' || user?.role === 'client')? 'Somente Leitura'
-                  : 'Leit. Dispositivos'}
+              <div
+                className={`mt-2 px-3 py-1 rounded-full text-xs font-semibold ${
+                  user?.role === "admin"
+                    ? "bg-purple-100 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300"
+                    : user?.role === "manager"
+                      ? "bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
+                      : user?.role === "user"
+                        ? "bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300"
+                        : user?.role === "readonly" ||
+                            user?.role === "deviceReadonly"
+                          ? "bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400"
+                          : "bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300"
+                }`}
+              >
+                {user?.role === "admin"
+                  ? "Administrador"
+                  : user?.role === "manager"
+                    ? "Gerente"
+                    : user?.role === "user"
+                      ? "Usuário"
+                      : user?.role === "readonly" ||
+                          user?.role === "deviceReadonly"
+                        ? "Somente Leitura"
+                        : "Leit. Dispositivos"}
               </div>
             </div>
 
@@ -115,15 +123,25 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div>
                 <Label>Nome</Label>
-                <Input defaultValue={user?.name} className="mt-2 bg-white dark:bg-gray-900" />
+                <Input
+                  defaultValue={user?.name}
+                  className="mt-2 bg-white dark:bg-gray-900"
+                />
               </div>
               <div>
                 <Label>Email</Label>
-                <Input defaultValue={user?.email} className="mt-2 bg-white dark:bg-gray-900" disabled />
+                <Input
+                  defaultValue={user?.email}
+                  className="mt-2 bg-white dark:bg-gray-900"
+                  disabled
+                />
               </div>
               <div>
                 <Label>Telefone</Label>
-                <Input defaultValue={user?.phone} className="mt-2 bg-white dark:bg-gray-900" />
+                <Input
+                  defaultValue={user?.phone}
+                  className="mt-2 bg-white dark:bg-gray-900"
+                />
               </div>
             </div>
 
@@ -148,11 +166,14 @@ export default function SettingsPage() {
                 <Palette className="w-5 h-5 text-violet-600" />
                 Aparência
               </h3>
-              
+
               <div className="grid gap-4">
                 <div>
                   <Label>Tema</Label>
-                  <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
+                  <Select
+                    value={theme}
+                    onValueChange={(value: any) => setTheme(value)}
+                  >
                     <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
                       <SelectValue />
                     </SelectTrigger>
@@ -191,7 +212,10 @@ export default function SettingsPage() {
 
               <div>
                 <Label>Provedor de Mapas</Label>
-                <Select value={mapProvider} onValueChange={(value: any) => setMapProvider(value)}>
+                <Select
+                  value={mapProvider}
+                  onValueChange={(value: any) => setMapProvider(value)}
+                >
                   <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
                     <SelectValue />
                   </SelectTrigger>
@@ -219,15 +243,20 @@ export default function SettingsPage() {
                     Atualizar dados automaticamente
                   </p>
                 </div>
-                <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+                <Switch
+                  checked={autoRefresh}
+                  onCheckedChange={setAutoRefresh}
+                />
               </div>
 
               {autoRefresh && (
                 <div>
                   <Label>Intervalo de Atualização (segundos)</Label>
-                  <Select 
-                    value={refreshInterval.toString()} 
-                    onValueChange={(value) => setRefreshInterval(parseInt(value))}
+                  <Select
+                    value={refreshInterval.toString()}
+                    onValueChange={(value) =>
+                      setRefreshInterval(parseInt(value))
+                    }
                   >
                     <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
                       <SelectValue />
@@ -246,7 +275,7 @@ export default function SettingsPage() {
 
             <Separator />
 
-            <Button 
+            <Button
               onClick={handleSave}
               className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
               size="lg"

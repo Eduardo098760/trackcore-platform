@@ -1,88 +1,118 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevices, sendCommand, getCommands } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { PageHeader } from '@/components/ui/page-header';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getDevices, sendCommand, getCommands } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Terminal, Lock, Unlock, MapPin, RotateCcw, Send, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
-import { Command } from '@/types';
+} from "@/components/ui/select";
+import {
+  Terminal,
+  Lock,
+  Unlock,
+  MapPin,
+  RotateCcw,
+  Send,
+  Clock,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import { formatDate } from "@/lib/utils";
+import { Command } from "@/types";
 
 export default function CommandsPage() {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [selectedCommand, setSelectedCommand] = useState<string>('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [selectedCommand, setSelectedCommand] = useState<string>("");
   const queryClient = useQueryClient();
 
   const { data: devices = [] } = useQuery({
-    queryKey: ['devices'],
-    queryFn: getDevices,
+    queryKey: ["devices"],
+    queryFn: () => getDevices(),
   });
 
   const { data: commands = [] } = useQuery({
-    queryKey: ['commands'],
-    queryFn: getCommands,
+    queryKey: ["commands"],
+    queryFn: () => getCommands(),
     refetchInterval: 5000,
   });
 
   const sendCommandMutation = useMutation({
-    mutationFn: ({ deviceId, type }: { deviceId: number; type: string }) => 
+    mutationFn: ({ deviceId, type }: { deviceId: number; type: string }) =>
       sendCommand(deviceId, type),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['commands'] });
-      setSelectedDeviceId('');
-      setSelectedCommand('');
+      queryClient.invalidateQueries({ queryKey: ["commands"] });
+      setSelectedDeviceId("");
+      setSelectedCommand("");
     },
   });
 
   const commandTypes = [
-    { value: 'positionRequest', label: 'Solicitar Posição', icon: MapPin, color: 'from-blue-600 to-cyan-600' },
-    { value: 'engineStop', label: 'Bloquear Veículo', icon: Lock, color: 'from-red-600 to-orange-600' },
-    { value: 'engineResume', label: 'Desbloquear Veículo', icon: Unlock, color: 'from-green-600 to-emerald-600' },
-    { value: 'deviceReboot', label: 'Reiniciar Rastreador', icon: RotateCcw, color: 'from-purple-600 to-pink-600' },
+    {
+      value: "positionRequest",
+      label: "Solicitar Posição",
+      icon: MapPin,
+      color: "from-blue-600 to-cyan-600",
+    },
+    {
+      value: "engineStop",
+      label: "Bloquear Veículo",
+      icon: Lock,
+      color: "from-red-600 to-orange-600",
+    },
+    {
+      value: "engineResume",
+      label: "Desbloquear Veículo",
+      icon: Unlock,
+      color: "from-green-600 to-emerald-600",
+    },
+    {
+      value: "deviceReboot",
+      label: "Reiniciar Rastreador",
+      icon: RotateCcw,
+      color: "from-purple-600 to-pink-600",
+    },
   ];
 
   const handleSendCommand = () => {
     if (selectedDeviceId && selectedCommand) {
       sendCommandMutation.mutate({
         deviceId: parseInt(selectedDeviceId),
-        type: selectedCommand
+        type: selectedCommand,
       });
     }
   };
 
-  const getStatusIcon = (status: Command['status']) => {
+  const getStatusIcon = (status: Command["status"]) => {
     switch (status) {
-      case 'delivered':
+      case "delivered":
         return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'sent':
+      case "sent":
         return <Send className="w-4 h-4 text-blue-600" />;
-      case 'pending':
+      case "pending":
         return <Clock className="w-4 h-4 text-yellow-600" />;
-      case 'failed':
+      case "failed":
         return <XCircle className="w-4 h-4 text-red-600" />;
     }
   };
 
-  const getStatusColor = (status: Command['status']) => {
+  const getStatusColor = (status: Command["status"]) => {
     switch (status) {
-      case 'delivered':
-        return 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400';
-      case 'sent':
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400';
-      case 'pending':
-        return 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-400';
-      case 'failed':
-        return 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400';
+      case "delivered":
+        return "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400";
+      case "sent":
+        return "bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400";
+      case "pending":
+        return "bg-yellow-50 text-yellow-700 dark:bg-yellow-950/20 dark:text-yellow-400";
+      case "failed":
+        return "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400";
     }
   };
 
@@ -102,13 +132,18 @@ export default function CommandsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Selecione o Veículo</label>
-              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+              <label className="text-sm font-medium mb-2 block">
+                Selecione o Veículo
+              </label>
+              <Select
+                value={selectedDeviceId}
+                onValueChange={setSelectedDeviceId}
+              >
                 <SelectTrigger className="bg-white dark:bg-gray-900">
                   <SelectValue placeholder="Escolha um veículo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {devices.map(device => (
+                  {devices.map((device) => (
                     <SelectItem key={device.id} value={device.id.toString()}>
                       {device.plate} - {device.name}
                     </SelectItem>
@@ -118,9 +153,11 @@ export default function CommandsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Selecione o Comando</label>
+              <label className="text-sm font-medium mb-2 block">
+                Selecione o Comando
+              </label>
               <div className="grid grid-cols-2 gap-3">
-                {commandTypes.map(cmd => {
+                {commandTypes.map((cmd) => {
                   const Icon = cmd.icon;
                   return (
                     <button
@@ -129,11 +166,15 @@ export default function CommandsPage() {
                       className={`p-4 rounded-xl border-2 transition-all ${
                         selectedCommand === cmd.value
                           ? `bg-gradient-to-r ${cmd.color} text-white border-transparent shadow-lg scale-105`
-                          : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                          : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
                       }`}
                     >
-                      <Icon className={`w-6 h-6 mx-auto mb-2 ${selectedCommand === cmd.value ? 'text-white' : ''}`} />
-                      <p className={`text-xs font-medium text-center ${selectedCommand === cmd.value ? 'text-white' : ''}`}>
+                      <Icon
+                        className={`w-6 h-6 mx-auto mb-2 ${selectedCommand === cmd.value ? "text-white" : ""}`}
+                      />
+                      <p
+                        className={`text-xs font-medium text-center ${selectedCommand === cmd.value ? "text-white" : ""}`}
+                      >
                         {cmd.label}
                       </p>
                     </button>
@@ -144,12 +185,16 @@ export default function CommandsPage() {
 
             <Button
               onClick={handleSendCommand}
-              disabled={!selectedDeviceId || !selectedCommand || sendCommandMutation.isPending}
+              disabled={
+                !selectedDeviceId ||
+                !selectedCommand ||
+                sendCommandMutation.isPending
+              }
               className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               size="lg"
             >
               <Send className="w-4 h-4 mr-2" />
-              {sendCommandMutation.isPending ? 'Enviando...' : 'Enviar Comando'}
+              {sendCommandMutation.isPending ? "Enviando..." : "Enviar Comando"}
             </Button>
 
             {sendCommandMutation.isSuccess && (
@@ -169,9 +214,11 @@ export default function CommandsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-              {commands.slice(0, 10).map(command => {
-                const device = devices.find(d => d.id === command.deviceId);
-                const cmdType = commandTypes.find(ct => ct.value === command.type);
+              {commands.slice(0, 10).map((command) => {
+                const device = devices.find((d) => d.id === command.deviceId);
+                const cmdType = commandTypes.find(
+                  (ct) => ct.value === command.type,
+                );
                 const Icon = cmdType?.icon || Terminal;
 
                 return (
@@ -181,7 +228,9 @@ export default function CommandsPage() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-3 flex-1">
-                        <div className={`p-2 rounded-lg bg-gradient-to-r ${cmdType?.color || 'from-gray-600 to-gray-700'}`}>
+                        <div
+                          className={`p-2 rounded-lg bg-gradient-to-r ${cmdType?.color || "from-gray-600 to-gray-700"}`}
+                        >
                           <Icon className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex-1">
@@ -232,9 +281,10 @@ export default function CommandsPage() {
                 Atenção ao enviar comandos
               </h4>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                Os comandos de bloqueio podem afetar o funcionamento do veículo. 
-                Use com cautela e apenas quando necessário. Certifique-se de que o veículo 
-                está em local seguro antes de enviar comandos de bloqueio.
+                Os comandos de bloqueio podem afetar o funcionamento do veículo.
+                Use com cautela e apenas quando necessário. Certifique-se de que
+                o veículo está em local seguro antes de enviar comandos de
+                bloqueio.
               </p>
             </div>
           </div>

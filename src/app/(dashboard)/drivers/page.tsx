@@ -1,16 +1,27 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Driver } from '@/types';
-import { getDrivers, createDriver, updateDriver, deleteDriver } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { PageHeader } from '@/components/ui/page-header';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Driver } from "@/types";
+import {
+  getDrivers,
+  createDriver,
+  updateDriver,
+  deleteDriver,
+} from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -18,89 +29,104 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Users, IdCard, Phone, Mail, Calendar, Car, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Users,
+  IdCard,
+  Phone,
+  Mail,
+  Calendar,
+  Car,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DriversPage() {
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    document: '',
-    licenseNumber: '',
-    licenseCategory: 'B' as Driver['licenseCategory'],
-    licenseExpiry: '',
-    phone: '',
-    email: '',
-    status: 'active' as Driver['status']
+    name: "",
+    document: "",
+    licenseNumber: "",
+    licenseCategory: "B" as Driver["licenseCategory"],
+    licenseExpiry: "",
+    phone: "",
+    email: "",
+    status: "active" as Driver["status"],
   });
 
   const { data: drivers = [], isLoading } = useQuery({
-    queryKey: ['drivers'],
-    queryFn: getDrivers,
+    queryKey: ["drivers"],
+    queryFn: () => getDrivers(),
   });
 
   const createMutation = useMutation({
     mutationFn: createDriver,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      toast.success('Motorista cadastrado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      toast.success("Motorista cadastrado com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao cadastrar motorista');
+      toast.error("Erro ao cadastrar motorista");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Driver> }) => updateDriver(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Driver> }) =>
+      updateDriver(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      toast.success('Motorista atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      toast.success("Motorista atualizado com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar motorista');
+      toast.error("Erro ao atualizar motorista");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteDriver,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      toast.success('Motorista excluído com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      toast.success("Motorista excluído com sucesso!");
     },
     onError: () => {
-      toast.error('Erro ao excluir motorista');
+      toast.error("Erro ao excluir motorista");
     },
   });
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      document: '',
-      licenseNumber: '',
-      licenseCategory: 'B',
-      licenseExpiry: '',
-      phone: '',
-      email: '',
-      status: 'active'
+      name: "",
+      document: "",
+      licenseNumber: "",
+      licenseCategory: "B",
+      licenseExpiry: "",
+      phone: "",
+      email: "",
+      status: "active",
     });
     setEditingDriver(null);
   };
@@ -114,8 +140,8 @@ export default function DriversPage() {
       licenseCategory: driver.licenseCategory,
       licenseExpiry: driver.licenseExpiry,
       phone: driver.phone,
-      email: driver.email || '',
-      status: driver.status
+      email: driver.email || "",
+      status: driver.status,
     });
     setIsDialogOpen(true);
   };
@@ -129,30 +155,46 @@ export default function DriversPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este motorista?')) {
+    if (confirm("Tem certeza que deseja excluir este motorista?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const filteredDrivers = drivers.filter(driver => {
-    const matchesSearch = 
+  const filteredDrivers = drivers.filter((driver) => {
+    const matchesSearch =
       driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       driver.document.includes(searchQuery) ||
       driver.licenseNumber.includes(searchQuery);
-    
-    const matchesStatus = statusFilter === 'all' || driver.status === statusFilter;
+
+    const matchesStatus =
+      statusFilter === "all" || driver.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: Driver['status']) => {
+  const getStatusBadge = (status: Driver["status"]) => {
     switch (status) {
-      case 'active':
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" />Ativo</Badge>;
-      case 'suspended':
-        return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20"><AlertCircle className="w-3 h-3 mr-1" />Suspenso</Badge>;
-      case 'inactive':
-        return <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20"><XCircle className="w-3 h-3 mr-1" />Inativo</Badge>;
+      case "active":
+        return (
+          <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Ativo
+          </Badge>
+        );
+      case "suspended":
+        return (
+          <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Suspenso
+          </Badge>
+        );
+      case "inactive":
+        return (
+          <Badge className="bg-gray-500/10 text-gray-500 border-gray-500/20">
+            <XCircle className="w-3 h-3 mr-1" />
+            Inativo
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -161,7 +203,9 @@ export default function DriversPage() {
   const isLicenseExpiring = (expiryDate: string) => {
     const expiry = new Date(expiryDate);
     const today = new Date();
-    const daysUntilExpiry = Math.floor((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntilExpiry = Math.floor(
+      (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
     return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
   };
 
@@ -171,18 +215,22 @@ export default function DriversPage() {
 
   const getInitials = (name: string) => {
     return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
       .toUpperCase()
       .substring(0, 2);
   };
 
   const stats = {
     total: drivers.length,
-    active: drivers.filter(d => d.status === 'active').length,
-    suspended: drivers.filter(d => d.status === 'suspended').length,
-    expiring: drivers.filter(d => isLicenseExpiring(d.licenseExpiry) && !isLicenseExpired(d.licenseExpiry)).length
+    active: drivers.filter((d) => d.status === "active").length,
+    suspended: drivers.filter((d) => d.status === "suspended").length,
+    expiring: drivers.filter(
+      (d) =>
+        isLicenseExpiring(d.licenseExpiry) &&
+        !isLicenseExpired(d.licenseExpiry),
+    ).length,
   };
 
   return (
@@ -197,7 +245,9 @@ export default function DriversPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Motoristas</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total de Motoristas
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -207,11 +257,15 @@ export default function DriversPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Motoristas Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Motoristas Ativos
+            </CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
+            <div className="text-2xl font-bold text-green-500">
+              {stats.active}
+            </div>
           </CardContent>
         </Card>
 
@@ -221,7 +275,9 @@ export default function DriversPage() {
             <AlertCircle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{stats.suspended}</div>
+            <div className="text-2xl font-bold text-orange-500">
+              {stats.suspended}
+            </div>
           </CardContent>
         </Card>
 
@@ -231,7 +287,9 @@ export default function DriversPage() {
             <Calendar className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats.expiring}</div>
+            <div className="text-2xl font-bold text-red-500">
+              {stats.expiring}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -272,7 +330,7 @@ export default function DriversPage() {
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingDriver ? 'Editar Motorista' : 'Novo Motorista'}
+                    {editingDriver ? "Editar Motorista" : "Novo Motorista"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -281,33 +339,48 @@ export default function DriversPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       placeholder="Ex: João da Silva"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="document" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="document"
+                      className="flex items-center gap-2"
+                    >
                       <IdCard className="w-4 h-4 text-blue-500" />
                       CPF
                     </Label>
                     <Input
                       id="document"
                       value={formData.document}
-                      onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, document: e.target.value })
+                      }
                       placeholder="000.000.000-00"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="licenseNumber" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="licenseNumber"
+                      className="flex items-center gap-2"
+                    >
                       <Car className="w-4 h-4 text-purple-500" />
                       Número da CNH
                     </Label>
                     <Input
                       id="licenseNumber"
                       value={formData.licenseNumber}
-                      onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          licenseNumber: e.target.value,
+                        })
+                      }
                       placeholder="00000000000"
                     />
                   </div>
@@ -316,7 +389,12 @@ export default function DriversPage() {
                     <Label htmlFor="licenseCategory">Categoria CNH</Label>
                     <Select
                       value={formData.licenseCategory}
-                      onValueChange={(value) => setFormData({ ...formData, licenseCategory: value as any })}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          licenseCategory: value as any,
+                        })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -336,7 +414,10 @@ export default function DriversPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="licenseExpiry" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="licenseExpiry"
+                      className="flex items-center gap-2"
+                    >
                       <Calendar className="w-4 h-4 text-red-500" />
                       Validade CNH
                     </Label>
@@ -344,7 +425,12 @@ export default function DriversPage() {
                       id="licenseExpiry"
                       type="date"
                       value={formData.licenseExpiry}
-                      onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          licenseExpiry: e.target.value,
+                        })
+                      }
                     />
                   </div>
 
@@ -356,7 +442,9 @@ export default function DriversPage() {
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -370,7 +458,9 @@ export default function DriversPage() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                       placeholder="motorista@email.com"
                     />
                   </div>
@@ -380,7 +470,9 @@ export default function DriversPage() {
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
-                        onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, status: value as any })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -397,9 +489,12 @@ export default function DriversPage() {
 
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleSubmit} className="flex-1">
-                    {editingDriver ? 'Atualizar' : 'Cadastrar'} Motorista
+                    {editingDriver ? "Atualizar" : "Cadastrar"} Motorista
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
                     Cancelar
                   </Button>
                 </div>
@@ -435,7 +530,10 @@ export default function DriversPage() {
               <TableBody>
                 {filteredDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       Nenhum motorista encontrado
                     </TableCell>
                   </TableRow>
@@ -453,29 +551,47 @@ export default function DriversPage() {
                           <div>
                             <div className="font-medium">{driver.name}</div>
                             {driver.email && (
-                              <div className="text-xs text-muted-foreground">{driver.email}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {driver.email}
+                              </div>
                             )}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{driver.document}</code>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {driver.document}
+                        </code>
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{driver.licenseNumber}</code>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {driver.licenseNumber}
+                        </code>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{driver.licenseCategory}</Badge>
+                        <Badge variant="outline">
+                          {driver.licenseCategory}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{formatDate(driver.licenseExpiry)}</span>
+                          <span className="text-sm">
+                            {formatDate(driver.licenseExpiry)}
+                          </span>
                           {isLicenseExpired(driver.licenseExpiry) && (
-                            <Badge variant="destructive" className="text-xs">Vencida</Badge>
+                            <Badge variant="destructive" className="text-xs">
+                              Vencida
+                            </Badge>
                           )}
-                          {isLicenseExpiring(driver.licenseExpiry) && !isLicenseExpired(driver.licenseExpiry) && (
-                            <Badge variant="outline" className="text-xs text-orange-500 border-orange-500">A vencer</Badge>
-                          )}
+                          {isLicenseExpiring(driver.licenseExpiry) &&
+                            !isLicenseExpired(driver.licenseExpiry) && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-orange-500 border-orange-500"
+                              >
+                                A vencer
+                              </Badge>
+                            )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">{driver.phone}</TableCell>

@@ -1,45 +1,45 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getDevices, getDeviceRoute } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getDevices, getDeviceRoute } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Calendar, MapPin, Clock, Gauge, Route } from 'lucide-react';
-import { formatSpeed, formatDistance, formatDuration } from '@/lib/utils';
-import { Position } from '@/types';
+} from "@/components/ui/select";
+import { Calendar, MapPin, Clock, Gauge, Route } from "lucide-react";
+import { formatSpeed, formatDistance, formatDuration } from "@/lib/utils";
+import { Position } from "@/types";
 
 export default function HistoryPage() {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   );
   const [endDate, setEndDate] = useState(
-    new Date().toISOString().split('T')[0]
+    new Date().toISOString().split("T")[0],
   );
   const [routeData, setRouteData] = useState<Position[]>([]);
 
   const { data: devices = [] } = useQuery({
-    queryKey: ['devices'],
-    queryFn: getDevices,
+    queryKey: ["devices"],
+    queryFn: () => getDevices(),
   });
 
   const loadRoute = async () => {
     if (!selectedDeviceId) return;
-    
+
     const from = new Date(startDate).toISOString();
     const to = new Date(endDate).toISOString();
-    
+
     const route = await getDeviceRoute(parseInt(selectedDeviceId), from, to);
     setRouteData(route);
   };
@@ -51,33 +51,37 @@ export default function HistoryPage() {
       if (i === 0) return 0;
       const prev = routeData[i - 1];
       const R = 6371; // Earth radius in km
-      const dLat = (pos.latitude - prev.latitude) * Math.PI / 180;
-      const dLon = (pos.longitude - prev.longitude) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(prev.latitude * Math.PI / 180) * Math.cos(pos.latitude * Math.PI / 180) *
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const dLat = ((pos.latitude - prev.latitude) * Math.PI) / 180;
+      const dLon = ((pos.longitude - prev.longitude) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((prev.latitude * Math.PI) / 180) *
+          Math.cos((pos.latitude * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return acc + R * c;
     }, 0);
 
-    const speeds = routeData.map(p => p.speed).filter(s => s > 0);
+    const speeds = routeData.map((p) => p.speed).filter((s) => s > 0);
     const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length || 0;
     const maxSpeed = Math.max(...speeds, 0);
 
-    const duration = routeData.length > 1
-      ? (new Date(routeData[routeData.length - 1].serverTime).getTime() - 
-         new Date(routeData[0].serverTime).getTime()) / 1000
-      : 0;
+    const duration =
+      routeData.length > 1
+        ? (new Date(routeData[routeData.length - 1].serverTime).getTime() -
+            new Date(routeData[0].serverTime).getTime()) /
+          1000
+        : 0;
 
-    const stops = routeData.filter(p => p.speed === 0).length;
+    const stops = routeData.filter((p) => p.speed === 0).length;
 
     return {
       totalDistance,
       avgSpeed,
       maxSpeed,
       duration,
-      stops
+      stops,
     };
   };
 
@@ -110,12 +114,15 @@ export default function HistoryPage() {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="md:col-span-2">
               <Label>Veículo</Label>
-              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+              <Select
+                value={selectedDeviceId}
+                onValueChange={setSelectedDeviceId}
+              >
                 <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
                   <SelectValue placeholder="Selecione um veículo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {devices.map(device => (
+                  {devices.map((device) => (
                     <SelectItem key={device.id} value={device.id.toString()}>
                       {device.plate} - {device.name}
                     </SelectItem>
@@ -163,7 +170,9 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Distância Total</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Distância Total
+                  </p>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                     {formatDistance(stats.totalDistance)}
                   </p>
@@ -177,7 +186,9 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Velocidade Média</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Velocidade Média
+                  </p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                     {Math.round(stats.avgSpeed)} km/h
                   </p>
@@ -191,7 +202,9 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Velocidade Máxima</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Velocidade Máxima
+                  </p>
                   <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                     {Math.round(stats.maxSpeed)} km/h
                   </p>
@@ -205,7 +218,9 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Duração</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Duração
+                  </p>
                   <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
                     {formatDuration(stats.duration)}
                   </p>
@@ -219,7 +234,9 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Paradas</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Paradas
+                  </p>
                   <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
                     {stats.stops}
                   </p>
@@ -235,7 +252,9 @@ export default function HistoryPage() {
       {routeData.length > 0 && (
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
           <CardHeader>
-            <CardTitle>Pontos do Trajeto ({routeData.length} registros)</CardTitle>
+            <CardTitle>
+              Pontos do Trajeto ({routeData.length} registros)
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -252,17 +271,23 @@ export default function HistoryPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <span className="text-sm font-semibold">
-                            {new Date(point.serverTime).toLocaleString('pt-BR')}
+                            {new Date(point.serverTime).toLocaleString("pt-BR")}
                           </span>
                           <Badge variant="secondary">
                             {Math.round(point.speed)} km/h
                           </Badge>
                         </div>
                         <p className="text-xs text-gray-600 dark:text-gray-400">
-                          {point.address || `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`}
+                          {point.address ||
+                            `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`}
                         </p>
                         <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                          <span>Ignição: {point.attributes.ignition ? '✓ Ligada' : '✗ Desligada'}</span>
+                          <span>
+                            Ignição:{" "}
+                            {point.attributes.ignition
+                              ? "✓ Ligada"
+                              : "✗ Desligada"}
+                          </span>
                           <span>Satélites: {point.attributes.sat || 0}</span>
                         </div>
                       </div>

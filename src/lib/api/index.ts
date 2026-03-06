@@ -1,7 +1,16 @@
-import { Device, Position, Event, Command, Client, User, DashboardStats, DeviceStatistics } from '@/types';
-import { api } from './client';
-import { getDevices as getDevicesFromDevices, getDevice } from './devices';
-import { deriveDeviceStatus } from '@/lib/utils';
+import {
+  Device,
+  Position,
+  Event,
+  Command,
+  Client,
+  User,
+  DashboardStats,
+  DeviceStatistics,
+} from "@/types";
+import { api } from "./client";
+import { getDevices as getDevicesFromDevices, getDevice } from "./devices";
+import { deriveDeviceStatus } from "@/lib/utils";
 
 /**
  * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
@@ -9,7 +18,7 @@ import { deriveDeviceStatus } from '@/lib/utils';
 function getImpersonatingUserId(): number | undefined {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useAuthStore } = require('@/lib/stores/auth');
+    const { useAuthStore } = require("@/lib/stores/auth");
     const state = useAuthStore.getState();
     if (state.isImpersonating && state.user?.id) return state.user.id;
   } catch {}
@@ -20,19 +29,30 @@ function getImpersonatingUserId(): number | undefined {
  * Transformação entre modelo interno (com role) e modelo Traccar (com administrator)
  */
 function mapUserToTraccar(user: Partial<User>): any {
-  const { role, createdAt, updatedAt, avatar, clientId, organizationId, ...traccarUser } = user as any;
+  const {
+    role,
+    createdAt,
+    updatedAt,
+    avatar,
+    clientId,
+    organizationId,
+    ...traccarUser
+  } = user as any;
 
   if (role) {
     // Mapear role para campos nativos do Traccar
-    traccarUser.administrator   = role === 'admin';
-    traccarUser.readonly        = role === 'readonly';
-    traccarUser.deviceReadonly  = role === 'deviceReadonly';
+    traccarUser.administrator = role === "admin";
+    traccarUser.readonly = role === "readonly";
+    traccarUser.deviceReadonly = role === "deviceReadonly";
     // Manager: só define userLimit padrão se ainda não foi especificado
-    if (role === 'manager' && (traccarUser.userLimit == null || traccarUser.userLimit === 0)) {
+    if (
+      role === "manager" &&
+      (traccarUser.userLimit == null || traccarUser.userLimit === 0)
+    ) {
       traccarUser.userLimit = -1; // ilimitado por padrão
     }
     // user: garante que não é gerente, mas só se não veio um valor explícito
-    if (role === 'user' && traccarUser.userLimit == null) {
+    if (role === "user" && traccarUser.userLimit == null) {
       traccarUser.userLimit = 0;
     }
     // deviceLimit padrão: ilimitado se não informado
@@ -49,7 +69,9 @@ function mapUserToTraccar(user: Partial<User>): any {
 function mapTraccarToUser(traccarUser: any): User {
   // 1. administrator: true → admin
   if (traccarUser.administrator) {
-    return { ...traccarUser, role: 'admin',
+    return {
+      ...traccarUser,
+      role: "admin",
       createdAt: traccarUser.createdAt || new Date().toISOString(),
       updatedAt: traccarUser.updatedAt || new Date().toISOString(),
     } as User;
@@ -57,17 +79,23 @@ function mapTraccarToUser(traccarUser: any): User {
 
   // 2 & 3. Role salva em attributes
   const savedRole = traccarUser.attributes?.role as string | undefined;
-  const newRoles = ['admin', 'manager', 'user', 'readonly', 'deviceReadonly'];
-  const oldToNew: Record<string, string> = { superadmin: 'admin', operator: 'user', client: 'readonly' };
-  let role: string = 'user';
+  const newRoles = ["admin", "manager", "user", "readonly", "deviceReadonly"];
+  const oldToNew: Record<string, string> = {
+    superadmin: "admin",
+    operator: "user",
+    client: "readonly",
+  };
+  let role: string = "user";
   if (savedRole) {
-    role = newRoles.includes(savedRole) ? savedRole : (oldToNew[savedRole] ?? 'user');
+    role = newRoles.includes(savedRole)
+      ? savedRole
+      : (oldToNew[savedRole] ?? "user");
   } else if (traccarUser.readonly) {
-    role = 'readonly';
+    role = "readonly";
   } else if (traccarUser.deviceReadonly) {
-    role = 'deviceReadonly';
+    role = "deviceReadonly";
   } else if (traccarUser.userLimit != null && traccarUser.userLimit !== 0) {
-    role = 'manager';
+    role = "manager";
   }
 
   return {
@@ -90,14 +118,18 @@ export async function getDeviceById(id: number): Promise<Device> {
 }
 
 // Positions API (usando Traccar)
-export async function getPositions(params?: { deviceId?: number; from?: string; to?: string }): Promise<Position[]> {
-  return api.get<Position[]>('/positions', params);
+export async function getPositions(params?: {
+  deviceId?: number;
+  from?: string;
+  to?: string;
+}): Promise<Position[]> {
+  return api.get<Position[]>("/positions", params);
 }
 
 export async function getPositionByDevice(deviceId: number): Promise<Position> {
-  const positions = await api.get<Position[]>('/positions', { deviceId });
+  const positions = await api.get<Position[]>("/positions", { deviceId });
   if (!positions || positions.length === 0) {
-    throw new Error('Position not found');
+    throw new Error("Position not found");
   }
   return positions[0];
 }
@@ -105,7 +137,7 @@ export async function getPositionByDevice(deviceId: number): Promise<Position> {
 // Busca uma posição histórica específica pelo seu ID (útil para eventos com positionId)
 export async function getPositionById(id: number): Promise<Position | null> {
   try {
-    const positions = await api.get<Position[]>('/positions', { id });
+    const positions = await api.get<Position[]>("/positions", { id });
     return positions?.[0] ?? null;
   } catch {
     return null;
@@ -115,10 +147,10 @@ export async function getPositionById(id: number): Promise<Position | null> {
 // Events API (usando Traccar - Reports endpoint)
 // O Traccar exige deviceId(s) ou groupId para reports/events
 // Para obter todos os eventos, buscamos de todos os dispositivos
-export async function getEvents(params?: { 
-  deviceId?: number; 
+export async function getEvents(params?: {
+  deviceId?: number;
   deviceIds?: number[];
-  from?: string; 
+  from?: string;
   to?: string;
   type?: string;
 }): Promise<Event[]> {
@@ -127,7 +159,7 @@ export async function getEvents(params?: {
     if (params?.from) requestParams.from = params.from;
     if (params?.to) requestParams.to = params.to;
     if (params?.type) requestParams.type = params.type;
-    
+
     // Se tem deviceIds ou deviceId específico, usar
     if (params?.deviceIds?.length) {
       requestParams.deviceId = params.deviceIds;
@@ -136,28 +168,35 @@ export async function getEvents(params?: {
     } else {
       // Buscar devices do usuário correto (impersonado ou admin)
       const impersonatingUserId = getImpersonatingUserId();
-      const devicesParams = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
-      const devices = await api.get<Device[]>('/devices', devicesParams);
+      const devicesParams = impersonatingUserId
+        ? { userId: impersonatingUserId }
+        : undefined;
+      const devices = await api.get<Device[]>("/devices", devicesParams);
       if (devices.length === 0) return [];
-      requestParams.deviceId = devices.map(d => d.id);
+      requestParams.deviceId = devices.map((d) => d.id);
     }
-    
-    const events = await api.get<Event[]>('/reports/events', requestParams);
-    
+
+    const events = await api.get<Event[]>("/reports/events", requestParams);
+
     // Enriquecer eventos com nome do dispositivo (usando mesmo filtro de userId se impersonando)
     const impUid = getImpersonatingUserId();
-    const allDevices = await api.get<Device[]>('/devices', impUid ? { userId: impUid } : undefined);
-    const deviceMap = new Map(allDevices.map(d => [d.id, d]));
-    
-    return events.map(event => ({
+    const allDevices = await api.get<Device[]>(
+      "/devices",
+      impUid ? { userId: impUid } : undefined,
+    );
+    const deviceMap = new Map(allDevices.map((d) => [d.id, d]));
+
+    return events.map((event) => ({
       ...event,
       attributes: {
         ...event.attributes,
-        deviceName: deviceMap.get(event.deviceId)?.name || `Dispositivo #${event.deviceId}`,
-      }
+        deviceName:
+          deviceMap.get(event.deviceId)?.name ||
+          `Dispositivo #${event.deviceId}`,
+      },
     }));
   } catch (error) {
-    console.error('Erro ao buscar eventos:', error);
+    console.error("Erro ao buscar eventos:", error);
     return [];
   }
 }
@@ -165,24 +204,28 @@ export async function getEvents(params?: {
 export async function markEventAsResolved(eventId: number): Promise<Event> {
   // Traccar não tem endpoint específico para resolver eventos
   // Você pode adicionar um atributo customizado
-  return api.put<Event>(`/events/${eventId}`, { 
-    attributes: { resolved: true } 
+  return api.put<Event>(`/events/${eventId}`, {
+    attributes: { resolved: true },
   });
 }
 
 // Commands API (usando Traccar)
-export async function sendCommand(deviceId: number, type: string, attributes?: any): Promise<Command> {
+export async function sendCommand(
+  deviceId: number,
+  type: string,
+  attributes?: any,
+): Promise<Command> {
   const command = {
     deviceId,
     type,
-    attributes: attributes || {}
+    attributes: attributes || {},
   };
-  
-  return api.post<Command>('/commands/send', command);
+
+  return api.post<Command>("/commands/send", command);
 }
 
 export async function getCommands(deviceId?: number): Promise<Command[]> {
-  return api.get<Command[]>('/commands', deviceId ? { deviceId } : undefined);
+  return api.get<Command[]>("/commands", deviceId ? { deviceId } : undefined);
 }
 
 // Clients API (Traccar não tem "clients", mas podemos usar Groups)
@@ -193,19 +236,25 @@ export async function getClients(): Promise<Client[]> {
   const params: Record<string, any> = {};
   if (impersonatingUserId) {
     params.userId = impersonatingUserId;
-    console.log('[getClients] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    console.log(
+      "[getClients] Impersonação ativa — filtrando por userId:",
+      impersonatingUserId,
+    );
   }
 
-  const groups = await api.get<any[]>('/groups', Object.keys(params).length ? params : undefined);
-  return (groups || []).map(g => ({
+  const groups = await api.get<any[]>(
+    "/groups",
+    Object.keys(params).length ? params : undefined,
+  );
+  return (groups || []).map((g) => ({
     id: g.id,
     name: g.name,
-    document: g.attributes?.document || '',
-    email: g.attributes?.email || '',
-    phone: g.attributes?.phone || '',
-    address: g.attributes?.address || '',
-    plan: g.attributes?.plan || 'basic',
-    status: g.attributes?.status || 'active',
+    document: g.attributes?.document || "",
+    email: g.attributes?.email || "",
+    phone: g.attributes?.phone || "",
+    address: g.attributes?.address || "",
+    plan: g.attributes?.plan || "basic",
+    status: g.attributes?.status || "active",
     createdAt: g.attributes?.createdAt || new Date().toISOString(),
     devicesCount: g.attributes?.devicesCount || 0,
   }));
@@ -216,25 +265,29 @@ export async function getClientById(id: number): Promise<Client> {
   return {
     id: group.id,
     name: group.name,
-    email: '',
-    phone: '',
-    address: '',
-    createdAt: '',
+    email: group.attributes?.email || "",
+    phone: group.attributes?.phone || "",
+    address: group.attributes?.address || "",
+    document: group.attributes?.document || "",
+    plan: group.attributes?.plan || "basic",
+    status: group.attributes?.status || "active",
+    createdAt: group.attributes?.createdAt || new Date().toISOString(),
     devicesCount: 0,
-    active: true
   };
 }
 
-export async function createClient(data: Omit<Client, 'id' | 'createdAt' | 'devicesCount'>): Promise<Client> {
-  const group = await api.post<any>('/groups', {
+export async function createClient(
+  data: Omit<Client, "id" | "createdAt" | "devicesCount">,
+): Promise<Client> {
+  const group = await api.post<any>("/groups", {
     name: data.name,
     attributes: {
-      document: data.document || '',
-      email:    data.email    || '',
-      phone:    data.phone    || '',
-      address:  data.address  || '',
-      plan:     data.plan     || 'basic',
-      status:   data.status   || 'active',
+      document: data.document || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      address: data.address || "",
+      plan: data.plan || "basic",
+      status: data.status || "active",
       createdAt: new Date().toISOString(),
     },
   });
@@ -246,29 +299,34 @@ export async function createClient(data: Omit<Client, 'id' | 'createdAt' | 'devi
   };
 }
 
-export async function updateClient(id: number, data: Partial<Client>): Promise<Client> {
+export async function updateClient(
+  id: number,
+  data: Partial<Client>,
+): Promise<Client> {
   // Busca atributos atuais para não sobrescrever campos não enviados
   let currentAttributes: Record<string, any> = {};
   try {
     const current = await api.get<any>(`/groups/${id}`);
     currentAttributes = current?.attributes || {};
-  } catch { /* segue com objeto vazio */ }
+  } catch {
+    /* segue com objeto vazio */
+  }
 
   const group = await api.put<any>(`/groups/${id}`, {
     id,
     name: data.name,
     attributes: {
       ...currentAttributes,
-      ...(data.document  !== undefined ? { document:  data.document  } : {}),
-      ...(data.email     !== undefined ? { email:     data.email     } : {}),
-      ...(data.phone     !== undefined ? { phone:     data.phone     } : {}),
-      ...(data.address   !== undefined ? { address:   data.address   } : {}),
-      ...(data.plan      !== undefined ? { plan:      data.plan      } : {}),
-      ...(data.status    !== undefined ? { status:    data.status    } : {}),
+      ...(data.document !== undefined ? { document: data.document } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      ...(data.address !== undefined ? { address: data.address } : {}),
+      ...(data.plan !== undefined ? { plan: data.plan } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
     },
   });
   return {
-    ...data as Client,
+    ...(data as Client),
     id: group.id,
   };
 }
@@ -286,13 +344,16 @@ export async function getUsers(ownerUserId?: number): Promise<User[]> {
   let params: Record<string, any> | undefined;
   if (impersonatingUserId) {
     params = { userId: impersonatingUserId };
-    console.log('[getUsers] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    console.log(
+      "[getUsers] Impersonação ativa — filtrando por userId:",
+      impersonatingUserId,
+    );
   } else if (ownerUserId) {
     params = { userId: ownerUserId };
-    console.log('[getUsers] Filtrando usuários do owner:', ownerUserId);
+    console.log("[getUsers] Filtrando usuários do owner:", ownerUserId);
   }
 
-  const traccarUsers = await api.get<any[]>('/users', params);
+  const traccarUsers = await api.get<any[]>("/users", params);
   return traccarUsers.map(mapTraccarToUser);
 }
 
@@ -301,24 +362,35 @@ export async function getUserById(id: number): Promise<User> {
   return mapTraccarToUser(traccarUser);
 }
 
-export async function createUser(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-  console.log('[API] createUser - Dados originais:', JSON.stringify(data, null, 2));
-  
+export async function createUser(
+  data: Omit<User, "id" | "createdAt" | "updatedAt">,
+): Promise<User> {
+  console.log(
+    "[API] createUser - Dados originais:",
+    JSON.stringify(data, null, 2),
+  );
+
   // Transformar para formato Traccar
   const traccarData = mapUserToTraccar(data);
-  console.log('[API] createUser - Dados transformados para Traccar:', JSON.stringify(traccarData, null, 2));
-  
+  console.log(
+    "[API] createUser - Dados transformados para Traccar:",
+    JSON.stringify(traccarData, null, 2),
+  );
+
   try {
-    const result = await api.post<any>('/users', traccarData);
-    console.log('[API] Usuário criado com sucesso:', result);
+    const result = await api.post<any>("/users", traccarData);
+    console.log("[API] Usuário criado com sucesso:", result);
     return mapTraccarToUser(result);
   } catch (error) {
-    console.error('[API] Erro ao criar usuário:', error);
+    console.error("[API] Erro ao criar usuário:", error);
     throw error;
   }
 }
 
-export async function updateUser(id: number, data: Partial<User>): Promise<User> {
+export async function updateUser(
+  id: number,
+  data: Partial<User>,
+): Promise<User> {
   const traccarData = mapUserToTraccar(data);
   const result = await api.put<any>(`/users/${id}`, { ...traccarData, id });
   return mapTraccarToUser(result);
@@ -329,59 +401,74 @@ export async function deleteUser(id: number): Promise<void> {
 }
 
 // Drivers API (Traccar /drivers endpoint)
-export async function getDrivers(): Promise<import('@/types').Driver[]> {
+export async function getDrivers(): Promise<import("@/types").Driver[]> {
   const impersonatingUserId = getImpersonatingUserId();
-  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  const params = impersonatingUserId
+    ? { userId: impersonatingUserId }
+    : undefined;
   if (impersonatingUserId) {
-    console.log('[getDrivers] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    console.log(
+      "[getDrivers] Impersonação ativa — filtrando por userId:",
+      impersonatingUserId,
+    );
   }
   try {
-    const traccarDrivers = await api.get<any[]>('/drivers', params);
-    return (traccarDrivers || []).map(d => ({
+    const traccarDrivers = await api.get<any[]>("/drivers", params);
+    return (traccarDrivers || []).map((d) => ({
       id: d.id,
       name: d.name,
       uniqueId: d.uniqueId,
-      document: d.attributes?.document || '',
-      licenseNumber: d.attributes?.licenseNumber || '',
-      licenseCategory: d.attributes?.licenseCategory || 'B',
-      licenseExpiry: d.attributes?.licenseExpiry || '',
-      phone: d.attributes?.phone || '',
-      email: d.attributes?.email || '',
-      photo: d.attributes?.photo || '',
-      status: d.attributes?.status || 'active',
+      document: d.attributes?.document || "",
+      licenseNumber: d.attributes?.licenseNumber || "",
+      licenseCategory: d.attributes?.licenseCategory || "B",
+      licenseExpiry: d.attributes?.licenseExpiry || "",
+      phone: d.attributes?.phone || "",
+      email: d.attributes?.email || "",
+      photo: d.attributes?.photo || "",
+      status: d.attributes?.status || "active",
       clientId: d.attributes?.clientId,
       currentDeviceId: d.attributes?.currentDeviceId,
       createdAt: d.attributes?.createdAt || new Date().toISOString(),
       updatedAt: d.attributes?.updatedAt || new Date().toISOString(),
     }));
   } catch (error) {
-    console.error('[getDrivers] Erro ao buscar motoristas:', error);
+    console.error("[getDrivers] Erro ao buscar motoristas:", error);
     return [];
   }
 }
 
-export async function createDriver(data: Partial<import('@/types').Driver>): Promise<import('@/types').Driver> {
+export async function createDriver(
+  data: Partial<import("@/types").Driver>,
+): Promise<import("@/types").Driver> {
   const payload = {
-    name: data.name || '',
+    name: data.name || "",
     uniqueId: data.document || `drv-${Date.now()}`,
     attributes: {
-      document: data.document || '',
-      licenseNumber: data.licenseNumber || '',
-      licenseCategory: data.licenseCategory || 'B',
-      licenseExpiry: data.licenseExpiry || '',
-      phone: data.phone || '',
-      email: data.email || '',
-      photo: data.photo || '',
-      status: data.status || 'active',
+      document: data.document || "",
+      licenseNumber: data.licenseNumber || "",
+      licenseCategory: data.licenseCategory || "B",
+      licenseExpiry: data.licenseExpiry || "",
+      phone: data.phone || "",
+      email: data.email || "",
+      photo: data.photo || "",
+      status: data.status || "active",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
   };
-  const result = await api.post<any>('/drivers', payload);
-  return { ...data, id: result.id, createdAt: result.attributes?.createdAt || new Date().toISOString(), updatedAt: result.attributes?.updatedAt || new Date().toISOString() } as import('@/types').Driver;
+  const result = await api.post<any>("/drivers", payload);
+  return {
+    ...data,
+    id: result.id,
+    createdAt: result.attributes?.createdAt || new Date().toISOString(),
+    updatedAt: result.attributes?.updatedAt || new Date().toISOString(),
+  } as import("@/types").Driver;
 }
 
-export async function updateDriver(id: number, data: Partial<import('@/types').Driver>): Promise<import('@/types').Driver> {
+export async function updateDriver(
+  id: number,
+  data: Partial<import("@/types").Driver>,
+): Promise<import("@/types").Driver> {
   let currentAttributes: Record<string, any> = {};
   try {
     const current = await api.get<any>(`/drivers/${id}`);
@@ -393,18 +480,28 @@ export async function updateDriver(id: number, data: Partial<import('@/types').D
     uniqueId: data.document || currentAttributes.document || `drv-${id}`,
     attributes: {
       ...currentAttributes,
-      ...(data.document       !== undefined ? { document:       data.document       } : {}),
-      ...(data.licenseNumber  !== undefined ? { licenseNumber:  data.licenseNumber  } : {}),
-      ...(data.licenseCategory !== undefined ? { licenseCategory: data.licenseCategory } : {}),
-      ...(data.licenseExpiry  !== undefined ? { licenseExpiry:  data.licenseExpiry  } : {}),
-      ...(data.phone          !== undefined ? { phone:          data.phone          } : {}),
-      ...(data.email          !== undefined ? { email:          data.email          } : {}),
-      ...(data.status         !== undefined ? { status:         data.status         } : {}),
+      ...(data.document !== undefined ? { document: data.document } : {}),
+      ...(data.licenseNumber !== undefined
+        ? { licenseNumber: data.licenseNumber }
+        : {}),
+      ...(data.licenseCategory !== undefined
+        ? { licenseCategory: data.licenseCategory }
+        : {}),
+      ...(data.licenseExpiry !== undefined
+        ? { licenseExpiry: data.licenseExpiry }
+        : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
       updatedAt: new Date().toISOString(),
     },
   };
   const result = await api.put<any>(`/drivers/${id}`, payload);
-  return { ...data, id: result.id, updatedAt: new Date().toISOString() } as import('@/types').Driver;
+  return {
+    ...data,
+    id: result.id,
+    updatedAt: new Date().toISOString(),
+  } as import("@/types").Driver;
 }
 
 export async function deleteDriver(id: number): Promise<void> {
@@ -412,62 +509,81 @@ export async function deleteDriver(id: number): Promise<void> {
 }
 
 // Maintenances API (Traccar /maintenance endpoint)
-export async function getMaintenances(): Promise<import('@/types').Maintenance[]> {
+export async function getMaintenances(): Promise<
+  import("@/types").Maintenance[]
+> {
   const impersonatingUserId = getImpersonatingUserId();
-  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+  const params = impersonatingUserId
+    ? { userId: impersonatingUserId }
+    : undefined;
   if (impersonatingUserId) {
-    console.log('[getMaintenances] Impersonação ativa — filtrando por userId:', impersonatingUserId);
+    console.log(
+      "[getMaintenances] Impersonação ativa — filtrando por userId:",
+      impersonatingUserId,
+    );
   }
   try {
-    const items = await api.get<any[]>('/maintenance', params);
-    return (items || []).map(m => ({
+    const items = await api.get<any[]>("/maintenance", params);
+    return (items || []).map((m) => ({
       id: m.id,
       deviceId: m.attributes?.deviceId || 0,
-      deviceName: m.attributes?.deviceName || '',
-      type: m.attributes?.maintenanceType || 'general_inspection',
-      description: m.name || m.attributes?.description || '',
-      status: m.attributes?.status || 'scheduled',
-      scheduledDate: m.attributes?.scheduledDate || '',
+      deviceName: m.attributes?.deviceName || "",
+      type: m.attributes?.maintenanceType || "general_inspection",
+      description: m.name || m.attributes?.description || "",
+      status: m.attributes?.status || "scheduled",
+      scheduledDate: m.attributes?.scheduledDate || "",
       completedDate: m.attributes?.completedDate,
       cost: m.attributes?.cost || 0,
       odometer: m.start || m.attributes?.odometer || 0,
-      nextOdometer: m.period ? (m.start + m.period) : m.attributes?.nextOdometer,
-      notes: m.attributes?.notes || '',
+      nextOdometer: m.period ? m.start + m.period : m.attributes?.nextOdometer,
+      notes: m.attributes?.notes || "",
       createdAt: m.attributes?.createdAt || new Date().toISOString(),
       updatedAt: m.attributes?.updatedAt || new Date().toISOString(),
     }));
   } catch (error) {
-    console.error('[getMaintenances] Erro ao buscar manutenções:', error);
+    console.error("[getMaintenances] Erro ao buscar manutenções:", error);
     return [];
   }
 }
 
-export async function createMaintenance(data: Partial<import('@/types').Maintenance>): Promise<import('@/types').Maintenance> {
+export async function createMaintenance(
+  data: Partial<import("@/types").Maintenance>,
+): Promise<import("@/types").Maintenance> {
   const payload = {
-    name: data.description || 'Manutenção',
-    type: 'totalDistance',
+    name: data.description || "Manutenção",
+    type: "totalDistance",
     start: data.odometer || 0,
-    period: data.nextOdometer ? (data.nextOdometer - (data.odometer || 0)) : 10000,
+    period: data.nextOdometer
+      ? data.nextOdometer - (data.odometer || 0)
+      : 10000,
     attributes: {
       deviceId: data.deviceId,
-      deviceName: data.deviceName || '',
+      deviceName: data.deviceName || "",
       maintenanceType: data.type,
-      description: data.description || '',
-      status: data.status || 'scheduled',
-      scheduledDate: data.scheduledDate || '',
+      description: data.description || "",
+      status: data.status || "scheduled",
+      scheduledDate: data.scheduledDate || "",
       cost: data.cost || 0,
       odometer: data.odometer || 0,
       nextOdometer: data.nextOdometer,
-      notes: data.notes || '',
+      notes: data.notes || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
   };
-  const result = await api.post<any>('/maintenance', payload);
-  return { ...data, id: result.id, createdAt: result.attributes?.createdAt || new Date().toISOString(), updatedAt: result.attributes?.updatedAt || new Date().toISOString() } as import('@/types').Maintenance;
+  const result = await api.post<any>("/maintenance", payload);
+  return {
+    ...data,
+    id: result.id,
+    createdAt: result.attributes?.createdAt || new Date().toISOString(),
+    updatedAt: result.attributes?.updatedAt || new Date().toISOString(),
+  } as import("@/types").Maintenance;
 }
 
-export async function updateMaintenance(id: number, data: Partial<import('@/types').Maintenance>): Promise<import('@/types').Maintenance> {
+export async function updateMaintenance(
+  id: number,
+  data: Partial<import("@/types").Maintenance>,
+): Promise<import("@/types").Maintenance> {
   let currentAttributes: Record<string, any> = {};
   try {
     const current = await api.get<any>(`/maintenance/${id}`);
@@ -475,26 +591,38 @@ export async function updateMaintenance(id: number, data: Partial<import('@/type
   } catch {}
   const payload = {
     id,
-    name: data.description || currentAttributes.description || 'Manutenção',
-    type: 'totalDistance',
+    name: data.description || currentAttributes.description || "Manutenção",
+    type: "totalDistance",
     start: data.odometer || currentAttributes.odometer || 0,
-    period: data.nextOdometer ? (data.nextOdometer - (data.odometer || 0)) : 10000,
+    period: data.nextOdometer
+      ? data.nextOdometer - (data.odometer || 0)
+      : 10000,
     attributes: {
       ...currentAttributes,
-      ...(data.deviceId      !== undefined ? { deviceId:      data.deviceId      } : {}),
-      ...(data.deviceName    !== undefined ? { deviceName:    data.deviceName    } : {}),
-      ...(data.type          !== undefined ? { maintenanceType: data.type        } : {}),
-      ...(data.description   !== undefined ? { description:   data.description   } : {}),
-      ...(data.status        !== undefined ? { status:        data.status        } : {}),
-      ...(data.scheduledDate !== undefined ? { scheduledDate: data.scheduledDate } : {}),
-      ...(data.completedDate !== undefined ? { completedDate: data.completedDate } : {}),
-      ...(data.cost          !== undefined ? { cost:          data.cost          } : {}),
-      ...(data.notes         !== undefined ? { notes:         data.notes         } : {}),
+      ...(data.deviceId !== undefined ? { deviceId: data.deviceId } : {}),
+      ...(data.deviceName !== undefined ? { deviceName: data.deviceName } : {}),
+      ...(data.type !== undefined ? { maintenanceType: data.type } : {}),
+      ...(data.description !== undefined
+        ? { description: data.description }
+        : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(data.scheduledDate !== undefined
+        ? { scheduledDate: data.scheduledDate }
+        : {}),
+      ...(data.completedDate !== undefined
+        ? { completedDate: data.completedDate }
+        : {}),
+      ...(data.cost !== undefined ? { cost: data.cost } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes } : {}),
       updatedAt: new Date().toISOString(),
     },
   };
   const result = await api.put<any>(`/maintenance/${id}`, payload);
-  return { ...data, id: result.id, updatedAt: new Date().toISOString() } as import('@/types').Maintenance;
+  return {
+    ...data,
+    id: result.id,
+    updatedAt: new Date().toISOString(),
+  } as import("@/types").Maintenance;
 }
 
 export async function deleteMaintenance(id: number): Promise<void> {
@@ -503,105 +631,147 @@ export async function deleteMaintenance(id: number): Promise<void> {
 
 // User Permissions API (gerenciar dispositivos do usuário - Traccar)
 export async function getUserDevices(userId: number): Promise<Device[]> {
-  console.log(`[API] getUserDevices - Buscando dispositivos para userId: ${userId}`);
+  console.log(
+    `[API] getUserDevices - Buscando dispositivos para userId: ${userId}`,
+  );
   try {
     // No Traccar, buscamos os devices diretamente com o parâmetro userId
     // GET /devices?userId={userId} retorna apenas os devices que o usuário tem permissão
-    const devices = await api.get<any[]>('/devices', { userId });
-    console.log(`[API] Total de dispositivos retornados para userId ${userId}:`, devices.length);
-    
+    const devices = await api.get<any[]>("/devices", { userId });
+    console.log(
+      `[API] Total de dispositivos retornados para userId ${userId}:`,
+      devices.length,
+    );
+
     if (devices.length === 0) {
       console.log(`[API] Nenhum dispositivo encontrado para userId ${userId}`);
       return [];
     }
-    
+
     // Os devices do Traccar já estão no formato correto (Device[])
-    console.log(`[API] Dispositivos do usuário ${userId}:`, devices.map(d => ({ id: d.id, name: d.name })));
+    console.log(
+      `[API] Dispositivos do usuário ${userId}:`,
+      devices.map((d) => ({ id: d.id, name: d.name })),
+    );
     return devices;
   } catch (error: any) {
     console.error(`[API] ERRO em getUserDevices para userId ${userId}:`, error);
     console.error(`[API] Detalhes do erro:`, {
       message: error?.message,
       status: error?.status,
-      details: error?.details
+      details: error?.details,
     });
     // Se o erro for porque o usuário não tem permissões, retornar array vazio
     if (error?.status === 400 || error?.status === 404) {
-      console.log(`[API] Assumindo que usuário ${userId} não tem dispositivos, retornando array vazio`);
+      console.log(
+        `[API] Assumindo que usuário ${userId} não tem dispositivos, retornando array vazio`,
+      );
       return [];
     }
     throw error;
   }
 }
 
-export async function addDeviceToUser(userId: number, deviceId: number): Promise<void> {
-  console.log(`[API] addDeviceToUser - Adicionando permissão: userId=${userId}, deviceId=${deviceId}`);
+export async function addDeviceToUser(
+  userId: number,
+  deviceId: number,
+): Promise<void> {
+  console.log(
+    `[API] addDeviceToUser - Adicionando permissão: userId=${userId}, deviceId=${deviceId}`,
+  );
   // Adiciona permissão no Traccar
-  const result = await api.post<void>('/permissions', {
+  const result = await api.post<void>("/permissions", {
     userId,
-    deviceId
+    deviceId,
   });
   console.log(`[API] Permissão adicionada com sucesso:`, result);
 }
 
-export async function removeDeviceFromUser(userId: number, deviceId: number): Promise<void> {
-  console.log(`[API] removeDeviceFromUser - Removendo permissão: userId=${userId}, deviceId=${deviceId}`);
+export async function removeDeviceFromUser(
+  userId: number,
+  deviceId: number,
+): Promise<void> {
+  console.log(
+    `[API] removeDeviceFromUser - Removendo permissão: userId=${userId}, deviceId=${deviceId}`,
+  );
   // Remove permissão no Traccar usando body JSON (conforme documentação)
-  const result = await api.delete<void>('/permissions', {
-    userId: userId,
-    deviceId: deviceId
-  }, true); // useBody = true
+  const result = await api.delete<void>(
+    "/permissions",
+    {
+      userId: userId,
+      deviceId: deviceId,
+    },
+    true,
+  ); // useBody = true
   console.log(`[API] Permissão removida com sucesso:`, result);
 }
 
-export async function setUserDevices(userId: number, deviceIds: number[]): Promise<void> {
-  console.log(`[API] setUserDevices - userId: ${userId}, deviceIds:`, deviceIds);
-  
+export async function setUserDevices(
+  userId: number,
+  deviceIds: number[],
+): Promise<void> {
+  console.log(
+    `[API] setUserDevices - userId: ${userId}, deviceIds:`,
+    deviceIds,
+  );
+
   // Remove todas as permissões atuais
-  console.log('[API] Buscando dispositivos atuais do usuário...');
+  console.log("[API] Buscando dispositivos atuais do usuário...");
   const currentDevices = await getUserDevices(userId);
-  console.log(`[API] Usuário possui ${currentDevices.length} dispositivos atuais:`, currentDevices.map(d => d.id));
-  
+  console.log(
+    `[API] Usuário possui ${currentDevices.length} dispositivos atuais:`,
+    currentDevices.map((d) => d.id),
+  );
+
   for (const device of currentDevices) {
     console.log(`[API] Removendo permissão do dispositivo ${device.id}...`);
     await removeDeviceFromUser(userId, device.id);
   }
-  console.log('[API] Permissões antigas removidas');
-  
+  console.log("[API] Permissões antigas removidas");
+
   // Adiciona as novas permissões
   console.log(`[API] Adicionando ${deviceIds.length} novas permissões...`);
   for (const deviceId of deviceIds) {
     console.log(`[API] Adicionando permissão do dispositivo ${deviceId}...`);
     await addDeviceToUser(userId, deviceId);
   }
-  console.log('[API] Todas as novas permissões adicionadas com sucesso!');
+  console.log("[API] Todas as novas permissões adicionadas com sucesso!");
 }
 
 // User Password Management
-export async function updateUserPassword(userId: number, newPassword: string): Promise<void> {
+export async function updateUserPassword(
+  userId: number,
+  newPassword: string,
+): Promise<void> {
   console.log(`[API] updateUserPassword - userId: ${userId}`);
   // Traccar exige que enviemos todos os dados do usuário ao atualizar
   // Buscar dados originais do Traccar (não mapeados)
   const traccarUser = await api.get<any>(`/users/${userId}`);
-  console.log('[API] Dados do usuário obtidos do Traccar:', { id: traccarUser.id, name: traccarUser.name, email: traccarUser.email });
-  
+  console.log("[API] Dados do usuário obtidos do Traccar:", {
+    id: traccarUser.id,
+    name: traccarUser.name,
+    email: traccarUser.email,
+  });
+
   const updateData = {
     ...traccarUser,
     id: userId,
-    password: newPassword
+    password: newPassword,
   };
-  console.log('[API] Enviando atualização com senha...');
-  
+  console.log("[API] Enviando atualização com senha...");
+
   await api.put<void>(`/users/${userId}`, updateData);
-  console.log('[API] Senha atualizada com sucesso!');
+  console.log("[API] Senha atualizada com sucesso!");
 }
 
 // Dashboard Stats API
 // deviceIds opcional: quando informado (ex.: cliente vendo só seus veículos), filtra dispositivos e eventos
-export async function getDashboardStats(options?: { deviceIds?: number[] }): Promise<DashboardStats> {
+export async function getDashboardStats(options?: {
+  deviceIds?: number[];
+}): Promise<DashboardStats> {
   const [devices, positions] = await Promise.all([
     getDevices(),
-    api.get<any[]>('/positions').catch(() => [] as any[]),
+    api.get<any[]>("/positions").catch(() => [] as any[]),
   ]);
   const deviceIds = options?.deviceIds;
   const filteredDevices = deviceIds?.length
@@ -612,19 +782,28 @@ export async function getDashboardStats(options?: { deviceIds?: number[] }): Pro
 
   const deviceStats: DeviceStatistics = {
     total: filteredDevices.length,
-    online: 0, offline: 0, moving: 0, stopped: 0, blocked: 0,
+    online: 0,
+    offline: 0,
+    moving: 0,
+    stopped: 0,
+    blocked: 0,
   };
   for (const d of filteredDevices) {
     const s = deriveDeviceStatus(d.status, posMap.get(d.id));
-    if (s === 'moving')       deviceStats.moving++;
-    else if (s === 'stopped') deviceStats.stopped++;
-    else if (s === 'blocked') deviceStats.blocked++;
-    else if (s === 'offline') deviceStats.offline++;
-    else                       deviceStats.online++;
-    if (s !== 'offline' && s !== 'blocked') deviceStats.online = deviceStats.moving + deviceStats.stopped + (deviceStats.online - deviceStats.moving - deviceStats.stopped);
+    if (s === "moving") deviceStats.moving++;
+    else if (s === "stopped") deviceStats.stopped++;
+    else if (s === "blocked") deviceStats.blocked++;
+    else if (s === "offline") deviceStats.offline++;
+    else deviceStats.online++;
+    if (s !== "offline" && s !== "blocked")
+      deviceStats.online =
+        deviceStats.moving +
+        deviceStats.stopped +
+        (deviceStats.online - deviceStats.moving - deviceStats.stopped);
   }
   // recalculate online as total minus offline/blocked
-  deviceStats.online = filteredDevices.length - deviceStats.offline - deviceStats.blocked;
+  deviceStats.online =
+    filteredDevices.length - deviceStats.offline - deviceStats.blocked;
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -634,31 +813,37 @@ export async function getDashboardStats(options?: { deviceIds?: number[] }): Pro
   const events = await getEvents({
     from: fromISO,
     to: toISO,
-    deviceIds: filteredDevices.map((d) => d.id)
+    deviceIds: filteredDevices.map((d) => d.id),
   });
-  const activeAlerts = events.filter((e: any) => !e.attributes?.resolved).length;
+  const activeAlerts = events.filter(
+    (e: any) => !e.attributes?.resolved,
+  ).length;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const eventsToday = events.filter(e =>
-    new Date(e.serverTime) >= today
+  const eventsToday = events.filter(
+    (e) => new Date(e.serverTime) >= today,
   ).length;
 
-  const groups = await api.get<any[]>('/groups');
+  const groups = await api.get<any[]>("/groups");
 
   return {
     devices: deviceStats,
     activeAlerts,
     eventsToday,
-    clients: groups.length
+    clients: groups.length,
   };
 }
 
 // Trip/Route History (usando Traccar Reports)
-export async function getDeviceRoute(deviceId: number, from: string, to: string): Promise<Position[]> {
-  return api.get<Position[]>('/reports/route', {
+export async function getDeviceRoute(
+  deviceId: number,
+  from: string,
+  to: string,
+): Promise<Position[]> {
+  return api.get<Position[]>("/reports/route", {
     deviceId,
     from,
-    to
+    to,
   });
 }

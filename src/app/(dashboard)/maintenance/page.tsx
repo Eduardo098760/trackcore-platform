@@ -1,16 +1,28 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevices, getMaintenances, createMaintenance, updateMaintenance, deleteMaintenance } from '@/lib/api';
-import { Maintenance } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { PageHeader } from '@/components/ui/page-header';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getDevices,
+  getMaintenances,
+  createMaintenance,
+  updateMaintenance,
+  deleteMaintenance,
+} from "@/lib/api";
+import { Maintenance } from "@/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Table,
   TableBody,
@@ -18,97 +30,112 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Edit, Trash2, Wrench, Calendar, DollarSign, Gauge, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Wrench,
+  Calendar,
+  DollarSign,
+  Gauge,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function MaintenancePage() {
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingMaintenance, setEditingMaintenance] = useState<Maintenance | null>(null);
+  const [editingMaintenance, setEditingMaintenance] =
+    useState<Maintenance | null>(null);
   const [formData, setFormData] = useState({
     deviceId: 0,
-    type: 'oil_change' as Maintenance['type'],
-    description: '',
-    scheduledDate: '',
+    type: "oil_change" as Maintenance["type"],
+    description: "",
+    scheduledDate: "",
     cost: 0,
     odometer: 0,
     nextOdometer: 0,
-    notes: '',
-    status: 'scheduled' as Maintenance['status']
+    notes: "",
+    status: "scheduled" as Maintenance["status"],
   });
 
   const { data: devices = [] } = useQuery({
-    queryKey: ['devices'],
-    queryFn: getDevices,
+    queryKey: ["devices"],
+    queryFn: () => getDevices(),
   });
 
   const { data: maintenances = [], isLoading } = useQuery({
-    queryKey: ['maintenances'],
-    queryFn: getMaintenances,
+    queryKey: ["maintenances"],
+    queryFn: () => getMaintenances(),
   });
 
   const createMutation = useMutation({
     mutationFn: createMaintenance,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['maintenances'] });
-      toast.success('Manutenção agendada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["maintenances"] });
+      toast.success("Manutenção agendada com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao agendar manutenção');
+      toast.error("Erro ao agendar manutenção");
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Maintenance> }) => updateMaintenance(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Maintenance> }) =>
+      updateMaintenance(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['maintenances'] });
-      toast.success('Manutenção atualizada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["maintenances"] });
+      toast.success("Manutenção atualizada com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar manutenção');
+      toast.error("Erro ao atualizar manutenção");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteMaintenance,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['maintenances'] });
-      toast.success('Manutenção excluída com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["maintenances"] });
+      toast.success("Manutenção excluída com sucesso!");
     },
     onError: () => {
-      toast.error('Erro ao excluir manutenção');
+      toast.error("Erro ao excluir manutenção");
     },
   });
 
   const resetForm = () => {
     setFormData({
       deviceId: 0,
-      type: 'oil_change',
-      description: '',
-      scheduledDate: '',
+      type: "oil_change",
+      description: "",
+      scheduledDate: "",
       cost: 0,
       odometer: 0,
       nextOdometer: 0,
-      notes: '',
-      status: 'scheduled'
+      notes: "",
+      status: "scheduled",
     });
     setEditingMaintenance(null);
   };
@@ -119,12 +146,12 @@ export default function MaintenancePage() {
       deviceId: maintenance.deviceId,
       type: maintenance.type,
       description: maintenance.description,
-      scheduledDate: maintenance.scheduledDate?.split('T')[0] || '',
+      scheduledDate: maintenance.scheduledDate?.split("T")[0] || "",
       cost: maintenance.cost || 0,
       odometer: maintenance.odometer || 0,
       nextOdometer: maintenance.nextOdometer || 0,
-      notes: maintenance.notes || '',
-      status: maintenance.status
+      notes: maintenance.notes || "",
+      status: maintenance.status,
     });
     setIsDialogOpen(true);
   };
@@ -138,56 +165,88 @@ export default function MaintenancePage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir esta manutenção?')) {
+    if (confirm("Tem certeza que deseja excluir esta manutenção?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const filteredMaintenances = maintenances.filter(maintenance => {
-    const matchesSearch = 
-      maintenance.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (maintenance.deviceName && maintenance.deviceName.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesStatus = statusFilter === 'all' || maintenance.status === statusFilter;
-    const matchesType = typeFilter === 'all' || maintenance.type === typeFilter;
+  const filteredMaintenances = maintenances.filter((maintenance) => {
+    const matchesSearch =
+      maintenance.description
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      (maintenance.deviceName &&
+        maintenance.deviceName
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()));
+
+    const matchesStatus =
+      statusFilter === "all" || maintenance.status === statusFilter;
+    const matchesType = typeFilter === "all" || maintenance.type === typeFilter;
 
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const getStatusBadge = (status: Maintenance['status']) => {
+  const getStatusBadge = (status: Maintenance["status"]) => {
     switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" />Concluída</Badge>;
-      case 'scheduled':
-        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20"><Clock className="w-3 h-3 mr-1" />Agendada</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20"><Wrench className="w-3 h-3 mr-1" />Em Andamento</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20"><AlertTriangle className="w-3 h-3 mr-1" />Atrasada</Badge>;
+      case "completed":
+        return (
+          <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Concluída
+          </Badge>
+        );
+      case "scheduled":
+        return (
+          <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+            <Clock className="w-3 h-3 mr-1" />
+            Agendada
+          </Badge>
+        );
+      case "in_progress":
+        return (
+          <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+            <Wrench className="w-3 h-3 mr-1" />
+            Em Andamento
+          </Badge>
+        );
+      case "overdue":
+        return (
+          <Badge className="bg-red-500/10 text-red-500 border-red-500/20">
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Atrasada
+          </Badge>
+        );
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
-  const getTypeLabel = (type: Maintenance['type']) => {
+  const getTypeLabel = (type: Maintenance["type"]) => {
     switch (type) {
-      case 'oil_change': return 'Troca de Óleo';
-      case 'tire_rotation': return 'Rodízio de Pneus';
-      case 'brake_service': return 'Freios';
-      case 'general_inspection': return 'Revisão Geral';
-      case 'other': return 'Outro';
-      default: return type;
+      case "oil_change":
+        return "Troca de Óleo";
+      case "tire_rotation":
+        return "Rodízio de Pneus";
+      case "brake_service":
+        return "Freios";
+      case "general_inspection":
+        return "Revisão Geral";
+      case "other":
+        return "Outro";
+      default:
+        return type;
     }
   };
 
   const stats = {
     total: maintenances.length,
-    scheduled: maintenances.filter(m => m.status === 'scheduled').length,
-    inProgress: maintenances.filter(m => m.status === 'in_progress').length,
-    overdue: maintenances.filter(m => m.status === 'overdue').length,
+    scheduled: maintenances.filter((m) => m.status === "scheduled").length,
+    inProgress: maintenances.filter((m) => m.status === "in_progress").length,
+    overdue: maintenances.filter((m) => m.status === "overdue").length,
     totalCost: maintenances
-      .filter(m => m.status === 'completed')
-      .reduce((sum, m) => sum + (m.cost || 0), 0)
+      .filter((m) => m.status === "completed")
+      .reduce((sum, m) => sum + (m.cost || 0), 0),
   };
 
   return (
@@ -216,7 +275,9 @@ export default function MaintenancePage() {
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{stats.scheduled}</div>
+            <div className="text-2xl font-bold text-blue-500">
+              {stats.scheduled}
+            </div>
           </CardContent>
         </Card>
 
@@ -226,7 +287,9 @@ export default function MaintenancePage() {
             <Wrench className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">{stats.inProgress}</div>
+            <div className="text-2xl font-bold text-orange-500">
+              {stats.inProgress}
+            </div>
           </CardContent>
         </Card>
 
@@ -236,7 +299,9 @@ export default function MaintenancePage() {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats.overdue}</div>
+            <div className="text-2xl font-bold text-red-500">
+              {stats.overdue}
+            </div>
           </CardContent>
         </Card>
 
@@ -247,7 +312,10 @@ export default function MaintenancePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">
-              R$ {stats.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R${" "}
+              {stats.totalCost.toLocaleString("pt-BR", {
+                minimumFractionDigits: 2,
+              })}
             </div>
           </CardContent>
         </Card>
@@ -289,7 +357,9 @@ export default function MaintenancePage() {
                 <SelectItem value="oil_change">Troca de Óleo</SelectItem>
                 <SelectItem value="tire_rotation">Rodízio de Pneus</SelectItem>
                 <SelectItem value="brake_service">Freios</SelectItem>
-                <SelectItem value="general_inspection">Revisão Geral</SelectItem>
+                <SelectItem value="general_inspection">
+                  Revisão Geral
+                </SelectItem>
                 <SelectItem value="other">Outro</SelectItem>
               </SelectContent>
             </Select>
@@ -304,7 +374,9 @@ export default function MaintenancePage() {
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingMaintenance ? 'Editar Manutenção' : 'Nova Manutenção'}
+                    {editingMaintenance
+                      ? "Editar Manutenção"
+                      : "Nova Manutenção"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -312,14 +384,19 @@ export default function MaintenancePage() {
                     <Label htmlFor="deviceId">Veículo</Label>
                     <Select
                       value={formData.deviceId.toString()}
-                      onValueChange={(value) => setFormData({ ...formData, deviceId: parseInt(value) })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, deviceId: parseInt(value) })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um veículo" />
                       </SelectTrigger>
                       <SelectContent>
                         {devices.map((device) => (
-                          <SelectItem key={device.id} value={device.id.toString()}>
+                          <SelectItem
+                            key={device.id}
+                            value={device.id.toString()}
+                          >
                             {device.plate} - {device.name}
                           </SelectItem>
                         ))}
@@ -331,23 +408,34 @@ export default function MaintenancePage() {
                     <Label htmlFor="type">Tipo de Manutenção</Label>
                     <Select
                       value={formData.type}
-                      onValueChange={(value) => setFormData({ ...formData, type: value as any })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, type: value as any })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="oil_change">Troca de Óleo</SelectItem>
-                        <SelectItem value="tire_rotation">Rodízio de Pneus</SelectItem>
+                        <SelectItem value="oil_change">
+                          Troca de Óleo
+                        </SelectItem>
+                        <SelectItem value="tire_rotation">
+                          Rodízio de Pneus
+                        </SelectItem>
                         <SelectItem value="brake_service">Freios</SelectItem>
-                        <SelectItem value="general_inspection">Revisão Geral</SelectItem>
+                        <SelectItem value="general_inspection">
+                          Revisão Geral
+                        </SelectItem>
                         <SelectItem value="other">Outro</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="scheduledDate" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="scheduledDate"
+                      className="flex items-center gap-2"
+                    >
                       <Calendar className="w-4 h-4 text-blue-500" />
                       Data Agendada
                     </Label>
@@ -355,7 +443,12 @@ export default function MaintenancePage() {
                       id="scheduledDate"
                       type="date"
                       value={formData.scheduledDate}
-                      onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          scheduledDate: e.target.value,
+                        })
+                      }
                     />
                   </div>
 
@@ -364,7 +457,12 @@ export default function MaintenancePage() {
                     <Input
                       id="description"
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                       placeholder="Ex: Troca de óleo e filtro"
                     />
                   </div>
@@ -379,13 +477,21 @@ export default function MaintenancePage() {
                       type="number"
                       step="0.01"
                       value={formData.cost}
-                      onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          cost: parseFloat(e.target.value) || 0,
+                        })
+                      }
                       placeholder="0.00"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="odometer" className="flex items-center gap-2">
+                    <Label
+                      htmlFor="odometer"
+                      className="flex items-center gap-2"
+                    >
                       <Gauge className="w-4 h-4 text-purple-500" />
                       KM Atual
                     </Label>
@@ -393,18 +499,30 @@ export default function MaintenancePage() {
                       id="odometer"
                       type="number"
                       value={formData.odometer}
-                      onChange={(e) => setFormData({ ...formData, odometer: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          odometer: parseInt(e.target.value) || 0,
+                        })
+                      }
                       placeholder="0"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="nextOdometer">Próxima Manutenção (KM)</Label>
+                    <Label htmlFor="nextOdometer">
+                      Próxima Manutenção (KM)
+                    </Label>
                     <Input
                       id="nextOdometer"
                       type="number"
                       value={formData.nextOdometer}
-                      onChange={(e) => setFormData({ ...formData, nextOdometer: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          nextOdometer: parseInt(e.target.value) || 0,
+                        })
+                      }
                       placeholder="0"
                     />
                   </div>
@@ -414,14 +532,18 @@ export default function MaintenancePage() {
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
-                        onValueChange={(value) => setFormData({ ...formData, status: value as any })}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, status: value as any })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="scheduled">Agendada</SelectItem>
-                          <SelectItem value="in_progress">Em Andamento</SelectItem>
+                          <SelectItem value="in_progress">
+                            Em Andamento
+                          </SelectItem>
                           <SelectItem value="completed">Concluída</SelectItem>
                           <SelectItem value="overdue">Atrasada</SelectItem>
                         </SelectContent>
@@ -434,7 +556,9 @@ export default function MaintenancePage() {
                     <Textarea
                       id="notes"
                       value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, notes: e.target.value })
+                      }
                       placeholder="Detalhes adicionais sobre a manutenção..."
                       rows={3}
                     />
@@ -443,9 +567,12 @@ export default function MaintenancePage() {
 
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleSubmit} className="flex-1">
-                    {editingMaintenance ? 'Atualizar' : 'Agendar'} Manutenção
+                    {editingMaintenance ? "Atualizar" : "Agendar"} Manutenção
                   </Button>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
                     Cancelar
                   </Button>
                 </div>
@@ -481,7 +608,10 @@ export default function MaintenancePage() {
               <TableBody>
                 {filteredMaintenances.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       Nenhuma manutenção encontrada
                     </TableCell>
                   </TableRow>
@@ -489,28 +619,40 @@ export default function MaintenancePage() {
                   filteredMaintenances.map((maintenance) => (
                     <TableRow key={maintenance.id}>
                       <TableCell>
-                        <div className="font-medium">{maintenance.deviceName}</div>
+                        <div className="font-medium">
+                          {maintenance.deviceName}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{getTypeLabel(maintenance.type)}</Badge>
+                        <Badge variant="outline">
+                          {getTypeLabel(maintenance.type)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">
                         {maintenance.description}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {maintenance.scheduledDate ? formatDate(maintenance.scheduledDate) : '-'}
+                        {maintenance.scheduledDate
+                          ? formatDate(maintenance.scheduledDate)
+                          : "-"}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {maintenance.odometer ? `${maintenance.odometer.toLocaleString()} km` : '-'}
+                          {maintenance.odometer
+                            ? `${maintenance.odometer.toLocaleString()} km`
+                            : "-"}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm font-medium">
-                          {maintenance.cost ? `R$ ${maintenance.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                          {maintenance.cost
+                            ? `R$ ${maintenance.cost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                            : "-"}
                         </div>
                       </TableCell>
-                      <TableCell>{getStatusBadge(maintenance.status)}</TableCell>
+                      <TableCell>
+                        {getStatusBadge(maintenance.status)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button

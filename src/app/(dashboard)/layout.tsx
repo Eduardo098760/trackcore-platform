@@ -1,14 +1,13 @@
+"use client";
 
-'use client';
-
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/stores/auth';
-import { getCurrentUser, login } from '@/lib/api/auth';
-import { Sidebar } from '@/components/layout/sidebar';
-import { Header } from '@/components/layout/header';
-import { RouteGuard } from '@/components/layout/route-guard';
-import { useEventNotifications } from '@/lib/hooks/useEventNotifications';
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/stores/auth";
+import { getCurrentUser, login } from "@/lib/api/auth";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Header } from "@/components/layout/header";
+import { RouteGuard } from "@/components/layout/route-guard";
+import { useEventNotifications } from "@/lib/hooks/useEventNotifications";
 
 export default function DashboardLayout({
   children,
@@ -17,18 +16,27 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, user: storedUser, setAuth, setUser, clearAuth, getCredentials, rememberMe, isImpersonating } = useAuthStore();
+  const {
+    isAuthenticated,
+    user: storedUser,
+    setAuth,
+    setUser,
+    clearAuth,
+    getCredentials,
+    rememberMe,
+    isImpersonating,
+  } = useAuthStore();
   const [isValidating, setIsValidating] = useState(true);
 
   // Ativar monitoramento de eventos do Traccar para notificações
   useEventNotifications(isAuthenticated && !isValidating);
 
-  const isMapRoute = !!pathname && (
-    pathname === '/map' ||
-    pathname.startsWith('/map/') ||
-    pathname === '/geofences' ||
-    pathname.startsWith('/geofences/')
-  );
+  const isMapRoute =
+    !!pathname &&
+    (pathname === "/map" ||
+      pathname.startsWith("/map/") ||
+      pathname === "/geofences" ||
+      pathname.startsWith("/geofences/"));
 
   useEffect(() => {
     const validateSession = async () => {
@@ -42,50 +50,68 @@ export default function DashboardLayout({
 
       if (!isAuthenticated) {
         // Aguarda re-hidratação do estado persistido antes de forçar logout
-        const hasPersist = typeof window !== 'undefined' && !!localStorage.getItem('auth-storage');
+        const hasPersist =
+          typeof window !== "undefined" &&
+          !!localStorage.getItem("auth-storage");
         if (!hasPersist) {
-          console.log('Não autenticado e sem persistência, redirecionando...');
-          router.push('/login');
+          console.log("Não autenticado e sem persistência, redirecionando...");
+          router.push("/login");
           setIsValidating(false);
           return;
         }
-        console.log('Estado não autenticado, mas há dados persistidos — tentando validar sessão...');
+        console.log(
+          "Estado não autenticado, mas há dados persistidos — tentando validar sessão...",
+        );
       } else {
-        console.log('Usuário autenticado, verificando sessão...');
+        console.log("Usuário autenticado, verificando sessão...");
       }
-      
+
       try {
         // Verifica se a sessão do Traccar ainda é válida
         const freshUser = await getCurrentUser();
-        console.log('Sessão válida:', freshUser.email, '| role:', freshUser.role);
+        console.log(
+          "Sessão válida:",
+          freshUser.email,
+          "| role:",
+          freshUser.role,
+        );
         // Atualiza o user no store com dados frescos (corrige role, etc.)
         if (storedUser && freshUser.role !== storedUser.role) {
-          console.log(`[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`);
+          console.log(
+            `[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`,
+          );
         }
         setUser(freshUser);
         setIsValidating(false);
       } catch (error) {
-        console.log('Erro ao validar sessão:', error);
-        
+        console.log("Erro ao validar sessão:", error);
+
         // Tenta re-autenticar automaticamente
         const { email, password } = getCredentials();
-        
+
         if (email && password && rememberMe) {
-          console.log('Tentando re-autenticar com credenciais salvas...');
+          console.log("Tentando re-autenticar com credenciais salvas...");
           try {
             const response = await login(email, password);
-            console.log('Re-autenticação bem-sucedida');
-            setAuth(response.user, response.token, email, password, true);
+            console.log("Re-autenticação bem-sucedida");
+            setAuth(
+              response.user,
+              response.token,
+              undefined,
+              email,
+              password,
+              true,
+            );
             setIsValidating(false);
           } catch (reloginError) {
-            console.error('Re-autenticação falhou:', reloginError);
+            console.error("Re-autenticação falhou:", reloginError);
             clearAuth();
-            router.push('/login');
+            router.push("/login");
           }
         } else {
-          console.log('Sem credenciais salvas, fazendo logout');
+          console.log("Sem credenciais salvas, fazendo logout");
           clearAuth();
-          router.push('/login');
+          router.push("/login");
         }
       }
     };
@@ -93,33 +119,46 @@ export default function DashboardLayout({
     validateSession();
 
     // Renova a sessão a cada 15 minutos (menos agressivo)
-    const interval = setInterval(async () => {
-      try {
-        await getCurrentUser();
-        console.log('Sessão renovada');
-      } catch (error) {
-        console.log('Erro ao renovar sessão, tentando re-login...');
-        const { email, password } = getCredentials();
-        if (email && password && rememberMe) {
-          try {
-            await login(email, password);
-            console.log('Re-login automático bem-sucedido');
-          } catch (e) {
-            console.error('Re-login falhou');
+    const interval = setInterval(
+      async () => {
+        try {
+          await getCurrentUser();
+          console.log("Sessão renovada");
+        } catch (error) {
+          console.log("Erro ao renovar sessão, tentando re-login...");
+          const { email, password } = getCredentials();
+          if (email && password && rememberMe) {
+            try {
+              await login(email, password);
+              console.log("Re-login automático bem-sucedido");
+            } catch (e) {
+              console.error("Re-login falhou");
+            }
           }
         }
-      }
-    }, 15 * 60 * 1000); // 15 minutos
+      },
+      15 * 60 * 1000,
+    ); // 15 minutos
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, isImpersonating, router, setAuth, clearAuth, getCredentials, rememberMe]);
+  }, [
+    isAuthenticated,
+    isImpersonating,
+    router,
+    setAuth,
+    clearAuth,
+    getCredentials,
+    rememberMe,
+  ]);
 
   if (!isAuthenticated || isValidating) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Verificando sessão...</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Verificando sessão...
+          </p>
         </div>
       </div>
     );
@@ -130,12 +169,16 @@ export default function DashboardLayout({
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        <main className={isMapRoute ? 'flex-1 overflow-hidden p-0 bg-theme-background' : 'flex-1 overflow-y-auto p-6 bg-theme-background'}>
-          <RouteGuard>
-            {children}
-          </RouteGuard>
+        <main
+          className={
+            isMapRoute
+              ? "flex-1 overflow-hidden p-0 bg-theme-background"
+              : "flex-1 overflow-y-auto p-6 bg-theme-background"
+          }
+        >
+          <RouteGuard>{children}</RouteGuard>
         </main>
-      </div>  
+      </div>
     </div>
   );
 }
