@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Driver } from "@/types";
-import {
-  getDrivers,
-  createDriver,
-  updateDriver,
-  deleteDriver,
-} from "@/lib/api";
+import { getDrivers, createDriver, updateDriver, deleteDriver } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,10 +50,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DriversPage() {
   const queryClient = useQueryClient();
+  const colors = useTenantColors();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -93,8 +90,7 @@ export default function DriversPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Driver> }) =>
-      updateDriver(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Driver> }) => updateDriver(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       toast.success("Motorista atualizado com sucesso!");
@@ -166,8 +162,7 @@ export default function DriversPage() {
       driver.document.includes(searchQuery) ||
       driver.licenseNumber.includes(searchQuery);
 
-    const matchesStatus =
-      statusFilter === "all" || driver.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || driver.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -227,9 +222,7 @@ export default function DriversPage() {
     active: drivers.filter((d) => d.status === "active").length,
     suspended: drivers.filter((d) => d.status === "suspended").length,
     expiring: drivers.filter(
-      (d) =>
-        isLicenseExpiring(d.licenseExpiry) &&
-        !isLicenseExpired(d.licenseExpiry),
+      (d) => isLicenseExpiring(d.licenseExpiry) && !isLicenseExpired(d.licenseExpiry),
     ).length,
   };
 
@@ -245,9 +238,7 @@ export default function DriversPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Motoristas
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Motoristas</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -257,15 +248,11 @@ export default function DriversPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Motoristas Ativos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Motoristas Ativos</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">
-              {stats.active}
-            </div>
+            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
           </CardContent>
         </Card>
 
@@ -275,9 +262,7 @@ export default function DriversPage() {
             <AlertCircle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">
-              {stats.suspended}
-            </div>
+            <div className="text-2xl font-bold text-orange-500">{stats.suspended}</div>
           </CardContent>
         </Card>
 
@@ -287,9 +272,7 @@ export default function DriversPage() {
             <Calendar className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">
-              {stats.expiring}
-            </div>
+            <div className="text-2xl font-bold text-red-500">{stats.expiring}</div>
           </CardContent>
         </Card>
       </div>
@@ -329,9 +312,7 @@ export default function DriversPage() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>
-                    {editingDriver ? "Editar Motorista" : "Novo Motorista"}
-                  </DialogTitle>
+                  <DialogTitle>{editingDriver ? "Editar Motorista" : "Novo Motorista"}</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2 md:col-span-2">
@@ -339,37 +320,27 @@ export default function DriversPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Ex: João da Silva"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="document"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="document" className="flex items-center gap-2">
                       <IdCard className="w-4 h-4 text-blue-500" />
                       CPF
                     </Label>
                     <Input
                       id="document"
                       value={formData.document}
-                      onChange={(e) =>
-                        setFormData({ ...formData, document: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, document: e.target.value })}
                       placeholder="000.000.000-00"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="licenseNumber"
-                      className="flex items-center gap-2"
-                    >
-                      <Car className="w-4 h-4 text-purple-500" />
+                    <Label htmlFor="licenseNumber" className="flex items-center gap-2">
+                      <Car className="w-4 h-4" style={{ color: `hsl(${colors.primary.light})` }} />
                       Número da CNH
                     </Label>
                     <Input
@@ -414,10 +385,7 @@ export default function DriversPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="licenseExpiry"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="licenseExpiry" className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-red-500" />
                       Validade CNH
                     </Label>
@@ -442,9 +410,7 @@ export default function DriversPage() {
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -458,9 +424,7 @@ export default function DriversPage() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="motorista@email.com"
                     />
                   </div>
@@ -491,10 +455,7 @@ export default function DriversPage() {
                   <Button onClick={handleSubmit} className="flex-1">
                     {editingDriver ? "Atualizar" : "Cadastrar"} Motorista
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
                 </div>
@@ -530,10 +491,7 @@ export default function DriversPage() {
               <TableBody>
                 {filteredDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-muted-foreground"
-                    >
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum motorista encontrado
                     </TableCell>
                   </TableRow>
@@ -551,9 +509,7 @@ export default function DriversPage() {
                           <div>
                             <div className="font-medium">{driver.name}</div>
                             {driver.email && (
-                              <div className="text-xs text-muted-foreground">
-                                {driver.email}
-                              </div>
+                              <div className="text-xs text-muted-foreground">{driver.email}</div>
                             )}
                           </div>
                         </div>
@@ -569,15 +525,11 @@ export default function DriversPage() {
                         </code>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          {driver.licenseCategory}
-                        </Badge>
+                        <Badge variant="outline">{driver.licenseCategory}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">
-                            {formatDate(driver.licenseExpiry)}
-                          </span>
+                          <span className="text-sm">{formatDate(driver.licenseExpiry)}</span>
                           {isLicenseExpired(driver.licenseExpiry) && (
                             <Badge variant="destructive" className="text-xs">
                               Vencida
@@ -598,11 +550,7 @@ export default function DriversPage() {
                       <TableCell>{getStatusBadge(driver.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(driver)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(driver)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button

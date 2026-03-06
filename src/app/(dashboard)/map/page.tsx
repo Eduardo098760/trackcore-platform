@@ -11,12 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -46,6 +41,7 @@ import { getVehicleIconSVG } from "@/lib/vehicle-icons";
 import { getWebSocketClient } from "@/lib/websocket";
 import { getPlannedRouteById, getRouteGeometry } from "@/lib/api/routes";
 import { useSearchStore } from "@/lib/stores/search";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-panel";
 import { toast } from "sonner";
 import {
@@ -64,40 +60,29 @@ if (typeof window !== "undefined") {
 }
 
 // Importar Leaflet dinamicamente para evitar problemas com SSR
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false },
-);
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), {
+  ssr: false,
+});
 
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false },
-);
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), {
+  ssr: false,
+});
 
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false },
-);
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
 
-const Polyline = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Polyline),
-  { ssr: false },
-);
+const Polyline = dynamic(() => import("react-leaflet").then((mod) => mod.Polyline), { ssr: false });
 
-const LeafletPolygon = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Polygon),
-  { ssr: false },
-);
+const LeafletPolygon = dynamic(() => import("react-leaflet").then((mod) => mod.Polygon), {
+  ssr: false,
+});
 
-const LeafletCircle = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Circle),
-  { ssr: false },
-);
+const LeafletCircle = dynamic(() => import("react-leaflet").then((mod) => mod.Circle), {
+  ssr: false,
+});
 
-const LeafletPopup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false },
-);
+const LeafletPopup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
+  ssr: false,
+});
 
 type TileLayerKey = "dark" | "light" | "streets" | "satellite";
 
@@ -176,8 +161,7 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
       <LeafletPopup minWidth={270} maxWidth={270} closeButton={false}>
         <div
           style={{
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             background: "#111827",
             borderRadius: 12,
             overflow: "hidden",
@@ -320,9 +304,7 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
                 >
                   Registrado
                 </div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
-                >
+                <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
                   <span
                     style={{
                       fontSize: 26,
@@ -360,9 +342,7 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
                 >
                   Limite
                 </div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
-                >
+                <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
                   <span
                     style={{
                       fontSize: 26,
@@ -393,14 +373,9 @@ function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
                   justifyContent: "space-between",
                 }}
               >
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  Ultrapassou o limite em
-                </span>
-                <span
-                  style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}
-                >
-                  +{Math.max(0, Math.round(alert.speed - alert.speedLimit))}{" "}
-                  km/h
+                <span style={{ fontSize: 11, color: "#6b7280" }}>Ultrapassou o limite em</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}>
+                  +{Math.max(0, Math.round(alert.speed - alert.speedLimit))} km/h
                 </span>
               </div>
             )}
@@ -442,6 +417,7 @@ export default function MapPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { searchTerm } = useSearchStore();
+  const colors = useTenantColors();
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const hasAppliedUrlDevice = useRef<number | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -450,19 +426,14 @@ export default function MapPage() {
   const [deviceTrails, setDeviceTrails] = useState<
     Map<number, { lat: number; lng: number; ts: number }[]>
   >(new Map());
-  const [deviceRecentDistance, setDeviceRecentDistance] = useState<
-    Map<number, number>
-  >(new Map());
+  const [deviceRecentDistance, setDeviceRecentDistance] = useState<Map<number, number>>(new Map());
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
 
   // Dialog de gerenciamento de cercas
-  const [geofenceDialogDevice, setGeofenceDialogDevice] =
-    useState<Device | null>(null);
-  const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(
-    null,
-  );
+  const [geofenceDialogDevice, setGeofenceDialogDevice] = useState<Device | null>(null);
+  const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(null);
   const [showGeofences, setShowGeofences] = useState(true);
   const [showSpeedAlerts, setShowSpeedAlerts] = useState(true);
   const [showVehicleLabels, setShowVehicleLabels] = useState<boolean>(() => {
@@ -503,18 +474,14 @@ export default function MapPage() {
   // Trilhas são pesadas com muitos veículos: manter apenas do selecionado
   // Rota planejada (quando ?routeId= na URL)
   const routeIdFromUrl = searchParams?.get("routeId") || null;
-  const [plannedRouteGeometry, setPlannedRouteGeometry] = useState<
-    [number, number][]
-  >([]);
+  const [plannedRouteGeometry, setPlannedRouteGeometry] = useState<[number, number][]>([]);
   const [plannedRouteName, setPlannedRouteName] = useState<string | null>(null);
   const [showPlannedRouteLabel, setShowPlannedRouteLabel] = useState(true);
 
   useEffect(() => {
     setIsClient(true);
     try {
-      setIsHighDpi(
-        typeof window !== "undefined" && (window.devicePixelRatio || 1) > 1,
-      );
+      setIsHighDpi(typeof window !== "undefined" && (window.devicePixelRatio || 1) > 1);
     } catch {
       setIsHighDpi(false);
     }
@@ -606,10 +573,7 @@ export default function MapPage() {
   });
 
   // IDs dos dispositivos que pertencem à conta logada (filtra alertas de outras contas)
-  const userDeviceIds = useMemo(
-    () => new Set(devices.map((d) => d.id)),
-    [devices],
-  );
+  const userDeviceIds = useMemo(() => new Set(devices.map((d) => d.id)), [devices]);
 
   // Somente alertas cujo deviceId pertence a esta conta
   const visibleSpeedAlerts = useMemo(
@@ -631,12 +595,11 @@ export default function MapPage() {
   });
 
   // Cercas já vinculadas ao device do dialog
-  const { data: deviceGeofences = [], refetch: refetchDeviceGeofences } =
-    useQuery({
-      queryKey: ["device-geofences", geofenceDialogDevice?.id],
-      queryFn: () => getDeviceGeofences(geofenceDialogDevice!.id),
-      enabled: !!geofenceDialogDevice,
-    });
+  const { data: deviceGeofences = [], refetch: refetchDeviceGeofences } = useQuery({
+    queryKey: ["device-geofences", geofenceDialogDevice?.id],
+    queryFn: () => getDeviceGeofences(geofenceDialogDevice!.id),
+    enabled: !!geofenceDialogDevice,
+  });
 
   const deviceGeofenceIds = new Set(deviceGeofences.map((g) => g.id));
 
@@ -653,8 +616,7 @@ export default function MapPage() {
       }
       refetchDeviceGeofences();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao atualizar cerca";
+      const msg = err instanceof Error ? err.message : "Erro ao atualizar cerca";
       toast.error(msg);
     } finally {
       setAssigningGeofenceId(null);
@@ -668,9 +630,9 @@ export default function MapPage() {
   }, [devices]);
 
   // Corrige stale-closure ao calcular distância baseado em trilhas
-  const deviceTrailsRef = useRef<
-    Map<number, { lat: number; lng: number; ts: number }[]>
-  >(new Map());
+  const deviceTrailsRef = useRef<Map<number, { lat: number; lng: number; ts: number }[]>>(
+    new Map(),
+  );
   useEffect(() => {
     deviceTrailsRef.current = deviceTrails;
   }, [deviceTrails]);
@@ -688,9 +650,7 @@ export default function MapPage() {
       return;
     }
     setPlannedRouteName(plannedRoute.name);
-    getRouteGeometry(plannedRoute.waypoints).then((coords) =>
-      setPlannedRouteGeometry(coords),
-    );
+    getRouteGeometry(plannedRoute.waypoints).then((coords) => setPlannedRouteGeometry(coords));
   }, [plannedRoute]);
 
   // Abrir mapa com veículo da URL (?deviceId=123): selecionar dispositivo e centralizar
@@ -731,9 +691,7 @@ export default function MapPage() {
               if (prev.some((a) => a.id === found.id)) return prev;
               return [found, ...prev];
             });
-            window.dispatchEvent(
-              new CustomEvent("speedAlertFocus", { detail: found }),
-            );
+            window.dispatchEvent(new CustomEvent("speedAlertFocus", { detail: found }));
             hasAppliedUrlAlert.current = alertId;
           }
         } catch {
@@ -741,9 +699,7 @@ export default function MapPage() {
         }
         return;
       }
-      window.dispatchEvent(
-        new CustomEvent("speedAlertFocus", { detail: alert }),
-      );
+      window.dispatchEvent(new CustomEvent("speedAlertFocus", { detail: alert }));
       hasAppliedUrlAlert.current = alertId;
     };
 
@@ -754,10 +710,8 @@ export default function MapPage() {
 
   const tileLayerProps = useMemo(() => {
     const layer = TILE_LAYERS[mapStyle];
-    const isCarto =
-      mapStyle === "dark" || mapStyle === "light" || mapStyle === "streets";
-    const url =
-      isCarto && isHighDpi ? layer.url.replace(/\.png$/, "@2x.png") : layer.url;
+    const isCarto = mapStyle === "dark" || mapStyle === "light" || mapStyle === "streets";
+    const url = isCarto && isHighDpi ? layer.url.replace(/\.png$/, "@2x.png") : layer.url;
 
     return {
       url,
@@ -788,8 +742,7 @@ export default function MapPage() {
   }, [mapStyle, isHighDpi]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) =>
-      updateDevice(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => updateDevice(id, data),
     onSuccess: (updatedDevice, variables) => {
       // Atualiza imediatamente o device no cache com os novos dados.
       // Usa variables.data.* como fonte PRIMÁRIA (o que o usuário digitou no form),
@@ -800,21 +753,9 @@ export default function MapPage() {
           return {
             ...d,
             ...updatedDevice,
-            plate:
-              (variables.data as any).plate ||
-              (updatedDevice as any).plate ||
-              d.plate ||
-              "",
-            model:
-              (variables.data as any).model ||
-              (updatedDevice as any).model ||
-              d.model ||
-              "",
-            color:
-              (variables.data as any).color ||
-              (updatedDevice as any).color ||
-              d.color ||
-              "",
+            plate: (variables.data as any).plate || (updatedDevice as any).plate || d.plate || "",
+            model: (variables.data as any).model || (updatedDevice as any).model || d.model || "",
+            color: (variables.data as any).color || (updatedDevice as any).color || d.color || "",
             category:
               (variables.data as any).category ||
               (updatedDevice as any).category ||
@@ -889,9 +830,7 @@ export default function MapPage() {
       queryClient.setQueryData(["positions"], (old: Position[] = []) => {
         const newPositions = [...old];
         positionList.forEach((newPos) => {
-          const index = newPositions.findIndex(
-            (p) => p.deviceId === newPos.deviceId,
-          );
+          const index = newPositions.findIndex((p) => p.deviceId === newPos.deviceId);
           if (index !== -1) {
             newPositions[index] = newPos;
           } else {
@@ -931,8 +870,7 @@ export default function MapPage() {
         try {
           const { distanceKm } = require("@/lib/utils");
           positionList.forEach((position) => {
-            const current =
-              deviceTrailsRef.current.get(position.deviceId) || [];
+            const current = deviceTrailsRef.current.get(position.deviceId) || [];
             let distKm = 0;
             for (let i = 1; i < current.length; i++) {
               const a = current[i - 1];
@@ -985,11 +923,7 @@ export default function MapPage() {
             try {
               const freshPositions = await getPositions();
               if (freshPositions.length > 0) {
-                console.debug(
-                  "[Polling] Atualizando com",
-                  freshPositions.length,
-                  "posições",
-                );
+                console.debug("[Polling] Atualizando com", freshPositions.length, "posições");
                 scheduleProcessPositionUpdates(freshPositions);
               }
             } catch (err) {
@@ -1034,14 +968,8 @@ export default function MapPage() {
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i];
         const b = pts[i + 1];
-        const q: [number, number] = [
-          0.75 * a[0] + 0.25 * b[0],
-          0.75 * a[1] + 0.25 * b[1],
-        ];
-        const r: [number, number] = [
-          0.25 * a[0] + 0.75 * b[0],
-          0.25 * a[1] + 0.75 * b[1],
-        ];
+        const q: [number, number] = [0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]];
+        const r: [number, number] = [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]];
         next.push(q, r);
       }
       pts = [pts[0], ...next, pts[pts.length - 1]];
@@ -1189,8 +1117,7 @@ export default function MapPage() {
       if (transitionRunning.current) return;
 
       // choose device to follow: moving device > first device
-      const targetDevice =
-        devices.find((d) => d.status === "moving") || devices[0];
+      const targetDevice = devices.find((d) => d.status === "moving") || devices[0];
       if (!targetDevice) return;
 
       const pos = positions.find((p) => p.deviceId === targetDevice.id);
@@ -1316,7 +1243,7 @@ export default function MapPage() {
           `
               : ""
           }
-          
+
           <div class="relative w-12 h-12 rounded-full flex items-center justify-center border-2 border-white/40" style="background: linear-gradient(135deg, ${color}, ${color}dd); box-shadow: 0 4px 14px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.1);">
             ${vehicleIcon}
           </div>
@@ -1327,7 +1254,7 @@ export default function MapPage() {
               <path d="M12 2 L16 13 L12 10 L8 13 Z" fill="${color}" />
             </svg>
           </div>
-          
+
           ${labelHtml}
           ${speedHtml}
         </div>
@@ -1364,16 +1291,9 @@ export default function MapPage() {
     if (cached?.key === cacheKey) return cached.icon;
 
     const positionForIcon =
-      position.speed === speedBucket
-        ? position
-        : ({ ...position, speed: speedBucket } as Position);
+      position.speed === speedBucket ? position : ({ ...position, speed: speedBucket } as Position);
 
-    const icon = createCustomIcon(
-      device,
-      positionForIcon,
-      courseBucket,
-      showLabel,
-    );
+    const icon = createCustomIcon(device, positionForIcon, courseBucket, showLabel);
     iconCacheRef.current.set(device.id, { key: cacheKey, icon });
     return icon;
   };
@@ -1450,56 +1370,59 @@ export default function MapPage() {
               <span className="text-xs text-gray-200">Offline</span>
             </div>
             <div className="w-px h-4 bg-white/20"></div>
-            <span className="text-xs text-blue-400 font-medium">
-              {devices.length} veículos
-            </span>
+            <span className="text-xs text-blue-400 font-medium">{devices.length} veículos</span>
           </div>
         </Card>
       </div>
 
       {/* Canto superior esquerdo: rota planejada (se ativa) + seletor de estilo */}
       <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-2">
-        {plannedRouteName &&
-          plannedRouteGeometry.length >= 2 &&
-          showPlannedRouteLabel && (
-            <Card className="backdrop-blur-xl bg-violet-900/80 border-violet-500/30 shadow-lg px-3 py-2 flex items-center gap-2 w-fit">
-              <Route className="w-4 h-4 text-violet-300 shrink-0" />
-              <span className="text-sm text-white truncate max-w-[180px]">
-                Rota: {plannedRouteName}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-white/80 hover:text-white shrink-0"
-                onClick={() => {
-                  router.push("/map");
-                  setShowPlannedRouteLabel(false);
-                }}
-              >
-                ×
-              </Button>
-            </Card>
-          )}
+        {plannedRouteName && plannedRouteGeometry.length >= 2 && showPlannedRouteLabel && (
+          <Card
+            className="backdrop-blur-xl shadow-lg px-3 py-2 flex items-center gap-2 w-fit"
+            style={{
+              background: `hsla(${colors.primary.light}, 0.8)`,
+              borderColor: `hsla(${colors.primary.light}, 0.3)`,
+            }}
+          >
+            <Route
+              className="w-4 h-4 shrink-0"
+              style={{ color: `hsla(${colors.primary.light}, 0.6)` }}
+            />
+            <span className="text-sm text-white truncate max-w-[180px]">
+              Rota: {plannedRouteName}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-white/80 hover:text-white shrink-0"
+              onClick={() => {
+                router.push("/map");
+                setShowPlannedRouteLabel(false);
+              }}
+            >
+              ×
+            </Button>
+          </Card>
+        )}
         {/* Seletor de estilo do mapa */}
         <div className="flex items-center gap-1">
           <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg overflow-hidden">
             <div className="flex rounded-lg overflow-hidden">
-              {(["dark", "light", "streets", "satellite"] as const).map(
-                (style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    onClick={() => setMapStyle(style)}
-                    className={`px-3 py-2 text-xs font-medium transition-colors ${
-                      mapStyle === style
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-white/5 text-gray-300 hover:bg-white/10"
-                    }`}
-                  >
-                    {TILE_LAYERS[style].label}
-                  </button>
-                ),
-              )}
+              {(["dark", "light", "streets", "satellite"] as const).map((style) => (
+                <button
+                  key={style}
+                  type="button"
+                  onClick={() => setMapStyle(style)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors ${
+                    mapStyle === style
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {TILE_LAYERS[style].label}
+                </button>
+              ))}
             </div>
           </Card>
 
@@ -1523,9 +1446,7 @@ export default function MapPage() {
             type="button"
             onClick={() => setShowSpeedAlerts((v) => !v)}
             title={
-              showSpeedAlerts
-                ? "Ocultar alertas de velocidade"
-                : "Mostrar alertas de velocidade"
+              showSpeedAlerts ? "Ocultar alertas de velocidade" : "Mostrar alertas de velocidade"
             }
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
               showSpeedAlerts && visibleSpeedAlerts.length > 0
@@ -1534,8 +1455,7 @@ export default function MapPage() {
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
-            Excessos{" "}
-            {visibleSpeedAlerts.length > 0 && `(${visibleSpeedAlerts.length})`}
+            Excessos {visibleSpeedAlerts.length > 0 && `(${visibleSpeedAlerts.length})`}
           </button>
 
           {/* Toggle de placas nos marcadores */}
@@ -1545,10 +1465,7 @@ export default function MapPage() {
               setShowVehicleLabels((v) => {
                 const next = !v;
                 try {
-                  localStorage.setItem(
-                    "mapShowVehicleLabels",
-                    next ? "true" : "false",
-                  );
+                  localStorage.setItem("mapShowVehicleLabels", next ? "true" : "false");
                 } catch {
                   /* ignore */
                 }
@@ -1558,9 +1475,7 @@ export default function MapPage() {
               iconCacheRef.current.clear();
             }}
             title={
-              showVehicleLabels
-                ? "Ocultar placas nos marcadores"
-                : "Mostrar placas nos marcadores"
+              showVehicleLabels ? "Ocultar placas nos marcadores" : "Mostrar placas nos marcadores"
             }
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
               showVehicleLabels
@@ -1600,10 +1515,7 @@ export default function MapPage() {
               }
               return null;
             }
-            const color =
-              (geofence.attributes?.color as string) ||
-              geofence.color ||
-              "#f97316";
+            const color = (geofence.attributes?.color as string) || geofence.color || "#f97316";
 
             if (parsed.type === "polygon" && parsed.coordinates) {
               return (
@@ -1671,9 +1583,7 @@ export default function MapPage() {
                   })}
                 />
                 <Marker
-                  position={
-                    plannedRouteGeometry[plannedRouteGeometry.length - 1]
-                  }
+                  position={plannedRouteGeometry[plannedRouteGeometry.length - 1]}
                   icon={L.divIcon({
                     className: "custom-marker",
                     html: '<div class="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-lg"></div>',
@@ -1710,8 +1620,7 @@ export default function MapPage() {
 
               {/* Setas ao longo da trilha */}
               {smoothCoords.map((c, i) => {
-                if (i === 0 || i % 3 !== 0 || i === smoothCoords.length - 1)
-                  return null;
+                if (i === 0 || i % 3 !== 0 || i === smoothCoords.length - 1) return null;
                 const prev = smoothCoords[i - 1];
                 const dx = c[1] - prev[1];
                 const dy = c[0] - prev[0];
@@ -1744,9 +1653,7 @@ export default function MapPage() {
         {/* ⚡ Marcadores de Excesso de Velocidade — apenas dispositivos desta conta */}
         {showSpeedAlerts &&
           L &&
-          visibleSpeedAlerts.map((alert) => (
-            <SpeedAlertMarker key={alert.id} alert={alert} />
-          ))}
+          visibleSpeedAlerts.map((alert) => <SpeedAlertMarker key={alert.id} alert={alert} />)}
 
         {/* Markers para cada dispositivo */}
         {devices.map((device) => {
@@ -1790,9 +1697,7 @@ export default function MapPage() {
             <h3 className="font-semibold text-sm mb-2 text-gray-200 flex items-center justify-between">
               <span>Veículos</span>
               <span className="text-xs text-blue-400">
-                {searchTerm
-                  ? `${visibleDevices.length} / ${devices.length}`
-                  : devices.length}
+                {searchTerm ? `${visibleDevices.length} / ${devices.length}` : devices.length}
               </span>
             </h3>
 
@@ -1828,9 +1733,7 @@ export default function MapPage() {
                       )}
                     </div>
                     {device.name && device.plate && (
-                      <div className="text-[9px] text-gray-400 ml-3 truncate">
-                        {device.plate}
-                      </div>
+                      <div className="text-[9px] text-gray-400 ml-3 truncate">{device.plate}</div>
                     )}
                   </button>
                 );
@@ -1869,9 +1772,7 @@ export default function MapPage() {
                   <Input
                     id="name"
                     value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, name: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                     placeholder="Ex: Caminhão Branco"
                     required
                   />
@@ -1886,9 +1787,7 @@ export default function MapPage() {
                   <Input
                     id="uniqueId"
                     value={editForm.uniqueId}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, uniqueId: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, uniqueId: e.target.value })}
                     placeholder="Ex: 864943044660344"
                     required
                   />
@@ -1927,9 +1826,7 @@ export default function MapPage() {
                   <Input
                     id="phone"
                     value={editForm.phone}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, phone: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                     placeholder="Ex: 5562999958024"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -1978,9 +1875,7 @@ export default function MapPage() {
                   <Input
                     id="model"
                     value={editForm.model}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, model: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
                     placeholder="Ex: KYX-5E62"
                   />
                 </div>
@@ -2015,9 +1910,7 @@ export default function MapPage() {
                   <Input
                     id="color"
                     value={editForm.color}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, color: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
                     placeholder="Ex: Branco"
                   />
                 </div>
@@ -2031,9 +1924,7 @@ export default function MapPage() {
                   <Input
                     id="contact"
                     value={editForm.contact}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, contact: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })}
                     placeholder="Ex: ICCID 8955320210007029201Z"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -2043,10 +1934,7 @@ export default function MapPage() {
 
                 {/* Limite de Velocidade */}
                 <div className="space-y-2">
-                  <Label
-                    htmlFor="speedLimit"
-                    className="flex items-center gap-2"
-                  >
+                  <Label htmlFor="speedLimit" className="flex items-center gap-2">
                     <Gauge className="w-4 h-4 text-yellow-500" />
                     Limite de Velocidade
                   </Label>
@@ -2074,10 +1962,7 @@ export default function MapPage() {
 
                 {/* Validade */}
                 <div className="space-y-2 md:col-span-2">
-                  <Label
-                    htmlFor="expiryDate"
-                    className="flex items-center gap-2"
-                  >
+                  <Label htmlFor="expiryDate" className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-red-500" />
                     Validade do Rastreador
                   </Label>
@@ -2085,9 +1970,7 @@ export default function MapPage() {
                     id="expiryDate"
                     type="date"
                     value={editForm.expiryDate}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, expiryDate: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, expiryDate: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
                     Data de vencimento do contrato ou licença do dispositivo
@@ -2099,12 +1982,13 @@ export default function MapPage() {
               <div className="flex gap-2 pt-4 border-t">
                 <Button
                   onClick={handleSaveDevice}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  style={{
+                    background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                  }}
+                  className="flex-1 hover:shadow-lg transition-shadow"
                   disabled={updateMutation.isPending}
                 >
-                  {updateMutation.isPending
-                    ? "Salvando..."
-                    : "Salvar Alterações"}
+                  {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
                 </Button>
                 <Button
                   variant="outline"
@@ -2122,15 +2006,9 @@ export default function MapPage() {
       {/* Vehicle Details Panel */}
       <VehicleDetailsPanel
         device={selectedDevice}
-        position={
-          selectedDevice ? positionsMap.get(selectedDevice.id) || null : null
-        }
-        recentDistanceKm={
-          selectedDevice ? deviceRecentDistance.get(selectedDevice.id) || 0 : 0
-        }
-        recentTrail={
-          selectedDevice ? deviceTrails.get(selectedDevice.id) || [] : []
-        }
+        position={selectedDevice ? positionsMap.get(selectedDevice.id) || null : null}
+        recentDistanceKm={selectedDevice ? deviceRecentDistance.get(selectedDevice.id) || 0 : 0}
+        recentTrail={selectedDevice ? deviceTrails.get(selectedDevice.id) || [] : []}
         onClose={() => setSelectedDevice(null)}
         onEdit={(device) => {
           handleEditDevice(device);
@@ -2163,8 +2041,7 @@ export default function MapPage() {
           {allGeofences.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              Nenhuma cerca cadastrada. Crie cercas em{" "}
-              <strong>/geofences</strong>.
+              Nenhuma cerca cadastrada. Crie cercas em <strong>/geofences</strong>.
             </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -2186,12 +2063,8 @@ export default function MapPage() {
                         style={{ backgroundColor: geofence.color || "#3b82f6" }}
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {geofence.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {geofence.type}
-                        </p>
+                        <p className="text-sm font-medium truncate">{geofence.name}</p>
+                        <p className="text-xs text-muted-foreground">{geofence.type}</p>
                       </div>
                     </div>
                     <Button

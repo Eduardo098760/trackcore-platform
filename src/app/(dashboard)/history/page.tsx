@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar, MapPin, Clock, Gauge, Route } from "lucide-react";
 import { formatSpeed, formatDistance, formatDuration } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Position } from "@/types";
 
 export default function HistoryPage() {
@@ -24,10 +25,9 @@ export default function HistoryPage() {
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   );
-  const [endDate, setEndDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const [routeData, setRouteData] = useState<Position[]>([]);
+  const colors = useTenantColors();
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -91,11 +91,24 @@ export default function HistoryPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/10 to-purple-600/10 rounded-3xl blur-3xl"></div>
+        <div
+          className="absolute inset-0 rounded-3xl blur-3xl"
+          style={{
+            background: `linear-gradient(to right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.08))`,
+          }}
+        ></div>
         <Card className="relative backdrop-blur-xl bg-white/80 dark:bg-gray-950/80 border-white/20 shadow-2xl">
           <CardHeader>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
-              <Route className="w-8 h-8 text-indigo-600" />
+            <CardTitle
+              className="text-3xl font-bold flex items-center gap-3"
+              style={{
+                backgroundImage: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              <Route className="w-8 h-8" style={{ color: `hsl(${colors.primary.light})` }} />
               Histórico de Percurso
             </CardTitle>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -114,10 +127,7 @@ export default function HistoryPage() {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="md:col-span-2">
               <Label>Veículo</Label>
-              <Select
-                value={selectedDeviceId}
-                onValueChange={setSelectedDeviceId}
-              >
+              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
                 <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
                   <SelectValue placeholder="Selecione um veículo..." />
                 </SelectTrigger>
@@ -155,7 +165,10 @@ export default function HistoryPage() {
           <Button
             onClick={loadRoute}
             disabled={!selectedDeviceId}
-            className="mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+            style={{
+              background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+            }}
+            className="mt-4 hover:shadow-lg transition-shadow text-white"
           >
             <Route className="w-4 h-4 mr-2" />
             Buscar Histórico
@@ -170,9 +183,7 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Distância Total
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Distância Total</p>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                     {formatDistance(stats.totalDistance)}
                   </p>
@@ -186,9 +197,7 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Velocidade Média
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Velocidade Média</p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                     {Math.round(stats.avgSpeed)} km/h
                   </p>
@@ -202,9 +211,7 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Velocidade Máxima
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Velocidade Máxima</p>
                   <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                     {Math.round(stats.maxSpeed)} km/h
                   </p>
@@ -214,18 +221,27 @@ export default function HistoryPage() {
             </CardContent>
           </Card>
 
-          <Card className="backdrop-blur-xl bg-gradient-to-br from-purple-50/80 to-pink-50/80 dark:from-purple-950/20 dark:to-pink-950/20 border-purple-200/50">
+          <Card
+            className="backdrop-blur-xl border-white/20"
+            style={{
+              background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.08), hsla(${colors.primary.light}, 0.05))`,
+            }}
+          >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Duração
-                  </p>
-                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Duração</p>
+                  <p
+                    className="text-2xl font-bold mt-1"
+                    style={{ color: `hsl(${colors.primary.light})` }}
+                  >
                     {formatDuration(stats.duration)}
                   </p>
                 </div>
-                <Clock className="w-8 h-8 text-purple-600/30" />
+                <Clock
+                  className="w-8 h-8"
+                  style={{ color: `hsla(${colors.primary.light}, 0.3)` }}
+                />
               </div>
             </CardContent>
           </Card>
@@ -234,9 +250,7 @@ export default function HistoryPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Paradas
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Paradas</p>
                   <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
                     {stats.stops}
                   </p>
@@ -252,9 +266,7 @@ export default function HistoryPage() {
       {routeData.length > 0 && (
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
           <CardHeader>
-            <CardTitle>
-              Pontos do Trajeto ({routeData.length} registros)
-            </CardTitle>
+            <CardTitle>Pontos do Trajeto ({routeData.length} registros)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -273,9 +285,7 @@ export default function HistoryPage() {
                           <span className="text-sm font-semibold">
                             {new Date(point.serverTime).toLocaleString("pt-BR")}
                           </span>
-                          <Badge variant="secondary">
-                            {Math.round(point.speed)} km/h
-                          </Badge>
+                          <Badge variant="secondary">{Math.round(point.speed)} km/h</Badge>
                         </div>
                         <p className="text-xs text-gray-600 dark:text-gray-400">
                           {point.address ||
@@ -283,10 +293,7 @@ export default function HistoryPage() {
                         </p>
                         <div className="flex gap-4 mt-2 text-xs text-gray-500">
                           <span>
-                            Ignição:{" "}
-                            {point.attributes.ignition
-                              ? "✓ Ligada"
-                              : "✗ Desligada"}
+                            Ignição: {point.attributes.ignition ? "✓ Ligada" : "✗ Desligada"}
                           </span>
                           <span>Satélites: {point.attributes.sat || 0}</span>
                         </div>

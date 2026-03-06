@@ -26,9 +26,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Command } from "@/types";
 
 export default function CommandsPage() {
+  const colors = useTenantColors();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [selectedCommand, setSelectedCommand] = useState<string>("");
   const queryClient = useQueryClient();
@@ -132,13 +134,8 @@ export default function CommandsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">
-                Selecione o Veículo
-              </label>
-              <Select
-                value={selectedDeviceId}
-                onValueChange={setSelectedDeviceId}
-              >
+              <label className="text-sm font-medium mb-2 block">Selecione o Veículo</label>
+              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
                 <SelectTrigger className="bg-white dark:bg-gray-900">
                   <SelectValue placeholder="Escolha um veículo..." />
                 </SelectTrigger>
@@ -153,9 +150,7 @@ export default function CommandsPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">
-                Selecione o Comando
-              </label>
+              <label className="text-sm font-medium mb-2 block">Selecione o Comando</label>
               <div className="grid grid-cols-2 gap-3">
                 {commandTypes.map((cmd) => {
                   const Icon = cmd.icon;
@@ -185,12 +180,11 @@ export default function CommandsPage() {
 
             <Button
               onClick={handleSendCommand}
-              disabled={
-                !selectedDeviceId ||
-                !selectedCommand ||
-                sendCommandMutation.isPending
-              }
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+              disabled={!selectedDeviceId || !selectedCommand || sendCommandMutation.isPending}
+              style={{
+                background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+              }}
+              className="w-full text-white hover:shadow-lg transition-shadow"
               size="lg"
             >
               <Send className="w-4 h-4 mr-2" />
@@ -216,9 +210,7 @@ export default function CommandsPage() {
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
               {commands.slice(0, 10).map((command) => {
                 const device = devices.find((d) => d.id === command.deviceId);
-                const cmdType = commandTypes.find(
-                  (ct) => ct.value === command.type,
-                );
+                const cmdType = commandTypes.find((ct) => ct.value === command.type);
                 const Icon = cmdType?.icon || Terminal;
 
                 return (
@@ -281,10 +273,9 @@ export default function CommandsPage() {
                 Atenção ao enviar comandos
               </h4>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                Os comandos de bloqueio podem afetar o funcionamento do veículo.
-                Use com cautela e apenas quando necessário. Certifique-se de que
-                o veículo está em local seguro antes de enviar comandos de
-                bloqueio.
+                Os comandos de bloqueio podem afetar o funcionamento do veículo. Use com cautela e
+                apenas quando necessário. Certifique-se de que o veículo está em local seguro antes
+                de enviar comandos de bloqueio.
               </p>
             </div>
           </div>

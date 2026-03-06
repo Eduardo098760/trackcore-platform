@@ -3,16 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  MapPin,
-  Shield,
-  Wifi,
-  BarChart3,
-  Map,
-  CheckCircle2,
-} from "lucide-react";
+import { MapPin, Shield, Wifi, BarChart3, Map, CheckCircle2 } from "lucide-react";
 import { getDevices, getPositions } from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/auth";
+import { useTenant } from "@/lib/hooks/useTenant";
 
 const STEPS = [
   { icon: Shield, message: "Validando sessão...", duration: 700 },
@@ -28,6 +22,7 @@ export default function SplashPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthStore();
+  const { tenant } = useTenant();
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
@@ -101,8 +96,14 @@ export default function SplashPage() {
     >
       {/* Decoração de fundo */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div
+          className="absolute -top-32 -left-32 w-96 h-96 rounded-full blur-3xl opacity-10"
+          style={{ backgroundColor: `hsl(${tenant?.colors.primaryLight})` }}
+        />
+        <div
+          className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full blur-3xl opacity-10"
+          style={{ backgroundColor: `hsl(${tenant?.colors.primaryLight})` }}
+        />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border border-white/5" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border border-white/5" />
       </div>
@@ -110,18 +111,19 @@ export default function SplashPage() {
       {/* Logo */}
       <div className="relative z-10 flex flex-col items-center gap-8">
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500 shadow-lg shadow-blue-500/40">
+          <div
+            className="relative flex items-center justify-center w-16 h-16 rounded-2xl text-white shadow-lg"
+            style={{
+              backgroundColor: `hsl(${tenant?.colors.primaryLight})`,
+              boxShadow: `0 0 40px hsl(${tenant?.colors.primaryLight})/40`,
+            }}
+          >
             <MapPin className="w-8 h-8 text-white" strokeWidth={2.5} />
             {/* Ping animado */}
-            <span className="absolute inset-0 rounded-2xl bg-blue-400 animate-ping opacity-30" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">
-              TrackCore
-            </h1>
-            <p className="text-blue-300 text-sm font-medium">
-              Plataforma de Rastreamento
-            </p>
+            <span
+              className="absolute inset-0 rounded-2xl animate-ping opacity-30"
+              style={{ backgroundColor: `hsl(${tenant?.colors.primaryLight})` }}
+            />
           </div>
         </div>
 
@@ -129,17 +131,18 @@ export default function SplashPage() {
         <div className="w-64 flex flex-col gap-3">
           <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${progress}%`,
+                backgroundColor: `hsl(${tenant?.colors.primaryLight})`,
+              }}
             />
           </div>
 
           {/* Status atual */}
-          <div className="flex items-center justify-center gap-2 text-blue-200 text-sm min-h-[24px]">
+          <div className="flex items-center justify-center gap-2 text-sm min-h-[24px] text-white opacity-75">
             <StepIcon className="w-4 h-4 shrink-0 animate-pulse" />
-            <span className="transition-all duration-300">
-              {currentStep.message}
-            </span>
+            <span className="transition-all duration-300">{currentStep.message}</span>
           </div>
         </div>
 
@@ -148,10 +151,18 @@ export default function SplashPage() {
           {STEPS.map((_, i) => (
             <div
               key={i}
-              className={`
-                w-1.5 h-1.5 rounded-full transition-all duration-300
-                ${i < stepIndex ? "bg-cyan-400 scale-110" : i === stepIndex ? "bg-blue-400 animate-pulse scale-125" : "bg-white/20"}
-              `}
+              className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+              style={{
+                backgroundColor:
+                  i < stepIndex
+                    ? `hsl(${tenant?.colors.primaryLight})`
+                    : i === stepIndex
+                      ? `hsl(${tenant?.colors.primaryLight})`
+                      : "rgba(255,255,255,0.2)",
+                transform: i < stepIndex || i === stepIndex ? "scale(1.25)" : "scale(1)",
+                animation:
+                  i === stepIndex ? "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" : "none",
+              }}
             />
           ))}
         </div>

@@ -1,22 +1,24 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { usePermissionsStore, PermissionPreset } from '@/lib/stores/permissions';
-import { ALL_ROUTE_KEYS, RoutePermissions } from '@/lib/permissions/types';
-import { PermissionGrid } from './permission-grid';
+import { useState } from "react";
+import { usePermissionsStore, PermissionPreset } from "@/lib/stores/permissions";
+import { ALL_ROUTE_KEYS, RoutePermissions } from "@/lib/permissions/types";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import { PermissionGrid } from "./permission-grid";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import {
-  BookMarked, Plus, Trash2, CheckCheck,
-  Users, LayoutTemplate, ArrowRight, Zap,
-} from 'lucide-react';
+  BookMarked,
+  Plus,
+  Trash2,
+  CheckCheck,
+  Users,
+  LayoutTemplate,
+  ArrowRight,
+  Zap,
+} from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +45,7 @@ interface BulkPermissionDialogProps {
   onApplied: () => void;
 }
 
-type TabId = 'apply' | 'create';
+type TabId = "apply" | "create";
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
@@ -54,18 +56,17 @@ export function BulkPermissionDialog({
   onApplied,
 }: BulkPermissionDialogProps) {
   const { presets, setPreset, removePreset, setUserPermissions } = usePermissionsStore();
-  const [activeTab, setActiveTab]   = useState<TabId>('apply');
-  const [newName,   setNewName]     = useState('');
-  const [newDesc,   setNewDesc]     = useState('');
-  const [draft,     setDraft]       = useState<RoutePermissions>(buildAllTrue);
+  const colors = useTenantColors();
+  const [activeTab, setActiveTab] = useState<TabId>("apply");
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [draft, setDraft] = useState<RoutePermissions>(buildAllTrue);
 
-  const presetList = Object.values(presets).sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt)
-  );
+  const presetList = Object.values(presets).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const handleApplyPreset = (preset: PermissionPreset) => {
     if (selectedUserIds.length === 0) {
-      toast.error('Selecione pelo menos um usuário na tabela para aplicar');
+      toast.error("Selecione pelo menos um usuário na tabela para aplicar");
       return;
     }
     selectedUserIds.forEach((userId) => {
@@ -83,7 +84,7 @@ export function BulkPermissionDialog({
 
   const handleSavePreset = () => {
     if (!newName.trim()) {
-      toast.error('Informe um nome para o preset');
+      toast.error("Informe um nome para o preset");
       return;
     }
     const id = `preset_${Date.now()}`;
@@ -95,35 +96,43 @@ export function BulkPermissionDialog({
       createdAt: new Date().toISOString(),
     });
     toast.success(`Preset "${newName.trim()}" criado com sucesso!`);
-    setNewName('');
-    setNewDesc('');
+    setNewName("");
+    setNewDesc("");
     setDraft(buildAllTrue());
-    setActiveTab('apply');
+    setActiveTab("apply");
   };
 
   const handleDeletePreset = (id: string, name: string) => {
     if (confirm(`Excluir o preset "${name}"?`)) {
       removePreset(id);
-      toast.success('Preset excluído');
+      toast.success("Preset excluído");
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col bg-[#0d1117] border-white/10 p-0 overflow-hidden">
-
         {/* ── Header ── */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 shrink-0">
-              <LayoutTemplate className="w-5 h-5 text-purple-400" />
+            <div
+              className="p-2 rounded-lg border shrink-0"
+              style={{
+                backgroundColor: `hsla(${colors.primary.light}, 0.1)`,
+                borderColor: `hsla(${colors.primary.light}, 0.2)`,
+              }}
+            >
+              <LayoutTemplate
+                className="w-5 h-5"
+                style={{ color: `hsl(${colors.primary.light})` }}
+              />
             </div>
             <div>
               <DialogTitle className="text-gray-100">Permissões em Massa · Presets</DialogTitle>
               <p className="text-xs text-gray-500 mt-0.5">
                 {selectedUserIds.length > 0
                   ? `${selectedUserIds.length} usuário(s) selecionado(s) — pronto para aplicar`
-                  : 'Selecione usuários na tabela para poder aplicar um preset'}
+                  : "Selecione usuários na tabela para poder aplicar um preset"}
               </p>
             </div>
           </div>
@@ -132,23 +141,35 @@ export function BulkPermissionDialog({
         {/* ── Tabs ── */}
         <div className="px-6 pt-4 shrink-0">
           <div className="flex gap-1 p-1 bg-white/5 rounded-lg w-fit">
-            {([
-              { id: 'apply'  as TabId, label: 'Presets Salvos', icon: BookMarked },
-              { id: 'create' as TabId, label: 'Criar Preset',   icon: Plus      },
-            ] as const).map(({ id, label, icon: Icon }) => (
+            {(
+              [
+                { id: "apply" as TabId, label: "Presets Salvos", icon: BookMarked },
+                { id: "create" as TabId, label: "Criar Preset", icon: Plus },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeTab === id
-                    ? 'bg-purple-600 text-white shadow'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                    ? "text-white shadow"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
                 }`}
+                style={
+                  activeTab === id
+                    ? {
+                        background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                      }
+                    : {}
+                }
               >
                 <Icon className="w-4 h-4" />
                 {label}
-                {id === 'apply' && presetList.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-500/30 text-purple-300 text-[10px] font-bold">
+                {id === "apply" && presetList.length > 0 && (
+                  <span
+                    className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                    style={{ backgroundColor: `hsla(${colors.primary.light}, 0.3)` }}
+                  >
                     {presetList.length}
                   </span>
                 )}
@@ -159,9 +180,8 @@ export function BulkPermissionDialog({
 
         {/* ── Body ── */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-
           {/* Tab: Presets Salvos */}
-          {activeTab === 'apply' && (
+          {activeTab === "apply" && (
             <>
               {presetList.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 border border-dashed border-white/10 rounded-xl">
@@ -170,7 +190,7 @@ export function BulkPermissionDialog({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setActiveTab('create')}
+                    onClick={() => setActiveTab("create")}
                     className="border-white/10 text-gray-300 hover:bg-white/5 text-xs"
                   >
                     <Plus className="w-3.5 h-3.5 mr-1" />
@@ -181,10 +201,14 @@ export function BulkPermissionDialog({
                 presetList.map((preset) => (
                   <div
                     key={preset.id}
-                    className="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:border-purple-500/20 transition-colors"
+                    className="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-white/[0.02] transition-colors"
+                    style={{ borderColor: `hsla(${colors.primary.light}, 0.2)` }}
                   >
-                    <div className="p-2 rounded-lg bg-purple-500/10 shrink-0">
-                      <Zap className="w-4 h-4 text-purple-400" />
+                    <div
+                      className="p-2 rounded-lg shrink-0"
+                      style={{ backgroundColor: `hsla(${colors.primary.light}, 0.1)` }}
+                    >
+                      <Zap className="w-4 h-4" style={{ color: `hsl(${colors.primary.light})` }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-200 truncate">{preset.name}</p>
@@ -200,11 +224,18 @@ export function BulkPermissionDialog({
                         size="sm"
                         onClick={() => handleApplyPreset(preset)}
                         disabled={selectedUserIds.length === 0}
-                        title={selectedUserIds.length === 0 ? 'Selecione usuários na tabela' : undefined}
-                        className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white text-xs h-8 gap-1.5"
+                        title={
+                          selectedUserIds.length === 0 ? "Selecione usuários na tabela" : undefined
+                        }
+                        style={{
+                          background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                        }}
+                        className="disabled:opacity-40 text-white text-xs h-8 gap-1.5"
                       >
                         <Users className="w-3.5 h-3.5" />
-                        {selectedUserIds.length > 0 ? `Aplicar a ${selectedUserIds.length}` : 'Aplicar'}
+                        {selectedUserIds.length > 0
+                          ? `Aplicar a ${selectedUserIds.length}`
+                          : "Aplicar"}
                         <ArrowRight className="w-3 h-3" />
                       </Button>
                       <Button
@@ -230,7 +261,7 @@ export function BulkPermissionDialog({
           )}
 
           {/* Tab: Criar Preset */}
-          {activeTab === 'create' && (
+          {activeTab === "create" && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -281,12 +312,15 @@ export function BulkPermissionDialog({
 
         {/* ── Footer ── */}
         <div className="px-6 py-4 border-t border-white/5 shrink-0 flex gap-2">
-          {activeTab === 'create' ? (
+          {activeTab === "create" ? (
             <>
               <Button
                 onClick={handleSavePreset}
                 disabled={!newName.trim()}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                style={{
+                  background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                }}
+                className="flex-1 text-white"
               >
                 <CheckCheck className="w-4 h-4 mr-2" />
                 Salvar Preset
@@ -309,7 +343,6 @@ export function BulkPermissionDialog({
             </Button>
           )}
         </div>
-
       </DialogContent>
     </Dialog>
   );

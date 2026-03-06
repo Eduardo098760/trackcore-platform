@@ -3,12 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Client } from "@/types";
-import {
-  getClients,
-  createClient,
-  updateClient,
-  deleteClient,
-} from "@/lib/api";
+import { getClients, createClient, updateClient, deleteClient } from "@/lib/api";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { PermissionSheet } from "@/components/layout/permission-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,10 +51,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
+  const colors = useTenantColors();
   const { isSuperAdmin } = usePermissions();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -97,8 +94,7 @@ export default function ClientsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Client> }) =>
-      updateClient(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<Client> }) => updateClient(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       toast.success("Cliente atualizado com sucesso!");
@@ -168,8 +164,7 @@ export default function ClientsPage() {
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.document.includes(searchQuery);
 
-    const matchesStatus =
-      statusFilter === "all" || client.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || client.status === statusFilter;
     const matchesPlan = planFilter === "all" || client.plan === planFilter;
 
     return matchesSearch && matchesStatus && matchesPlan;
@@ -215,17 +210,17 @@ export default function ClientsPage() {
         return (
           <Badge
             variant="outline"
-            className="text-purple-500 border-purple-500/50"
+            style={{
+              color: `hsl(${colors.primary.light})`,
+              borderColor: `hsla(${colors.primary.light}, 0.5)`,
+            }}
           >
             Profissional
           </Badge>
         );
       case "enterprise":
         return (
-          <Badge
-            variant="outline"
-            className="text-amber-500 border-amber-500/50"
-          >
+          <Badge variant="outline" className="text-amber-500 border-amber-500/50">
             Empresarial
           </Badge>
         );
@@ -253,9 +248,7 @@ export default function ClientsPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Clientes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -265,15 +258,11 @@ export default function ClientsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Clientes Ativos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
             <Check className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">
-              {stats.active}
-            </div>
+            <div className="text-2xl font-bold text-green-500">{stats.active}</div>
           </CardContent>
         </Card>
 
@@ -283,17 +272,13 @@ export default function ClientsPage() {
             <Ban className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">
-              {stats.suspended}
-            </div>
+            <div className="text-2xl font-bold text-orange-500">{stats.suspended}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Veículos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Veículos</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -349,9 +334,7 @@ export default function ClientsPage() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>
-                    {editingClient ? "Editar Cliente" : "Novo Cliente"}
-                  </DialogTitle>
+                  <DialogTitle>{editingClient ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2 md:col-span-2">
@@ -362,43 +345,34 @@ export default function ClientsPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Ex: Transportadora ABC Ltda"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="document"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="document" className="flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-green-500" />
                       CPF/CNPJ
                     </Label>
                     <Input
                       id="document"
                       value={formData.document}
-                      onChange={(e) =>
-                        setFormData({ ...formData, document: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, document: e.target.value })}
                       placeholder="00.000.000/0000-00"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-purple-500" />
+                      <Mail className="w-4 h-4" style={{ color: `hsl(${colors.primary.light})` }} />
                       Email
                     </Label>
                     <Input
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="contato@empresa.com"
                     />
                   </div>
@@ -411,9 +385,7 @@ export default function ClientsPage() {
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -422,37 +394,28 @@ export default function ClientsPage() {
                     <Label htmlFor="plan">Plano</Label>
                     <Select
                       value={formData.plan}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, plan: value as any })
-                      }
+                      onValueChange={(value) => setFormData({ ...formData, plan: value as any })}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="basic">Básico</SelectItem>
-                        <SelectItem value="professional">
-                          Profissional
-                        </SelectItem>
+                        <SelectItem value="professional">Profissional</SelectItem>
                         <SelectItem value="enterprise">Empresarial</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <Label
-                      htmlFor="address"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="address" className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-red-500" />
                       Endereço
                     </Label>
                     <Input
                       id="address"
                       value={formData.address}
-                      onChange={(e) =>
-                        setFormData({ ...formData, address: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       placeholder="Rua, número - Cidade, UF"
                     />
                   </div>
@@ -483,10 +446,7 @@ export default function ClientsPage() {
                   <Button onClick={handleSubmit} className="flex-1">
                     {editingClient ? "Atualizar" : "Criar"} Cliente
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
                 </div>
@@ -522,10 +482,7 @@ export default function ClientsPage() {
               <TableBody>
                 {filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-muted-foreground"
-                    >
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
@@ -535,9 +492,7 @@ export default function ClientsPage() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{client.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {client.email}
-                          </div>
+                          <div className="text-sm text-muted-foreground">{client.email}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -572,16 +527,13 @@ export default function ClientsPage() {
                                 setIsPermSheetOpen(true);
                               }}
                               title="Controle de acesso"
-                              className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                              style={{ color: `hsl(${colors.primary.light})` }}
+                              className="hover:bg-white/10"
                             >
                               <ShieldCheck className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(client)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(client)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button

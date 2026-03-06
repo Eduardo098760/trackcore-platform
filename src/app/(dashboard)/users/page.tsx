@@ -70,6 +70,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuthStore } from "@/lib/stores/auth";
@@ -77,6 +78,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 export default function UsersPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const colors = useTenantColors();
   const { isSuperAdmin } = usePermissions();
   const permUsers = usePermissionsStore((s) => s.users);
   const { user: adminUser } = useAuthStore();
@@ -103,9 +105,7 @@ export default function UsersPage() {
   const [isDevicesDialogOpen, setIsDevicesDialogOpen] = useState(false);
   const [isPermSheetOpen, setIsPermSheetOpen] = useState(false);
   const [permSheetUser, setPermSheetUser] = useState<User | null>(null);
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
   const [isBulkPermOpen, setIsBulkPermOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -124,8 +124,7 @@ export default function UsersPage() {
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users", isSuperAdmin ? "all" : adminUser?.id],
-    queryFn: () =>
-      getUsers(isSuperAdmin ? undefined : (adminUser?.id ?? undefined)),
+    queryFn: () => getUsers(isSuperAdmin ? undefined : (adminUser?.id ?? undefined)),
   });
 
   const { data: allDevices = [] } = useQuery({
@@ -135,8 +134,7 @@ export default function UsersPage() {
 
   const { data: userDevices = [] } = useQuery({
     queryKey: ["userDevices", selectedUser?.id],
-    queryFn: () =>
-      selectedUser ? getUserDevices(selectedUser.id) : Promise.resolve([]),
+    queryFn: () => (selectedUser ? getUserDevices(selectedUser.id) : Promise.resolve([])),
     enabled: !!selectedUser && isDevicesDialogOpen,
   });
 
@@ -176,15 +174,13 @@ export default function UsersPage() {
       console.error("[UI] Erro ao criar usuário:", error);
       console.error("[UI] Tipo do erro:", typeof error);
       console.error("[UI] JSON do erro:", JSON.stringify(error));
-      const errorMessage =
-        error?.message || error?.status || "Erro ao criar usuário";
+      const errorMessage = error?.message || error?.status || "Erro ao criar usuário";
       toast.error(`Erro: ${errorMessage}`);
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<User> }) =>
-      apiUpdateUser(id, data),
+    mutationFn: ({ id, data }: { id: number; data: Partial<User> }) => apiUpdateUser(id, data),
     onSuccess: (updatedUser, variables) => {
       console.log("[UI] Usuário atualizado com sucesso");
       queryClient.setQueryData(["users"], (old: User[] = []) =>
@@ -193,22 +189,10 @@ export default function UsersPage() {
           return {
             ...u,
             ...updatedUser,
-            name:
-              (variables.data as any).name ??
-              (updatedUser as any).name ??
-              u.name,
-            email:
-              (variables.data as any).email ??
-              (updatedUser as any).email ??
-              u.email,
-            role:
-              (variables.data as any).role ??
-              (updatedUser as any).role ??
-              u.role,
-            phone:
-              (variables.data as any).phone ??
-              (updatedUser as any).phone ??
-              u.phone,
+            name: (variables.data as any).name ?? (updatedUser as any).name ?? u.name,
+            email: (variables.data as any).email ?? (updatedUser as any).email ?? u.email,
+            role: (variables.data as any).role ?? (updatedUser as any).role ?? u.role,
+            phone: (variables.data as any).phone ?? (updatedUser as any).phone ?? u.phone,
           };
         }),
       );
@@ -222,8 +206,7 @@ export default function UsersPage() {
     },
     onError: (error: any) => {
       console.error("[UI] Erro ao atualizar usuário:", error);
-      const errorMessage =
-        error?.message || error?.status || "Erro ao atualizar usuário";
+      const errorMessage = error?.message || error?.status || "Erro ao atualizar usuário";
       toast.error(`Erro: ${errorMessage}`);
     },
   });
@@ -240,13 +223,7 @@ export default function UsersPage() {
   });
 
   const updatePasswordMutation = useMutation({
-    mutationFn: ({
-      userId,
-      password,
-    }: {
-      userId: number;
-      password: string;
-    }) => {
+    mutationFn: ({ userId, password }: { userId: number; password: string }) => {
       console.log("Atualizando senha do usuário:", userId);
       return updateUserPassword(userId, password);
     },
@@ -265,19 +242,8 @@ export default function UsersPage() {
   });
 
   const updateDevicesMutation = useMutation({
-    mutationFn: ({
-      userId,
-      deviceIds,
-    }: {
-      userId: number;
-      deviceIds: number[];
-    }) => {
-      console.log(
-        "Atualizando veículos do usuário:",
-        userId,
-        "Veículos:",
-        deviceIds,
-      );
+    mutationFn: ({ userId, deviceIds }: { userId: number; deviceIds: number[] }) => {
+      console.log("Atualizando veículos do usuário:", userId, "Veículos:", deviceIds);
       return setUserDevices(userId, deviceIds);
     },
     onSuccess: () => {
@@ -387,9 +353,7 @@ export default function UsersPage() {
   };
 
   const handleManageDevices = (user: User) => {
-    console.log(
-      `[UI] handleManageDevices chamado para usuário ${user.id} - ${user.name}`,
-    );
+    console.log(`[UI] handleManageDevices chamado para usuário ${user.id} - ${user.name}`);
     // Só limpar se for um usuário diferente
     if (selectedUser?.id !== user.id) {
       console.log("[UI] Mudando de usuário, limpando seleção anterior");
@@ -415,9 +379,7 @@ export default function UsersPage() {
 
   const toggleDeviceSelection = (deviceId: number) => {
     setSelectedDeviceIds((prev) =>
-      prev.includes(deviceId)
-        ? prev.filter((id) => id !== deviceId)
-        : [...prev, deviceId],
+      prev.includes(deviceId) ? prev.filter((id) => id !== deviceId) : [...prev, deviceId],
     );
   };
 
@@ -432,8 +394,7 @@ export default function UsersPage() {
 
     const lastLogin = new Date(user.lastLogin);
     const now = new Date();
-    const hoursSinceLogin =
-      (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
+    const hoursSinceLogin = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
 
     if (hoursSinceLogin < 1) {
       return { status: "Online", variant: "success" as const, icon: Wifi };
@@ -466,8 +427,7 @@ export default function UsersPage() {
   // ── Seleção em massa ───────────────────────────────────────────
   const eligibleUsers = filteredUsers.filter((u) => u.role !== "admin");
   const isAllSelected =
-    eligibleUsers.length > 0 &&
-    eligibleUsers.every((u) => selectedUserIds.has(u.id));
+    eligibleUsers.length > 0 && eligibleUsers.every((u) => selectedUserIds.has(u.id));
   const isSomeSelected = eligibleUsers.some((u) => selectedUserIds.has(u.id));
 
   const toggleSelectUser = (id: number) => {
@@ -557,12 +517,9 @@ export default function UsersPage() {
 
   const stats = {
     total: users.length,
-    admins: users.filter((u) => u.role === "admin" || u.role === "manager")
-      .length,
+    admins: users.filter((u) => u.role === "admin" || u.role === "manager").length,
     users: users.filter((u) => u.role === "user").length,
-    readonlys: users.filter(
-      (u) => u.role === "readonly" || u.role === "deviceReadonly",
-    ).length,
+    readonlys: users.filter((u) => u.role === "readonly" || u.role === "deviceReadonly").length,
   };
 
   return (
@@ -577,9 +534,7 @@ export default function UsersPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Usuários
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -589,15 +544,11 @@ export default function UsersPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Admins / Gerentes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Admins / Gerentes</CardTitle>
             <Shield className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-500">
-              {stats.admins}
-            </div>
+            <div className="text-2xl font-bold text-purple-500">{stats.admins}</div>
           </CardContent>
         </Card>
 
@@ -607,23 +558,17 @@ export default function UsersPage() {
             <UserIcon className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">
-              {stats.users}
-            </div>
+            <div className="text-2xl font-bold text-green-500">{stats.users}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Somente Leitura
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Somente Leitura</CardTitle>
             <Users className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-500">
-              {stats.readonlys}
-            </div>
+            <div className="text-2xl font-bold text-gray-500">{stats.readonlys}</div>
           </CardContent>
         </Card>
       </div>
@@ -652,9 +597,7 @@ export default function UsersPage() {
                 <SelectItem value="manager">Gerente</SelectItem>
                 <SelectItem value="user">Usuário</SelectItem>
                 <SelectItem value="readonly">Somente Leitura</SelectItem>
-                <SelectItem value="deviceReadonly">
-                  Leit. Dispositivos
-                </SelectItem>
+                <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
               </SelectContent>
             </Select>
 
@@ -678,9 +621,7 @@ export default function UsersPage() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>
-                    {editingUser ? "Editar Usuário" : "Novo Usuário"}
-                  </DialogTitle>
+                  <DialogTitle>{editingUser ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -691,9 +632,7 @@ export default function UsersPage() {
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Ex: João Silva"
                     />
                   </div>
@@ -707,9 +646,7 @@ export default function UsersPage() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="usuario@email.com"
                     />
                   </div>
@@ -722,9 +659,7 @@ export default function UsersPage() {
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -747,12 +682,8 @@ export default function UsersPage() {
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="manager">Gerente</SelectItem>
                         <SelectItem value="user">Usuário</SelectItem>
-                        <SelectItem value="readonly">
-                          Somente Leitura
-                        </SelectItem>
-                        <SelectItem value="deviceReadonly">
-                          Leit. Dispositivos
-                        </SelectItem>
+                        <SelectItem value="readonly">Somente Leitura</SelectItem>
+                        <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -760,10 +691,7 @@ export default function UsersPage() {
                   {/* Limites Traccar */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="deviceLimit"
-                        className="flex items-center gap-2 text-sm"
-                      >
+                      <Label htmlFor="deviceLimit" className="flex items-center gap-2 text-sm">
                         <Car className="w-4 h-4 text-blue-500" />
                         Limite de Veículos
                       </Label>
@@ -784,10 +712,7 @@ export default function UsersPage() {
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="userLimit"
-                        className="flex items-center gap-2 text-sm"
-                      >
+                      <Label htmlFor="userLimit" className="flex items-center gap-2 text-sm">
                         <Users className="w-4 h-4 text-purple-500" />
                         Limite de Usuários
                       </Label>
@@ -810,22 +735,15 @@ export default function UsersPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="password"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="password" className="flex items-center gap-2">
                       <Lock className="w-4 h-4 text-orange-500" />
-                      {editingUser
-                        ? "Nova Senha (deixe vazio para manter)"
-                        : "Senha"}
+                      {editingUser ? "Nova Senha (deixe vazio para manter)" : "Senha"}
                     </Label>
                     <Input
                       id="password"
                       type="password"
                       value={formData.password}
-                      onChange={(e) =>
-                        setFormData({ ...formData, password: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder="••••••••"
                     />
                   </div>
@@ -835,10 +753,7 @@ export default function UsersPage() {
                   <Button onClick={handleSubmit} className="flex-1">
                     {editingUser ? "Atualizar" : "Criar"} Usuário
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
                 </div>
@@ -846,10 +761,7 @@ export default function UsersPage() {
             </Dialog>
 
             {/* Password Change Dialog */}
-            <Dialog
-              open={isPasswordDialogOpen}
-              onOpenChange={setIsPasswordDialogOpen}
-            >
+            <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
@@ -859,10 +771,7 @@ export default function UsersPage() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="newPassword"
-                      className="flex items-center gap-2"
-                    >
+                    <Label htmlFor="newPassword" className="flex items-center gap-2">
                       <Lock className="w-4 h-4 text-orange-500" />
                       Nova Senha
                     </Label>
@@ -884,14 +793,9 @@ export default function UsersPage() {
                     className="flex-1"
                     disabled={updatePasswordMutation.isPending}
                   >
-                    {updatePasswordMutation.isPending
-                      ? "Atualizando..."
-                      : "Atualizar Senha"}
+                    {updatePasswordMutation.isPending ? "Atualizando..." : "Atualizar Senha"}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsPasswordDialogOpen(false)}
-                  >
+                  <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
                     Cancelar
                   </Button>
                 </div>
@@ -923,8 +827,7 @@ export default function UsersPage() {
                     Gerenciar Veículos — {selectedUser?.name}
                   </DialogTitle>
                   <DialogDescription>
-                    Selecione os veículos que este usuário pode visualizar e
-                    gerenciar
+                    Selecione os veículos que este usuário pode visualizar e gerenciar
                   </DialogDescription>
                 </DialogHeader>
 
@@ -955,9 +858,7 @@ export default function UsersPage() {
                               <Car className="w-2.5 h-2.5" />
                               {device.name}
                               {device.plate && (
-                                <span className="text-emerald-400/60">
-                                  · {device.plate}
-                                </span>
+                                <span className="text-emerald-400/60">· {device.plate}</span>
                               )}
                               <button
                                 onClick={() => toggleDeviceSelection(device.id)}
@@ -996,18 +897,14 @@ export default function UsersPage() {
                             const s = vehicleSearchQuery.toLowerCase();
                             return (
                               device.name.toLowerCase().includes(s) ||
-                              (device.plate &&
-                                device.plate.toLowerCase().includes(s)) ||
-                              (device.uniqueId &&
-                                device.uniqueId.toLowerCase().includes(s)) ||
+                              (device.plate && device.plate.toLowerCase().includes(s)) ||
+                              (device.uniqueId && device.uniqueId.toLowerCase().includes(s)) ||
                               device.id.toString().includes(s)
                             );
                           });
 
                           // Colocar selecionados no topo dentro da lista de disponíveis
-                          const selected = filtered.filter((d) =>
-                            selectedDeviceIds.includes(d.id),
-                          );
+                          const selected = filtered.filter((d) => selectedDeviceIds.includes(d.id));
                           const unselected = filtered.filter(
                             (d) => !selectedDeviceIds.includes(d.id),
                           );
@@ -1017,17 +914,13 @@ export default function UsersPage() {
                             return (
                               <div className="text-center py-8 text-muted-foreground">
                                 <Search className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                                <p className="text-sm">
-                                  Nenhum veículo encontrado
-                                </p>
+                                <p className="text-sm">Nenhum veículo encontrado</p>
                               </div>
                             );
                           }
 
                           return ordered.map((device) => {
-                            const isSelected = selectedDeviceIds.includes(
-                              device.id,
-                            );
+                            const isSelected = selectedDeviceIds.includes(device.id);
                             return (
                               <div
                                 key={device.id}
@@ -1040,9 +933,7 @@ export default function UsersPage() {
                               >
                                 <Checkbox
                                   checked={isSelected}
-                                  onCheckedChange={() =>
-                                    toggleDeviceSelection(device.id)
-                                  }
+                                  onCheckedChange={() => toggleDeviceSelection(device.id)}
                                   className={
                                     isSelected
                                       ? "data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
@@ -1050,22 +941,14 @@ export default function UsersPage() {
                                   }
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm truncate">
-                                    {device.name}
-                                  </div>
+                                  <div className="font-medium text-sm truncate">{device.name}</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {device.plate && (
-                                      <span>{device.plate} &bull; </span>
-                                    )}
+                                    {device.plate && <span>{device.plate} &bull; </span>}
                                     {device.uniqueId}
                                   </div>
                                 </div>
                                 <Badge
-                                  variant={
-                                    device.status === "online"
-                                      ? "success"
-                                      : "secondary"
-                                  }
+                                  variant={device.status === "online" ? "success" : "secondary"}
                                   className="shrink-0"
                                 >
                                   {device.status}
@@ -1151,13 +1034,7 @@ export default function UsersPage() {
                   {isSuperAdmin && (
                     <TableHead className="w-10">
                       <Checkbox
-                        checked={
-                          isAllSelected
-                            ? true
-                            : isSomeSelected
-                              ? "indeterminate"
-                              : false
-                        }
+                        checked={isAllSelected ? true : isSomeSelected ? "indeterminate" : false}
                         onCheckedChange={() => toggleSelectAll()}
                         className="border-gray-500"
                       />
@@ -1196,9 +1073,7 @@ export default function UsersPage() {
                             {user.role !== "admin" && (
                               <Checkbox
                                 checked={selectedUserIds.has(user.id)}
-                                onCheckedChange={() =>
-                                  toggleSelectUser(user.id)
-                                }
+                                onCheckedChange={() => toggleSelectUser(user.id)}
                                 className="border-gray-500"
                               />
                             )}
@@ -1208,7 +1083,12 @@ export default function UsersPage() {
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
                               <AvatarImage src={user.avatar} />
-                              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+                              <AvatarFallback
+                                className="text-white"
+                                style={{
+                                  background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                                }}
+                              >
                                 {getInitials(user.name)}
                               </AvatarFallback>
                             </Avatar>
@@ -1224,9 +1104,7 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm text-muted-foreground">
-                            {user.phone || "-"}
-                          </div>
+                          <div className="text-sm text-muted-foreground">{user.phone || "-"}</div>
                         </TableCell>
                         <TableCell>{getRoleBadge(user.role)}</TableCell>
                         {isSuperAdmin && (
@@ -1235,31 +1113,21 @@ export default function UsersPage() {
                               <span className="flex items-center gap-1 text-muted-foreground">
                                 <Car className="w-3 h-3 text-blue-400" />
                                 {user.deviceLimit === -1 ? (
-                                  <span className="text-green-400">
-                                    Ilimitado
-                                  </span>
+                                  <span className="text-green-400">Ilimitado</span>
                                 ) : user.deviceLimit === 0 ? (
-                                  <span className="text-red-400">
-                                    Bloqueado
-                                  </span>
+                                  <span className="text-red-400">Bloqueado</span>
                                 ) : (
-                                  <span className="text-yellow-400">
-                                    {user.deviceLimit} veíc.
-                                  </span>
+                                  <span className="text-yellow-400">{user.deviceLimit} veíc.</span>
                                 )}
                               </span>
                               <span className="flex items-center gap-1 text-muted-foreground">
                                 <Users className="w-3 h-3 text-purple-400" />
                                 {user.userLimit === -1 ? (
-                                  <span className="text-green-400">
-                                    Ilimitado
-                                  </span>
+                                  <span className="text-green-400">Ilimitado</span>
                                 ) : user.userLimit === 0 ? (
                                   <span className="text-gray-400">Nenhum</span>
                                 ) : (
-                                  <span className="text-yellow-400">
-                                    {user.userLimit} usuár.
-                                  </span>
+                                  <span className="text-yellow-400">{user.userLimit} usuár.</span>
                                 )}
                               </span>
                             </div>
@@ -1272,8 +1140,7 @@ export default function UsersPage() {
                               return (
                                 <TableCell>
                                   <span className="text-[11px] text-purple-400/70 flex items-center gap-1">
-                                    <ShieldCheck className="w-3 h-3" />{" "}
-                                    Irrestrito
+                                    <ShieldCheck className="w-3 h-3" /> Irrestrito
                                   </span>
                                 </TableCell>
                               );
@@ -1281,9 +1148,7 @@ export default function UsersPage() {
                             if (!entry) {
                               return (
                                 <TableCell>
-                                  <span className="text-[11px] text-gray-500">
-                                    Padrão
-                                  </span>
+                                  <span className="text-[11px] text-gray-500">Padrão</span>
                                 </TableCell>
                               );
                             }
@@ -1300,9 +1165,7 @@ export default function UsersPage() {
                               <TableCell>
                                 <span
                                   className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-300 max-w-[140px] truncate"
-                                  title={
-                                    entry.appliedPresetName ?? "Customizado"
-                                  }
+                                  title={entry.appliedPresetName ?? "Customizado"}
                                 >
                                   <LayoutTemplate className="w-3 h-3 shrink-0" />
                                   <span className="truncate">
@@ -1313,10 +1176,7 @@ export default function UsersPage() {
                             );
                           })()}
                         <TableCell>
-                          <Badge
-                            variant={connectionStatus.variant}
-                            className="gap-1"
-                          >
+                          <Badge variant={connectionStatus.variant} className="gap-1">
                             <StatusIcon className="w-3 h-3" />
                             {connectionStatus.status}
                           </Badge>
@@ -1436,9 +1296,8 @@ export default function UsersPage() {
             </DialogTitle>
             <DialogDescription>
               Você entrará na plataforma{" "}
-              <strong className="text-white">como {loginAsTarget?.name}</strong>
-              . Um banner aparecerá no topo para você voltar ao admin a qualquer
-              momento.
+              <strong className="text-white">como {loginAsTarget?.name}</strong>. Um banner
+              aparecerá no topo para você voltar ao admin a qualquer momento.
             </DialogDescription>
           </DialogHeader>
 
@@ -1454,12 +1313,8 @@ export default function UsersPage() {
                   .slice(0, 2)}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {loginAsTarget?.name}
-                </p>
-                <p className="text-xs text-gray-400 truncate">
-                  {loginAsTarget?.email}
-                </p>
+                <p className="text-sm font-medium text-white truncate">{loginAsTarget?.name}</p>
+                <p className="text-xs text-gray-400 truncate">{loginAsTarget?.email}</p>
               </div>
             </div>
 
