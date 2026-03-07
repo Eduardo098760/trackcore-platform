@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -184,7 +184,7 @@ export default function MapPage() {
     queryKey: ["devices"],
     queryFn: () => getDevices(),
     staleTime: 30_000,
-    refetchInterval: 60_000, // safety net: refetch a cada 60s caso WS n├úo envie devices
+    refetchInterval: 60_000, // safety net: refetch a cada 60s caso WS não envie devices
   });
 
   // Keep devicesRef in sync for WebSocket hook
@@ -192,7 +192,7 @@ export default function MapPage() {
     updateDevicesRef(devices);
   }, [devices, updateDevicesRef]);
 
-  // IDs dos dispositivos que pertencem ├á conta logada (filtra alertas de outras contas)
+  // IDs dos dispositivos que pertencem à conta logada (filtra alertas de outras contas)
   const userDeviceIds = useMemo(
     () => new Set(devices.map((d) => d.id)),
     [devices],
@@ -207,10 +207,10 @@ export default function MapPage() {
   const { data: positions = [] } = useQuery({
     queryKey: ["positions"],
     queryFn: () => getPositions(),
-    staleTime: 5_000, // WS atualiza via cache ÔÇö query s├│ refetcha se stale
+    staleTime: 5_000, // WS atualiza via cache — query só refetcha se stale
   });
 
-  // Todas as cercas dispon├¡veis
+  // Todas as cercas disponíveis
   const { data: allGeofences = [] } = useQuery({
     queryKey: ["geofences"],
     queryFn: () => getGeofences(),
@@ -218,7 +218,7 @@ export default function MapPage() {
     refetchOnMount: true,
   });
 
-  // Cercas j├í vinculadas ao device do dialog
+  // Cercas já vinculadas ao device do dialog
   const { data: deviceGeofences = [], refetch: refetchDeviceGeofences } =
     useQuery({
       queryKey: ["device-geofences", geofenceDialogDevice?.id],
@@ -234,10 +234,10 @@ export default function MapPage() {
     try {
       if (deviceGeofenceIds.has(geofenceId)) {
         await removeGeofenceFromDevice(geofenceDialogDevice.id, geofenceId);
-        toast.success("Cerca removida do ve├¡culo");
+        toast.success("Cerca removida do veículo");
       } else {
         await assignGeofenceToDevice(geofenceDialogDevice.id, geofenceId);
-        toast.success("Cerca aplicada ao ve├¡culo");
+        toast.success("Cerca aplicada ao veículo");
       }
       refetchDeviceGeofences();
     } catch (err: unknown) {
@@ -268,11 +268,11 @@ export default function MapPage() {
     );
   }, [plannedRoute]);
 
-  // Abrir mapa com ve├¡culo da URL (?deviceId=123): selecionar dispositivo e centralizar
+  // Abrir mapa com veículo da URL (?deviceId=123): selecionar dispositivo e centralizar
   useEffect(() => {
     const deviceIdParam = searchParams?.get("deviceId");
-    // N├úo exige positions.length > 0: a sele├º├úo pode acontecer antes das posi├º├Áes carregarem
-    // O MapFollowHandler aguarda a posi├º├úo antes de animar
+    // Não exige positions.length > 0: a seleção pode acontecer antes das posições carregarem
+    // O MapFollowHandler aguarda a posição antes de animar
     if (!deviceIdParam || !devices.length) return;
     const deviceId = parseInt(deviceIdParam, 10);
     if (!Number.isFinite(deviceId)) return;
@@ -285,7 +285,7 @@ export default function MapPage() {
     setFollowVehicle(true);
   }, [searchParams, devices]);
 
-  // Centralizar no local do excesso de velocidade quando alertId est├í na URL
+  // Centralizar no local do excesso de velocidade quando alertId está na URL
   const hasAppliedUrlAlert = useRef<string | null>(null);
   useEffect(() => {
     const alertId = searchParams?.get("alertId");
@@ -295,13 +295,13 @@ export default function MapPage() {
     const tryFocus = () => {
       const alert = speedAlerts.find((a) => a.id === alertId);
       if (!alert) {
-        // Ainda n├úo sincronizou ÔÇö tentar via localStorage diretamente
+        // Ainda não sincronizou — tentar via localStorage diretamente
         try {
           const stored = localStorage.getItem("speedAlerts");
           const parsed: SpeedAlert[] = stored ? JSON.parse(stored) : [];
           const found = parsed.find((a) => a.id === alertId);
           if (found) {
-            // Garantir que est├í no estado
+            // Garantir que está no estado
             setSpeedAlerts((prev) => {
               if (prev.some((a) => a.id === found.id)) return prev;
               return [found, ...prev];
@@ -322,7 +322,7 @@ export default function MapPage() {
       hasAppliedUrlAlert.current = alertId;
     };
 
-    // Pequeno delay para garantir que o mapa e os alertas j├í est├úo montados
+    // Pequeno delay para garantir que o mapa e os alertas já estão montados
     const t = window.setTimeout(tryFocus, 400);
     return () => window.clearTimeout(t);
   }, [searchParams, speedAlerts]);
@@ -337,8 +337,8 @@ export default function MapPage() {
     return {
       url,
       attribution: layer.attribution,
-      // O mapa permite at├® 19; se o TileLayer tiver maxZoom menor, no zoom alto ele fica em branco.
-      // maxNativeZoom controla at├® onde existem tiles "nativos"; acima disso, o Leaflet faz overzoom (scaling).
+      // O mapa permite até 19; se o TileLayer tiver maxZoom menor, no zoom alto ele fica em branco.
+      // maxNativeZoom controla até onde existem tiles "nativos"; acima disso, o Leaflet faz overzoom (scaling).
       maxZoom: 19,
       maxNativeZoom: layer.maxNativeZoom ?? 19,
       // Tiles HD (@2x) com tileSize/zoomOffset corretos para melhorar nitidez
@@ -367,7 +367,7 @@ export default function MapPage() {
       updateDevice(id, data),
     onSuccess: (updatedDevice, variables) => {
       // Atualiza imediatamente o device no cache com os novos dados.
-      // Usa variables.data.* como fonte PRIM├üRIA (o que o usu├írio digitou no form),
+      // Usa variables.data.* como fonte PRIMÁRIA (o que o usuário digitou no form),
       // porque o Traccar pode retornar string vazia "" para campos customizados no root.
       queryClient.setQueryData(["devices"], (old: Device[] = []) =>
         old.map((d) => {
@@ -409,11 +409,11 @@ export default function MapPage() {
         queryKey: ["devices"],
         refetchType: "none",
       });
-      toast.success("Ve├¡culo atualizado com sucesso!");
+      toast.success("Veículo atualizado com sucesso!");
       setIsEditDialogOpen(false);
     },
     onError: () => {
-      toast.error("Erro ao atualizar ve├¡culo");
+      toast.error("Erro ao atualizar veículo");
     },
   });
 
@@ -503,7 +503,7 @@ export default function MapPage() {
       return () => window.removeEventListener("speedAlertFocus", handler);
     }, [map]);
 
-    // Se o usu├írio mexer no mapa (drag/zoom), desativa o follow para n├úo "brigar".
+    // Se o usuário mexer no mapa (drag/zoom), desativa o follow para não "brigar".
     useEffect(() => {
       if (!map) return;
 
@@ -523,7 +523,7 @@ export default function MapPage() {
       };
     }, [map]);
 
-    // Transi├º├úo de sele├º├úo: roda uma ├║nica vez por ve├¡culo selecionado.
+    // Transição de seleção: roda uma única vez por veículo selecionado.
     useEffect(() => {
       if (!follow || !map || !selectedDeviceId) return;
       if (animatedSelectionForId.current === selectedDeviceId) return;
@@ -577,7 +577,7 @@ export default function MapPage() {
       t2 = window.setTimeout(() => {
         transitionRunning.current = false;
         prev.current = { lat, lng };
-        // libera zoom/pan manual depois da anima├º├úo
+        // libera zoom/pan manual depois da animação
         setFollowVehicle(false);
       }, 1900);
 
@@ -588,7 +588,7 @@ export default function MapPage() {
       };
     }, [follow, map, selectedDeviceId, positions]);
 
-    // Follow cont├¡nuo (opcional): apenas quando n├úo h├í ve├¡culo selecionado.
+    // Follow contínuo (opcional): apenas quando não há veículo selecionado.
     useEffect(() => {
       if (!follow || !map) return;
       if (selectedDeviceId) return;
@@ -628,7 +628,7 @@ export default function MapPage() {
     return null;
   }
 
-  // Debug: log quantos devices e positions est├úo sendo renderizados
+  // Debug: log quantos devices e positions estão sendo renderizados
   useEffect(() => {
     const trailPoints = Array.from(deviceTrails.values()).reduce(
       (sum, trail) => sum + trail.length,
@@ -655,14 +655,14 @@ export default function MapPage() {
     const vehicleIcon = getVehicleIconSVG(device.category, "#ffffff", 0);
     const plate = (device.plate || "").trim();
     const hasLabel = showLabel && !!plate;
-    // Placa posicionada logo abaixo do c├¡rculo (52px do topo do container 48px)
+    // Placa posicionada logo abaixo do círculo (52px do topo do container 48px)
     const labelHtml = hasLabel
       ? `
       <div style="position:absolute;left:50%;transform:translateX(-50%);top:52px;background:rgba(0,0,0,0.78);border:1px solid rgba(255,255,255,0.18);border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700;color:#fff;font-family:monospace;letter-spacing:0.6px;white-space:nowrap;pointer-events:none;user-select:none;">
         ${plate}
       </div>`
       : "";
-    // Badge de velocidade: afasta mais quando a placa est├í vis├¡vel
+    // Badge de velocidade: afasta mais quando a placa está visível
     const speedTop = hasLabel ? "70px" : "56px";
     const speedHtml =
       isPulsing && position.speed > 0
@@ -777,7 +777,7 @@ export default function MapPage() {
 
 
 
-  // Mostra trilhas para qualquer ve├¡culo que tenha dados de trail acumulados
+  // Mostra trilhas para qualquer veículo que tenha dados de trail acumulados
   const devicesForTrails = useMemo(() => {
     const set = new Map<number, Device>();
     const devicesById = new Map(devices.map((d) => [d.id, d]));
@@ -791,10 +791,10 @@ export default function MapPage() {
     return Array.from(set.values());
   }, [devices, selectedDevice, deviceTrails]);
 
-  // Busca rotas recentes (├║ltimos 15 min) para qualquer device com posi├º├úo conhecida
+  // Busca rotas recentes (últimos 15 min) para qualquer device com posição conhecida
   const loadedTrailsRef = useRef<Set<number>>(new Set());
   useEffect(() => {
-    // Qualquer device que n├úo seja offline pode ter rota recente
+    // Qualquer device que não seja offline pode ter rota recente
     const candidateIds = new Set<number>();
     devices.forEach((d) => {
       if (d.status !== "offline") candidateIds.add(d.id);
@@ -822,14 +822,14 @@ export default function MapPage() {
           if (result.status !== "fulfilled" || !result.value.length) return;
           const deviceId = batch[i];
           const existingTrail = trails.get(deviceId) || [];
-          // Converte posi├º├Áes hist├│ricas para trail points
+          // Converte posições históricas para trail points
           const newPoints = result.value
             .map((pos) => ({
               lat: pos.latitude,
               lng: pos.longitude,
               ts: new Date(pos.fixTime || pos.serverTime || Date.now()).getTime() || Date.now(),
             }))
-            .filter((p) => !isNaN(p.ts) && p.ts > 946684800000); // v├ílido se > ano 2000
+            .filter((p) => !isNaN(p.ts) && p.ts > 946684800000); // válido se > ano 2000
           if (newPoints.length === 0) return;
           const existingSet = new Set(
             existingTrail.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`),
@@ -890,13 +890,13 @@ export default function MapPage() {
                   setShowPlannedRouteLabel(false);
                 }}
               >
-                ├ù
+                ×
               </Button>
             </Card>
           )}
 
         <div className="flex items-center gap-1">
-          {/* Toggle lista de ve├¡culos */}
+          {/* Toggle lista de veículos */}
           <button
             type="button"
             onClick={() => setIsVehicleListOpen((v) => !v)}
@@ -905,7 +905,7 @@ export default function MapPage() {
                 ? "bg-blue-500/80 border-blue-400/50 text-white"
                 : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
             }`}
-            title={isVehicleListOpen ? "Fechar lista" : "Abrir lista de ve├¡culos"}
+            title={isVehicleListOpen ? "Fechar lista" : "Abrir lista de veículos"}
           >
             <List className="w-3.5 h-3.5" />
             <span>{devices.length}</span>
@@ -942,14 +942,14 @@ export default function MapPage() {
 
         <MapResizeInvalidator />
 
-        {/* ÔöÇÔöÇ Cercas Eletr├┤nicas ÔöÇÔöÇ */}
+        {/* ── Cercas Eletrônicas ── */}
         {showGeofences &&
           allGeofences.map((geofence) => {
             const parsed = parseWKT(geofence.area);
             if (!parsed) {
               if (geofence.area) {
                 console.warn(
-                  `[Map] Cerca ID=${geofence.id} ("${geofence.name}") n├úo p├┤de ser renderizada. area="${geofence.area?.slice(0, 100)}"`,
+                  `[Map] Cerca ID=${geofence.id} ("${geofence.name}") não pôde ser renderizada. area="${geofence.area?.slice(0, 100)}"`,
                 );
               }
               return null;
@@ -1094,7 +1094,7 @@ export default function MapPage() {
           );
         })}
 
-        {/* ÔÜí Marcadores de Excesso de Velocidade ÔÇö apenas dispositivos desta conta */}
+        {/* ⚡ Marcadores de Excesso de Velocidade — apenas dispositivos desta conta */}
         {showSpeedAlerts &&
           L &&
           visibleSpeedAlerts.map((alert) => (
@@ -1136,7 +1136,7 @@ export default function MapPage() {
         })}
       </MapContainer>
 
-      {/* Vehicle List Panel ÔÇö slide-out drawer */}
+      {/* Vehicle List Panel — slide-out drawer */}
       <VehicleListPanel
         devices={devices}
         positionsMap={positionsMap}
@@ -1193,7 +1193,7 @@ export default function MapPage() {
         }}
       />
 
-      {/* Dialog: Gerenciar Cercas do Ve├¡culo */}
+      {/* Dialog: Gerenciar Cercas do Veículo */}
       <GeofenceManageDialog
         device={geofenceDialogDevice}
         onOpenChange={(open) => {

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -31,26 +31,26 @@ import {
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
 import { Command, Device } from "@/types";
 
-// ÔöÇÔöÇÔöÇ Constantes de tipos de comando ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Constantes de tipos de comando ──────────────────────────────────────────
 const COMMAND_TYPES = [
   {
     value: "positionSingle",
-    label: "Solicitar Posi├º├úo",
-    description: "Solicita a posi├º├úo atual do rastreador",
+    label: "Solicitar Posição",
+    description: "Solicita a posição atual do rastreador",
     icon: MapPin,
     dangerous: false,
   },
   {
     value: "engineStop",
-    label: "Bloquear Ve├¡culo",
-    description: "Corta a alimenta├º├úo do motor remotamente",
+    label: "Bloquear Veículo",
+    description: "Corta a alimentação do motor remotamente",
     icon: Lock,
     dangerous: true,
   },
   {
     value: "engineResume",
-    label: "Desbloquear Ve├¡culo",
-    description: "Restaura a alimenta├º├úo do motor",
+    label: "Desbloquear Veículo",
+    description: "Restaura a alimentação do motor",
     icon: Unlock,
     dangerous: false,
   },
@@ -70,7 +70,7 @@ const COMMAND_TYPES = [
   },
 ];
 
-// ÔöÇÔöÇÔöÇ Hist├│rico local (localStorage) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Histórico local (localStorage) ─────────────────────────────────────────
 const STORAGE_KEY = "commandHistory";
 const MAX_HISTORY = 50;
 
@@ -94,7 +94,7 @@ function saveHistory(items: Command[]) {
   }
 }
 
-// ÔöÇÔöÇÔöÇ Componente de busca de ve├¡culo ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Componente de busca de veículo ─────────────────────────────────────────
 function VehicleSearch({
   devices,
   selectedDeviceId,
@@ -149,7 +149,7 @@ function VehicleSearch({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* ├ürea do trigger / ve├¡culo selecionado */}
+      {/* Área do trigger / veículo selecionado */}
       {selectedDevice && !isOpen ? (
         <button
           type="button"
@@ -231,7 +231,7 @@ function VehicleSearch({
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-xl max-h-[280px] overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
-              Nenhum ve├¡culo encontrado
+              Nenhum veículo encontrado
             </div>
           ) : (
             filtered.map((device) => {
@@ -261,7 +261,7 @@ function VehicleSearch({
                     <p className="text-xs text-muted-foreground truncate">
                       {[device.plate, device.uniqueId]
                         .filter(Boolean)
-                        .join(" ┬À ")}
+                        .join(" · ")}
                     </p>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">
@@ -277,7 +277,7 @@ function VehicleSearch({
   );
 }
 
-// ÔöÇÔöÇÔöÇ P├ígina principal ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ─── Página principal ────────────────────────────────────────────────────────
 export default function CommandsPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [selectedCommand, setSelectedCommand] = useState<string>("");
@@ -419,7 +419,7 @@ export default function CommandsPage() {
       <PageHeader
         icon={Terminal}
         title="Comandos Remotos"
-        description="Envie comandos para os rastreadores dos ve├¡culos. Voc├¬ tamb├®m pode enviar pela tela do mapa."
+        description="Envie comandos para os rastreadores dos veículos. Você também pode enviar pela tela do mapa."
       />
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -429,10 +429,10 @@ export default function CommandsPage() {
             <CardTitle className="text-xl">Enviar Novo Comando</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Busca de ve├¡culo com filtro */}
+            {/* Busca de veículo com filtro */}
             <div>
               <label className="text-sm font-medium mb-2 block">
-                Ve├¡culo
+                Veículo
               </label>
               <VehicleSearch
                 devices={devices}
@@ -453,10 +453,10 @@ export default function CommandsPage() {
                   <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
-                      Ve├¡culo offline
+                      Veículo offline
                     </p>
                     <p className="text-xs text-amber-600 dark:text-amber-300 mt-0.5">
-                      O comando ser├í enfileirado e enviado quando o dispositivo
+                      O comando será enfileirado e enviado quando o dispositivo
                       ficar online.
                     </p>
                   </div>
@@ -464,7 +464,7 @@ export default function CommandsPage() {
               </div>
             )}
 
-            {/* Sele├º├úo de comando */}
+            {/* Seleção de comando */}
             <div>
               <label className="text-sm font-medium mb-2 block">
                 Comando
@@ -520,12 +520,12 @@ export default function CommandsPage() {
                   className="font-mono text-sm bg-white dark:bg-gray-900"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos bin├írios.
+                  Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos binários.
                 </p>
               </div>
             )}
 
-            {/* Confirma├º├úo para comandos perigosos */}
+            {/* Confirmação para comandos perigosos */}
             {confirmDangerous && (
               <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <div className="flex items-start gap-2">
@@ -535,8 +535,8 @@ export default function CommandsPage() {
                       Tem certeza?
                     </p>
                     <p className="text-xs text-red-600 dark:text-red-300 mt-1">
-                      O comando de bloqueio cortar├í a alimenta├º├úo do motor.
-                      Certifique-se de que o ve├¡culo est├í em local seguro.
+                      O comando de bloqueio cortará a alimentação do motor.
+                      Certifique-se de que o veículo está em local seguro.
                     </p>
                   </div>
                 </div>
@@ -596,7 +596,7 @@ export default function CommandsPage() {
         {/* Command History (local) */}
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl">Hist├│rico de Comandos</CardTitle>
+            <CardTitle className="text-xl">Histórico de Comandos</CardTitle>
             {history.length > 0 && (
               <Button
                 variant="ghost"
@@ -647,8 +647,8 @@ export default function CommandsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {device
-                            ? `${device.plate ? `${device.plate} ┬À ` : ""}${device.name}`
-                            : `Ve├¡culo #${command.deviceId}`}
+                            ? `${device.plate ? `${device.plate} · ` : ""}${device.name}`
+                            : `Veículo #${command.deviceId}`}
                         </p>
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
                           {formatDate(command.sentTime)}
@@ -666,7 +666,7 @@ export default function CommandsPage() {
                     Nenhum comando enviado ainda
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-1">
-                    Comandos tamb├®m podem ser enviados pela tela do mapa
+                    Comandos também podem ser enviados pela tela do mapa
                   </p>
                 </div>
               )}
@@ -684,13 +684,13 @@ export default function CommandsPage() {
             </div>
             <div>
               <h4 className="font-bold text-yellow-900 dark:text-yellow-200 mb-1">
-                Aten├º├úo ao enviar comandos
+                Atenção ao enviar comandos
               </h4>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                Os comandos de bloqueio podem afetar o funcionamento do ve├¡culo.
-                Use com cautela e apenas quando necess├írio. Certifique-se de que
-                o ve├¡culo est├í em local seguro antes de enviar comandos de
-                bloqueio. Se o ve├¡culo estiver offline, o comando ser├í
+                Os comandos de bloqueio podem afetar o funcionamento do veículo.
+                Use com cautela e apenas quando necessário. Certifique-se de que
+                o veículo está em local seguro antes de enviar comandos de
+                bloqueio. Se o veículo estiver offline, o comando será
                 enfileirado e enviado assim que reconectar.
               </p>
             </div>

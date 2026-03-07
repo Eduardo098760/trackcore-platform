@@ -1,7 +1,7 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Moon, Sun, LogOut, User, Settings, UserCheck, Loader2, Search } from 'lucide-react';
+import { Bell, Moon, Sun, LogOut, User, Settings, UserCheck, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter, usePathname } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -69,7 +69,7 @@ export function Header() {
     return routes[pathname] || '';
   })();
 
-  // Query para buscar notifica├º├Áes n├úo lidas
+  // Query para buscar notificações não lidas
   const { data: notifications = [] } = useQuery({
     queryKey: ['inAppNotifications'],
     queryFn: async () => {
@@ -82,13 +82,13 @@ export function Header() {
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   // Listener SEMPRE ATIVO (Header nunca desmonta) para atualizar badge e cache
-  // assim que uma notifica├º├úo ├® criada ou limpada (troca de usu├írio / logout)
+  // assim que uma notificação é criada ou limpada (troca de usuário / logout)
   useEffect(() => {
     const handleNewNotification = () => {
       queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
     };
     const handleCleared = () => {
-      // Remove imediatamente do cache sem buscar localStorage (j├í foi apagado)
+      // Remove imediatamente do cache sem buscar localStorage (já foi apagado)
       queryClient.setQueryData(['inAppNotifications'], []);
     };
     window.addEventListener('notificationAdded', handleNewNotification);
@@ -119,12 +119,12 @@ export function Header() {
     const labels: Record<string, string> = {
       admin:          'Administrador',
       manager:        'Gerente',
-      user:           'Usu├írio',
+      user:           'Usuário',
       readonly:       'Somente Leitura',
       deviceReadonly: 'Leit. Dispositivos',
       // retrocompat
       superadmin: 'Administrador',
-      operator:   'Usu├írio',
+      operator:   'Usuário',
       client:     'Somente Leitura',
     };
     return labels[role] || role;
@@ -132,15 +132,15 @@ export function Header() {
 
   return (
     <>
-      {/* Banner de impersona├º├úo ÔÇö aparece quando admin entra como outro usu├írio */}
+      {/* Banner de impersonação — aparece quando admin entra como outro usuário */}
       {isImpersonating && (
         <div className="flex items-center justify-between px-4 py-1.5 bg-amber-500 text-amber-950 text-sm font-medium z-50">
           <div className="flex items-center gap-2">
             <UserCheck className="w-4 h-4 shrink-0" />
             <span>
-              Voc├¬ est├í visualizando como <strong>{user?.name}</strong>
+              Você está visualizando como <strong>{user?.name}</strong>
               {adminSnapshot?.user?.name && (
-                <span className="font-normal opacity-75"> ┬À Admin: {adminSnapshot.user.name}</span>
+                <span className="font-normal opacity-75"> · Admin: {adminSnapshot.user.name}</span>
               )}
             </span>
           </div>
@@ -221,7 +221,7 @@ export function Header() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
-              <span>Configura├º├Áes</span>
+              <span>Configurações</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
