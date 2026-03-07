@@ -111,22 +111,17 @@ export function Sidebar() {
   return (
     // Sidebar recolhida (w-16) e expande (w-64) no hover, ajustando o layout ao redor
     <div className="hidden lg:flex lg:flex-shrink-0">
-      <div className="group/sidebar flex flex-col h-full w-20 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/10 bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
+      <div className="group/sidebar flex flex-col h-full w-20 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/[0.06] bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
         {/* Logo */}
-        <div className="relative flex items-center justify-center h-20 border-b border-white/10">
-          <div
-            className="absolute inset-0 opacity-10"
-            style={{ background: `hsl(${colors.primary.light})` }}
-          ></div>
-
+        <div className="relative flex items-center justify-center h-14 border-b border-white/[0.06]">
           {/* Logo fechado (collapsed) */}
           <div className="relative flex items-center justify-center w-full h-full group-hover/sidebar:opacity-0 group-hover/sidebar:scale-95 transition-all duration-200">
             <Image
               src={tenant?.faviconUrl || "/logos/rastrear-favicon.ico"}
               alt="Logo compacta"
-              width={80}
-              height={80}
-              className="shadow-lg"
+              width={48}
+              height={48}
+              className="drop-shadow-lg"
             />
           </div>
 
@@ -135,9 +130,9 @@ export function Sidebar() {
             <Image
               src={tenant?.logoUrl || "/logos/rastrear-logo.svg"}
               alt={tenant?.companyName || "Logo"}
-              width={240}
-              height={80}
-              className="shadow-lg"
+              width={180}
+              height={48}
+              className="drop-shadow-lg"
             />
           </div>
         </div>

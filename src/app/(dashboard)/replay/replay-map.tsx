@@ -102,7 +102,7 @@ export default function ReplayMap({
   });
 
   return (
-    <MapContainer center={center} zoom={14} style={{ width: '100%', height: '100%' }}>
+    <MapContainer center={center} zoom={14} style={{ width: '100%', height: '100%', background: '#0a0f1a' }}>
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; OpenStreetMap contributors &copy; CARTO'

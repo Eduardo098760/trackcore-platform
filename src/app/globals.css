@@ -64,10 +64,22 @@
 }
 .leaflet-container {
   /* Evita tela branca quando tiles ainda não carregaram */
-  background: hsl(var(--background));
+  background: #0a0f1a !important;
+}
+/* Evita flash branco entre tiles e durante zoom/pan */
+.leaflet-tile-pane {
+  background: #0a0f1a;
+}
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-fade-anim .leaflet-popup {
+  transition: opacity 0.15s linear !important;
+}
+.leaflet-tile {
+  background: transparent;
 }
 .leaflet-map-quality .leaflet-tile-container img {
   image-rendering: auto;
+  backface-visibility: hidden;
 }
 @media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 1.5dppx) {
   .leaflet-map-quality .leaflet-tile-container img {

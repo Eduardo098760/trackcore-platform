@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -28,35 +28,29 @@ import {
   FileText,
   ChevronDown,
 } from "lucide-react";
-<<<<<<< HEAD
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
 import { Command, Device } from "@/types";
-=======
-import { formatDate } from "@/lib/utils";
-import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Command } from "@/types";
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
 
-// ─── Constantes de tipos de comando ──────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Constantes de tipos de comando ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 const COMMAND_TYPES = [
   {
     value: "positionSingle",
-    label: "Solicitar Posição",
-    description: "Solicita a posição atual do rastreador",
+    label: "Solicitar Posi├º├úo",
+    description: "Solicita a posi├º├úo atual do rastreador",
     icon: MapPin,
     dangerous: false,
   },
   {
     value: "engineStop",
-    label: "Bloquear Veículo",
-    description: "Corta a alimentação do motor remotamente",
+    label: "Bloquear Ve├¡culo",
+    description: "Corta a alimenta├º├úo do motor remotamente",
     icon: Lock,
     dangerous: true,
   },
   {
     value: "engineResume",
-    label: "Desbloquear Veículo",
-    description: "Restaura a alimentação do motor",
+    label: "Desbloquear Ve├¡culo",
+    description: "Restaura a alimenta├º├úo do motor",
     icon: Unlock,
     dangerous: false,
   },
@@ -76,7 +70,7 @@ const COMMAND_TYPES = [
   },
 ];
 
-// ─── Histórico local (localStorage) ─────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Hist├│rico local (localStorage) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 const STORAGE_KEY = "commandHistory";
 const MAX_HISTORY = 50;
 
@@ -100,7 +94,7 @@ function saveHistory(items: Command[]) {
   }
 }
 
-// ─── Componente de busca de veículo ─────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Componente de busca de ve├¡culo ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 function VehicleSearch({
   devices,
   selectedDeviceId,
@@ -155,7 +149,7 @@ function VehicleSearch({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Área do trigger / veículo selecionado */}
+      {/* ├ürea do trigger / ve├¡culo selecionado */}
       {selectedDevice && !isOpen ? (
         <button
           type="button"
@@ -237,7 +231,7 @@ function VehicleSearch({
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-xl max-h-[280px] overflow-y-auto">
           {filtered.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
-              Nenhum veículo encontrado
+              Nenhum ve├¡culo encontrado
             </div>
           ) : (
             filtered.map((device) => {
@@ -267,7 +261,7 @@ function VehicleSearch({
                     <p className="text-xs text-muted-foreground truncate">
                       {[device.plate, device.uniqueId]
                         .filter(Boolean)
-                        .join(" · ")}
+                        .join(" ┬À ")}
                     </p>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">
@@ -283,9 +277,8 @@ function VehicleSearch({
   );
 }
 
-// ─── Página principal ────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ P├ígina principal ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 export default function CommandsPage() {
-  const colors = useTenantColors();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [selectedCommand, setSelectedCommand] = useState<string>("");
   const [customText, setCustomText] = useState("");
@@ -426,7 +419,7 @@ export default function CommandsPage() {
       <PageHeader
         icon={Terminal}
         title="Comandos Remotos"
-        description="Envie comandos para os rastreadores dos veículos. Você também pode enviar pela tela do mapa."
+        description="Envie comandos para os rastreadores dos ve├¡culos. Voc├¬ tamb├®m pode enviar pela tela do mapa."
       />
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -436,11 +429,10 @@ export default function CommandsPage() {
             <CardTitle className="text-xl">Enviar Novo Comando</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Busca de veículo com filtro */}
+            {/* Busca de ve├¡culo com filtro */}
             <div>
-<<<<<<< HEAD
               <label className="text-sm font-medium mb-2 block">
-                Veículo
+                Ve├¡culo
               </label>
               <VehicleSearch
                 devices={devices}
@@ -452,21 +444,6 @@ export default function CommandsPage() {
                   sendCommandMutation.reset();
                 }}
               />
-=======
-              <label className="text-sm font-medium mb-2 block">Selecione o Veículo</label>
-              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-                <SelectTrigger className="bg-white dark:bg-gray-900">
-                  <SelectValue placeholder="Escolha um veículo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {devices.map((device) => (
-                    <SelectItem key={device.id} value={device.id.toString()}>
-                      {device.plate} - {device.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
             </div>
 
             {/* Aviso de offline / fila */}
@@ -476,10 +453,10 @@ export default function CommandsPage() {
                   <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
-                      Veículo offline
+                      Ve├¡culo offline
                     </p>
                     <p className="text-xs text-amber-600 dark:text-amber-300 mt-0.5">
-                      O comando será enfileirado e enviado quando o dispositivo
+                      O comando ser├í enfileirado e enviado quando o dispositivo
                       ficar online.
                     </p>
                   </div>
@@ -487,15 +464,11 @@ export default function CommandsPage() {
               </div>
             )}
 
-            {/* Seleção de comando */}
+            {/* Sele├º├úo de comando */}
             <div>
-<<<<<<< HEAD
               <label className="text-sm font-medium mb-2 block">
                 Comando
               </label>
-=======
-              <label className="text-sm font-medium mb-2 block">Selecione o Comando</label>
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               <div className="grid grid-cols-2 gap-3">
                 {COMMAND_TYPES.map((cmd) => {
                   const Icon = cmd.icon;
@@ -547,12 +520,12 @@ export default function CommandsPage() {
                   className="font-mono text-sm bg-white dark:bg-gray-900"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos binários.
+                  Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos bin├írios.
                 </p>
               </div>
             )}
 
-            {/* Confirmação para comandos perigosos */}
+            {/* Confirma├º├úo para comandos perigosos */}
             {confirmDangerous && (
               <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <div className="flex items-start gap-2">
@@ -562,8 +535,8 @@ export default function CommandsPage() {
                       Tem certeza?
                     </p>
                     <p className="text-xs text-red-600 dark:text-red-300 mt-1">
-                      O comando de bloqueio cortará a alimentação do motor.
-                      Certifique-se de que o veículo está em local seguro.
+                      O comando de bloqueio cortar├í a alimenta├º├úo do motor.
+                      Certifique-se de que o ve├¡culo est├í em local seguro.
                     </p>
                   </div>
                 </div>
@@ -572,7 +545,6 @@ export default function CommandsPage() {
 
             <Button
               onClick={handleSendCommand}
-<<<<<<< HEAD
               disabled={
                 !selectedDeviceId ||
                 !selectedCommand ||
@@ -584,13 +556,6 @@ export default function CommandsPage() {
                   ? "bg-red-600 hover:bg-red-700 text-white"
                   : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               }`}
-=======
-              disabled={!selectedDeviceId || !selectedCommand || sendCommandMutation.isPending}
-              style={{
-                background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-              }}
-              className="w-full text-white hover:shadow-lg transition-shadow"
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               size="lg"
             >
               <Send className="w-4 h-4 mr-2" />
@@ -631,7 +596,7 @@ export default function CommandsPage() {
         {/* Command History (local) */}
         <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl">Histórico de Comandos</CardTitle>
+            <CardTitle className="text-xl">Hist├│rico de Comandos</CardTitle>
             {history.length > 0 && (
               <Button
                 variant="ghost"
@@ -646,7 +611,6 @@ export default function CommandsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-<<<<<<< HEAD
               {history.slice(0, 20).map((command) => {
                 const device = devices.find(
                   (d) => d.id === command.deviceId,
@@ -654,11 +618,6 @@ export default function CommandsPage() {
                 const cmdType = COMMAND_TYPES.find(
                   (ct) => ct.value === command.type,
                 );
-=======
-              {commands.slice(0, 10).map((command) => {
-                const device = devices.find((d) => d.id === command.deviceId);
-                const cmdType = commandTypes.find((ct) => ct.value === command.type);
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
                 const Icon = cmdType?.icon || Terminal;
 
                 return (
@@ -688,8 +647,8 @@ export default function CommandsPage() {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {device
-                            ? `${device.plate ? `${device.plate} · ` : ""}${device.name}`
-                            : `Veículo #${command.deviceId}`}
+                            ? `${device.plate ? `${device.plate} ┬À ` : ""}${device.name}`
+                            : `Ve├¡culo #${command.deviceId}`}
                         </p>
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
                           {formatDate(command.sentTime)}
@@ -707,7 +666,7 @@ export default function CommandsPage() {
                     Nenhum comando enviado ainda
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-1">
-                    Comandos também podem ser enviados pela tela do mapa
+                    Comandos tamb├®m podem ser enviados pela tela do mapa
                   </p>
                 </div>
               )}
@@ -725,20 +684,14 @@ export default function CommandsPage() {
             </div>
             <div>
               <h4 className="font-bold text-yellow-900 dark:text-yellow-200 mb-1">
-                Atenção ao enviar comandos
+                Aten├º├úo ao enviar comandos
               </h4>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
-<<<<<<< HEAD
-                Os comandos de bloqueio podem afetar o funcionamento do veículo.
-                Use com cautela e apenas quando necessário. Certifique-se de que
-                o veículo está em local seguro antes de enviar comandos de
-                bloqueio. Se o veículo estiver offline, o comando será
+                Os comandos de bloqueio podem afetar o funcionamento do ve├¡culo.
+                Use com cautela e apenas quando necess├írio. Certifique-se de que
+                o ve├¡culo est├í em local seguro antes de enviar comandos de
+                bloqueio. Se o ve├¡culo estiver offline, o comando ser├í
                 enfileirado e enviado assim que reconectar.
-=======
-                Os comandos de bloqueio podem afetar o funcionamento do veículo. Use com cautela e
-                apenas quando necessário. Certifique-se de que o veículo está em local seguro antes
-                de enviar comandos de bloqueio.
->>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               </p>
             </div>
           </div>
