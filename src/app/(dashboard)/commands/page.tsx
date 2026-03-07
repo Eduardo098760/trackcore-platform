@@ -28,8 +28,14 @@ import {
   FileText,
   ChevronDown,
 } from "lucide-react";
+<<<<<<< HEAD
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
 import { Command, Device } from "@/types";
+=======
+import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import { Command } from "@/types";
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
 
 // ─── Constantes de tipos de comando ──────────────────────────────────────────
 const COMMAND_TYPES = [
@@ -279,6 +285,7 @@ function VehicleSearch({
 
 // ─── Página principal ────────────────────────────────────────────────────────
 export default function CommandsPage() {
+  const colors = useTenantColors();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [selectedCommand, setSelectedCommand] = useState<string>("");
   const [customText, setCustomText] = useState("");
@@ -431,6 +438,7 @@ export default function CommandsPage() {
           <CardContent className="space-y-4">
             {/* Busca de veículo com filtro */}
             <div>
+<<<<<<< HEAD
               <label className="text-sm font-medium mb-2 block">
                 Veículo
               </label>
@@ -444,6 +452,21 @@ export default function CommandsPage() {
                   sendCommandMutation.reset();
                 }}
               />
+=======
+              <label className="text-sm font-medium mb-2 block">Selecione o Veículo</label>
+              <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+                <SelectTrigger className="bg-white dark:bg-gray-900">
+                  <SelectValue placeholder="Escolha um veículo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map((device) => (
+                    <SelectItem key={device.id} value={device.id.toString()}>
+                      {device.plate} - {device.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
             </div>
 
             {/* Aviso de offline / fila */}
@@ -466,9 +489,13 @@ export default function CommandsPage() {
 
             {/* Seleção de comando */}
             <div>
+<<<<<<< HEAD
               <label className="text-sm font-medium mb-2 block">
                 Comando
               </label>
+=======
+              <label className="text-sm font-medium mb-2 block">Selecione o Comando</label>
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               <div className="grid grid-cols-2 gap-3">
                 {COMMAND_TYPES.map((cmd) => {
                   const Icon = cmd.icon;
@@ -545,6 +572,7 @@ export default function CommandsPage() {
 
             <Button
               onClick={handleSendCommand}
+<<<<<<< HEAD
               disabled={
                 !selectedDeviceId ||
                 !selectedCommand ||
@@ -556,6 +584,13 @@ export default function CommandsPage() {
                   ? "bg-red-600 hover:bg-red-700 text-white"
                   : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               }`}
+=======
+              disabled={!selectedDeviceId || !selectedCommand || sendCommandMutation.isPending}
+              style={{
+                background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+              }}
+              className="w-full text-white hover:shadow-lg transition-shadow"
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               size="lg"
             >
               <Send className="w-4 h-4 mr-2" />
@@ -611,6 +646,7 @@ export default function CommandsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+<<<<<<< HEAD
               {history.slice(0, 20).map((command) => {
                 const device = devices.find(
                   (d) => d.id === command.deviceId,
@@ -618,6 +654,11 @@ export default function CommandsPage() {
                 const cmdType = COMMAND_TYPES.find(
                   (ct) => ct.value === command.type,
                 );
+=======
+              {commands.slice(0, 10).map((command) => {
+                const device = devices.find((d) => d.id === command.deviceId);
+                const cmdType = commandTypes.find((ct) => ct.value === command.type);
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
                 const Icon = cmdType?.icon || Terminal;
 
                 return (
@@ -687,11 +728,17 @@ export default function CommandsPage() {
                 Atenção ao enviar comandos
               </h4>
               <p className="text-sm text-yellow-800 dark:text-yellow-300">
+<<<<<<< HEAD
                 Os comandos de bloqueio podem afetar o funcionamento do veículo.
                 Use com cautela e apenas quando necessário. Certifique-se de que
                 o veículo está em local seguro antes de enviar comandos de
                 bloqueio. Se o veículo estiver offline, o comando será
                 enfileirado e enviado assim que reconectar.
+=======
+                Os comandos de bloqueio podem afetar o funcionamento do veículo. Use com cautela e
+                apenas quando necessário. Certifique-se de que o veículo está em local seguro antes
+                de enviar comandos de bloqueio.
+>>>>>>> 5cf214c69b62058b234ca94fcc2afde0168fdf87
               </p>
             </div>
           </div>

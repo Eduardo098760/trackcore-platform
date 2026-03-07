@@ -21,11 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText,
@@ -42,6 +38,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import {
   BarChart,
   Bar,
@@ -61,10 +58,9 @@ import {
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 export function CompleteReportView() {
+  const colors = useTenantColors();
   const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
-  const [dateFrom, setDateFrom] = useState<Date>(
-    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  );
+  const [dateFrom, setDateFrom] = useState<Date>(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const [dateTo, setDateTo] = useState<Date>(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -141,9 +137,7 @@ export function CompleteReportView() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold mb-2">
-          Relatório Completo do Veículo
-        </h1>
+        <h1 className="text-3xl font-bold mb-2">Relatório Completo do Veículo</h1>
         <p className="text-muted-foreground">
           Histórico detalhado com viagens, paradas, eventos e estatísticas
         </p>
@@ -336,25 +330,27 @@ export function CompleteReportView() {
                       <p className="text-2xl font-bold text-blue-600">
                         {tripsData[0].trips.length}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Total de Viagens
-                      </p>
+                      <p className="text-sm text-muted-foreground">Total de Viagens</p>
                     </div>
                     <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                       <p className="text-2xl font-bold text-green-600">
                         {(tripsData[0].totalDistance / 1000).toFixed(1)} km
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Distância Percorrida
-                      </p>
+                      <p className="text-sm text-muted-foreground">Distância Percorrida</p>
                     </div>
-                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                      <p className="text-2xl font-bold text-purple-600">
+                    <div
+                      className="text-center p-4 rounded-lg"
+                      style={{
+                        background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.05))`,
+                      }}
+                    >
+                      <p
+                        className="text-2xl font-bold"
+                        style={{ color: `hsl(${colors.primary.light})` }}
+                      >
                         {formatDuration(tripsData[0].totalDuration)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Tempo em Movimento
-                      </p>
+                      <p className="text-sm text-muted-foreground">Tempo em Movimento</p>
                     </div>
                   </div>
                 </CardContent>
@@ -372,17 +368,13 @@ export function CompleteReportView() {
                       <p className="text-2xl font-bold text-orange-600">
                         {stopsData[0].totalStops}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Total de Paradas
-                      </p>
+                      <p className="text-sm text-muted-foreground">Total de Paradas</p>
                     </div>
                     <div className="text-center p-4 bg-red-50 dark:bg-red-950 rounded-lg">
                       <p className="text-2xl font-bold text-red-600">
                         {formatDuration(stopsData[0].totalDuration)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Tempo Parado
-                      </p>
+                      <p className="text-sm text-muted-foreground">Tempo Parado</p>
                     </div>
                   </div>
                 </CardContent>
@@ -404,20 +396,14 @@ export function CompleteReportView() {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <p className="font-semibold text-lg">
-                              {format(
-                                new Date(trip.startTime),
-                                "dd/MM/yyyy 'às' HH:mm",
-                                { locale: ptBR },
-                              )}
+                              {format(new Date(trip.startTime), "dd/MM/yyyy 'às' HH:mm", {
+                                locale: ptBR,
+                              })}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              {trip.startAddress}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{trip.startAddress}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm text-muted-foreground">
-                              Término
-                            </p>
+                            <p className="text-sm text-muted-foreground">Término</p>
                             <p className="text-sm font-medium">
                               {format(new Date(trip.endTime), "HH:mm", {
                                 locale: ptBR,
@@ -427,33 +413,23 @@ export function CompleteReportView() {
                         </div>
                         <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t">
                           <div>
-                            <p className="text-xs text-muted-foreground">
-                              Distância
-                            </p>
+                            <p className="text-xs text-muted-foreground">Distância</p>
                             <p className="text-lg font-bold text-green-600">
                               {(trip.distance / 1000).toFixed(1)} km
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">
-                              Duração
-                            </p>
-                            <p className="text-lg font-bold">
-                              {formatDuration(trip.duration)}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Duração</p>
+                            <p className="text-lg font-bold">{formatDuration(trip.duration)}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">
-                              Vel. Máx.
-                            </p>
+                            <p className="text-xs text-muted-foreground">Vel. Máx.</p>
                             <p className="text-lg font-bold text-red-600">
                               {trip.maxSpeed.toFixed(0)} km/h
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">
-                              Vel. Média
-                            </p>
+                            <p className="text-xs text-muted-foreground">Vel. Média</p>
                             <p className="text-lg font-bold text-blue-600">
                               {trip.averageSpeed.toFixed(0)} km/h
                             </p>
@@ -464,14 +440,10 @@ export function CompleteReportView() {
                   </CardContent>
                 </Card>
               ))}
-            {(!tripsData ||
-              tripsData.length === 0 ||
-              tripsData[0].trips.length === 0) && (
+            {(!tripsData || tripsData.length === 0 || tripsData[0].trips.length === 0) && (
               <Card>
                 <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Nenhuma viagem registrada no período
-                  </p>
+                  <p className="text-muted-foreground">Nenhuma viagem registrada no período</p>
                 </CardContent>
               </Card>
             )}
@@ -491,20 +463,14 @@ export function CompleteReportView() {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <p className="font-semibold text-lg">
-                              {format(
-                                new Date(stop.startTime),
-                                "dd/MM/yyyy 'às' HH:mm",
-                                { locale: ptBR },
-                              )}
+                              {format(new Date(stop.startTime), "dd/MM/yyyy 'às' HH:mm", {
+                                locale: ptBR,
+                              })}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              {stop.address}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{stop.address}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm text-muted-foreground">
-                              Término
-                            </p>
+                            <p className="text-sm text-muted-foreground">Término</p>
                             <p className="text-sm font-medium">
                               {format(new Date(stop.endTime), "HH:mm", {
                                 locale: ptBR,
@@ -513,9 +479,7 @@ export function CompleteReportView() {
                           </div>
                         </div>
                         <div className="mt-4 pt-4 border-t">
-                          <p className="text-xs text-muted-foreground">
-                            Duração da Parada
-                          </p>
+                          <p className="text-xs text-muted-foreground">Duração da Parada</p>
                           <p className="text-2xl font-bold text-red-600">
                             {formatDuration(stop.duration)}
                           </p>
@@ -525,14 +489,10 @@ export function CompleteReportView() {
                   </CardContent>
                 </Card>
               ))}
-            {(!stopsData ||
-              stopsData.length === 0 ||
-              stopsData[0].stops.length === 0) && (
+            {(!stopsData || stopsData.length === 0 || stopsData[0].stops.length === 0) && (
               <Card>
                 <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Nenhuma parada registrada no período
-                  </p>
+                  <p className="text-muted-foreground">Nenhuma parada registrada no período</p>
                 </CardContent>
               </Card>
             )}
@@ -548,18 +508,13 @@ export function CompleteReportView() {
                       <div className="flex-1">
                         <p className="font-semibold">{event.type}</p>
                         <p className="text-sm text-muted-foreground">
-                          {format(
-                            new Date(event.serverTime),
-                            "dd/MM/yyyy 'às' HH:mm:ss",
-                            { locale: ptBR },
-                          )}
+                          {format(new Date(event.serverTime), "dd/MM/yyyy 'às' HH:mm:ss", {
+                            locale: ptBR,
+                          })}
                         </p>
-                        {event.attributes &&
-                          Object.keys(event.attributes).length > 0 && (
-                            <div className="mt-2 text-sm">
-                              {JSON.stringify(event.attributes)}
-                            </div>
-                          )}
+                        {event.attributes && Object.keys(event.attributes).length > 0 && (
+                          <div className="mt-2 text-sm">{JSON.stringify(event.attributes)}</div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -568,73 +523,61 @@ export function CompleteReportView() {
             ) : (
               <Card>
                 <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Nenhum evento registrado no período
-                  </p>
+                  <p className="text-muted-foreground">Nenhum evento registrado no período</p>
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
           <TabsContent value="graficos" className="space-y-4 mt-4">
-            {tripsData &&
-              tripsData.length > 0 &&
-              tripsData[0].trips.length > 0 && (
-                <>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Distância por Viagem (km)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={prepareChartData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar
-                            dataKey="distancia"
-                            fill="#3b82f6"
-                            name="Distância (km)"
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+            {tripsData && tripsData.length > 0 && tripsData[0].trips.length > 0 && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Distância por Viagem (km)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={prepareChartData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="distancia" fill="#3b82f6" name="Distância (km)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Velocidade Máxima por Viagem (km/h)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={prepareChartData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Line
-                            type="monotone"
-                            dataKey="velocidade"
-                            stroke="#ef4444"
-                            name="Velocidade (km/h)"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-            {(!tripsData ||
-              tripsData.length === 0 ||
-              tripsData[0].trips.length === 0) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Velocidade Máxima por Viagem (km/h)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={prepareChartData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="velocidade"
+                          stroke="#ef4444"
+                          name="Velocidade (km/h)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+            {(!tripsData || tripsData.length === 0 || tripsData[0].trips.length === 0) && (
               <Card>
                 <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Dados insuficientes para gerar gráficos
-                  </p>
+                  <p className="text-muted-foreground">Dados insuficientes para gerar gráficos</p>
                 </CardContent>
               </Card>
             )}

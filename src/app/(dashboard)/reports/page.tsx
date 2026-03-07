@@ -33,11 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
@@ -55,20 +51,14 @@ import { format, formatDistanceStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 
 // Leaflet (client-only)
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((m) => m.MapContainer),
-  { ssr: false },
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((m) => m.TileLayer),
-  { ssr: false },
-);
-const Polyline = dynamic(
-  () => import("react-leaflet").then((m) => m.Polyline),
-  { ssr: false },
-);
+const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), {
+  ssr: false,
+});
+const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
+const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), {
   ssr: false,
 });
@@ -81,11 +71,10 @@ if (typeof window !== "undefined") L = require("leaflet");
 
 export default function ReportsPage() {
   const queryClient = useQueryClient();
+  const colors = useTenantColors();
   const [reportType, setReportType] = useState<ReportType>("trips");
   const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
-  const [dateFrom, setDateFrom] = useState<Date>(
-    new Date(Date.now() - 24 * 60 * 60 * 1000),
-  ); // Último dia
+  const [dateFrom, setDateFrom] = useState<Date>(new Date(Date.now() - 24 * 60 * 60 * 1000)); // Último dia
   const [dateTo, setDateTo] = useState<Date>(new Date());
   const [isGenerating, setIsGenerating] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
@@ -153,9 +142,7 @@ export default function ReportsPage() {
       return;
     }
 
-    const diffDays = Math.ceil(
-      (dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    const diffDays = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays > 7) {
       toast.warning(
         `Período de ${diffDays} dias pode demorar bastante. Considere usar no máximo 7 dias.`,
@@ -194,10 +181,7 @@ export default function ReportsPage() {
       }
 
       // Rota completa
-      const fullPolyline: [number, number][] = positions.map((p) => [
-        p.latitude,
-        p.longitude,
-      ]);
+      const fullPolyline: [number, number][] = positions.map((p) => [p.latitude, p.longitude]);
 
       // Filtrar posicoes acima do limite
       const above = positions.filter((p) => (p.speed ?? 0) >= minSpeed);
@@ -212,12 +196,9 @@ export default function ReportsPage() {
           current.push(above[i]);
         } else {
           const prev = new Date(
-            current[current.length - 1].fixTime ||
-              current[current.length - 1].serverTime,
+            current[current.length - 1].fixTime || current[current.length - 1].serverTime,
           ).getTime();
-          const cur = new Date(
-            above[i].fixTime || above[i].serverTime,
-          ).getTime();
+          const cur = new Date(above[i].fixTime || above[i].serverTime).getTime();
           if (cur - prev <= GAP_MS) {
             current.push(above[i]);
           } else {
@@ -226,13 +207,10 @@ export default function ReportsPage() {
           }
         }
       }
-      if (current.length > 0)
-        segments.push(buildSegment(segments.length, current));
+      if (current.length > 0) segments.push(buildSegment(segments.length, current));
 
       if (segments.length === 0) {
-        toast.warning(
-          `Nenhum trecho com velocidade ≥ ${minSpeed} km/h encontrado`,
-        );
+        toast.warning(`Nenhum trecho com velocidade ≥ ${minSpeed} km/h encontrado`);
       } else {
         toast.success(
           `${segments.length} trecho(s) encontrado(s) com velocidade ≥ ${minSpeed} km/h`,
@@ -243,17 +221,14 @@ export default function ReportsPage() {
         allPositions: positions,
         segments,
         fullPolyline,
-        deviceName:
-          device?.name || device?.plate || `Veículo #${selectedDevices[0]}`,
+        deviceName: device?.name || device?.plate || `Veículo #${selectedDevices[0]}`,
       });
     } catch (err: any) {
       clearTimeout(clientTimeout);
       if (err?.name === "AbortError") return; // cancelado pelo usuário, sem toast
       const msg = err?.message || "desconhecido";
       if (msg.includes("Timeout") || msg.includes("504")) {
-        toast.error(
-          "Tempo esgotado. Reduza o período selecionado e tente novamente.",
-        );
+        toast.error("Tempo esgotado. Reduza o período selecionado e tente novamente.");
       } else {
         toast.error("Erro ao buscar histórico: " + msg);
       }
@@ -264,15 +239,11 @@ export default function ReportsPage() {
     }
   };
 
-  function buildSegment(
-    index: number,
-    positions: RoutePosition[],
-  ): SpeedSegment {
+  function buildSegment(index: number, positions: RoutePosition[]): SpeedSegment {
     const speeds = positions.map((p) => p.speed ?? 0);
     const startTime = positions[0].fixTime || positions[0].serverTime;
     const endTime =
-      positions[positions.length - 1].fixTime ||
-      positions[positions.length - 1].serverTime;
+      positions[positions.length - 1].fixTime || positions[positions.length - 1].serverTime;
     const durationSeconds = Math.round(
       (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000,
     );
@@ -284,9 +255,7 @@ export default function ReportsPage() {
       maxSpeed: Math.max(...speeds),
       avgSpeed: Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length),
       positions,
-      polyline: positions.map(
-        (p) => [p.latitude, p.longitude] as [number, number],
-      ),
+      polyline: positions.map((p) => [p.latitude, p.longitude] as [number, number]),
       startLatLng: [positions[0].latitude, positions[0].longitude],
       endLatLng: [
         positions[positions.length - 1].latitude,
@@ -319,10 +288,7 @@ export default function ReportsPage() {
       type: reportType,
     };
 
-    console.log(
-      "[handleGenerateReport] Filter:",
-      JSON.stringify(filter, null, 2),
-    );
+    console.log("[handleGenerateReport] Filter:", JSON.stringify(filter, null, 2));
 
     try {
       let data;
@@ -344,12 +310,7 @@ export default function ReportsPage() {
       if (!data || (Array.isArray(data) && data.length === 0)) {
         toast.warning("Nenhum dado encontrado para o período selecionado");
         setReportData(null);
-      } else if (
-        Array.isArray(data) &&
-        data[0] &&
-        data[0].trips &&
-        data[0].trips.length === 0
-      ) {
+      } else if (Array.isArray(data) && data[0] && data[0].trips && data[0].trips.length === 0) {
         toast.warning(
           "Nenhuma viagem encontrada para o período selecionado. Tente um período diferente.",
         );
@@ -361,9 +322,7 @@ export default function ReportsPage() {
     } catch (error: any) {
       console.error("[handleGenerateReport] Erro ao gerar relatório:", error);
       console.error("[handleGenerateReport] Stack:", error.stack);
-      toast.error(
-        "Erro ao gerar relatório: " + (error.message || "Erro desconhecido"),
-      );
+      toast.error("Erro ao gerar relatório: " + (error.message || "Erro desconhecido"));
     } finally {
       setIsGenerating(false);
     }
@@ -385,9 +344,7 @@ export default function ReportsPage() {
       a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.html`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success(
-        "Relatório exportado! Abra o arquivo e use Ctrl+P para salvar como PDF.",
-      );
+      toast.success("Relatório exportado! Abra o arquivo e use Ctrl+P para salvar como PDF.");
     } catch (error) {
       toast.error("Erro ao exportar PDF");
     }
@@ -512,18 +469,14 @@ export default function ReportsPage() {
                     ))
                   ) : (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      {isLoadingDevices
-                        ? "Carregando..."
-                        : "Nenhum veículo disponível"}
+                      {isLoadingDevices ? "Carregando..." : "Nenhum veículo disponível"}
                     </div>
                   )}
                 </SelectContent>
               </Select>
               {devicesError && (
                 <div className="flex items-center gap-2 mt-1">
-                  <p className="text-xs text-red-500">
-                    Erro ao carregar veículos.
-                  </p>
+                  <p className="text-xs text-red-500">Erro ao carregar veículos.</p>
                   <Button
                     variant="link"
                     size="sm"
@@ -548,9 +501,7 @@ export default function ReportsPage() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom
-                      ? format(dateFrom, "PPP", { locale: ptBR })
-                      : "Selecione"}
+                    {dateFrom ? format(dateFrom, "PPP", { locale: ptBR }) : "Selecione"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -576,9 +527,7 @@ export default function ReportsPage() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo
-                      ? format(dateTo, "PPP", { locale: ptBR })
-                      : "Selecione"}
+                    {dateTo ? format(dateTo, "PPP", { locale: ptBR }) : "Selecione"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -627,11 +576,7 @@ export default function ReportsPage() {
                 </Button>
                 {isAnalyzingSpeed && (
                   <>
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={handleCancelAnalysis}
-                    >
+                    <Button variant="outline" size="lg" onClick={handleCancelAnalysis}>
                       Cancelar
                     </Button>
                     <span className="text-xs text-muted-foreground animate-pulse self-center">
@@ -689,9 +634,7 @@ export default function ReportsPage() {
           <CardContent className="space-y-6">
             {!reportData || (reportData as TripReport[]).length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">
-                  Nenhum dado retornado pela API
-                </p>
+                <p className="text-lg text-muted-foreground">Nenhum dado retornado pela API</p>
                 <p className="text-sm text-muted-foreground mt-2">
                   Verifique o console para mais detalhes
                 </p>
@@ -700,31 +643,31 @@ export default function ReportsPage() {
               (reportData as TripReport[]).map((deviceReport) => (
                 <div key={deviceReport.deviceId} className="space-y-4">
                   <div className="border-b pb-4">
-                    <h3 className="text-lg font-semibold mb-3">
-                      {deviceReport.deviceName}
-                    </h3>
+                    <h3 className="text-lg font-semibold mb-3">{deviceReport.deviceName}</h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Total de Viagens
-                        </p>
+                        <p className="text-sm text-muted-foreground mb-1">Total de Viagens</p>
                         <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                           {deviceReport.trips?.length ?? 0}
                         </p>
                       </div>
                       <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Distância Total
-                        </p>
+                        <p className="text-sm text-muted-foreground mb-1">Distância Total</p>
                         <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                           {(deviceReport.totalDistance / 1000).toFixed(1)} km
                         </p>
                       </div>
-                      <div className="bg-purple-50 dark:bg-purple-950 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Velocidade Média
-                        </p>
-                        <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      <div
+                        className="p-4 rounded-lg"
+                        style={{
+                          background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.05))`,
+                        }}
+                      >
+                        <p className="text-sm text-muted-foreground mb-1">Velocidade Média</p>
+                        <p
+                          className="text-3xl font-bold"
+                          style={{ color: `hsl(${colors.primary.light})` }}
+                        >
                           {deviceReport.averageSpeed.toFixed(0)} km/h
                         </p>
                       </div>
@@ -736,8 +679,7 @@ export default function ReportsPage() {
                       Detalhes das Viagens
                     </h4>
                     <div className="mb-2 text-xs text-muted-foreground">
-                      Total de trips neste device:{" "}
-                      {deviceReport.trips?.length || 0}
+                      Total de trips neste device: {deviceReport.trips?.length || 0}
                     </div>
                     {!deviceReport.trips || deviceReport.trips.length === 0 ? (
                       <div className="text-center py-8 border rounded-lg bg-yellow-50 dark:bg-yellow-950">
@@ -745,8 +687,8 @@ export default function ReportsPage() {
                           ⚠️ Nenhuma viagem registrada no período selecionado
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
-                          Tente selecionar um período diferente ou verifique se
-                          o veículo teve movimentação
+                          Tente selecionar um período diferente ou verifique se o veículo teve
+                          movimentação
                         </p>
                       </div>
                     ) : (
@@ -771,18 +713,13 @@ export default function ReportsPage() {
                                 })()}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                <span className="font-medium text-foreground/70">
-                                  De:
-                                </span>{" "}
+                                <span className="font-medium text-foreground/70">De:</span>{" "}
                                 {trip.startPosition?.address || "Desconhecido"}
                               </p>
                               {trip.endPosition?.address &&
-                                trip.endPosition.address !==
-                                  trip.startPosition?.address && (
+                                trip.endPosition.address !== trip.startPosition?.address && (
                                   <p className="text-xs text-muted-foreground mt-0.5">
-                                    <span className="font-medium text-foreground/70">
-                                      Para:
-                                    </span>{" "}
+                                    <span className="font-medium text-foreground/70">Para:</span>{" "}
                                     {trip.endPosition.address}
                                   </p>
                                 )}
@@ -790,25 +727,19 @@ export default function ReportsPage() {
                           </div>
                           <div className="flex gap-6 text-sm">
                             <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                Distância
-                              </p>
+                              <p className="text-xs text-muted-foreground mb-1">Distância</p>
                               <p className="font-semibold">
                                 {((trip.distance || 0) / 1000).toFixed(1)} km
                               </p>
                             </div>
                             <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                Duração
-                              </p>
+                              <p className="text-xs text-muted-foreground mb-1">Duração</p>
                               <p className="font-semibold">
                                 {formatDuration(Number(trip.duration) || 0)}
                               </p>
                             </div>
                             <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">
-                                Vel. Máx.
-                              </p>
+                              <p className="text-xs text-muted-foreground mb-1">Vel. Máx.</p>
                               <p className="font-semibold">
                                 {(Number(trip.maxSpeed) || 0).toFixed(0)} km/h
                               </p>
@@ -838,22 +769,16 @@ export default function ReportsPage() {
             {(reportData as StopReport[]).map((deviceReport) => (
               <div key={deviceReport.deviceId} className="space-y-4">
                 <div className="border-b pb-4">
-                  <h3 className="text-lg font-semibold mb-3">
-                    {deviceReport.deviceName}
-                  </h3>
+                  <h3 className="text-lg font-semibold mb-3">{deviceReport.deviceName}</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Total de Paradas
-                      </p>
+                      <p className="text-sm text-muted-foreground mb-1">Total de Paradas</p>
                       <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
                         {deviceReport.totalStops}
                       </p>
                     </div>
                     <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Tempo Total Parado
-                      </p>
+                      <p className="text-sm text-muted-foreground mb-1">Tempo Total Parado</p>
                       <p className="text-3xl font-bold text-red-600 dark:text-red-400">
                         {formatDuration(deviceReport.totalDuration)}
                       </p>
@@ -876,24 +801,16 @@ export default function ReportsPage() {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-semibold mb-1">
-                            {format(
-                              new Date(stop.startTime),
-                              "dd/MM/yyyy 'às' HH:mm",
-                              { locale: ptBR },
-                            )}
+                            {format(new Date(stop.startTime), "dd/MM/yyyy 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {stop.address}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{stop.address}</p>
                         </div>
                       </div>
                       <div className="text-center">
-                        <p className="text-xs text-muted-foreground mb-1">
-                          Duração
-                        </p>
-                        <p className="font-semibold">
-                          {formatDuration(stop.duration)}
-                        </p>
+                        <p className="text-xs text-muted-foreground mb-1">Duração</p>
+                        <p className="font-semibold">{formatDuration(stop.duration)}</p>
                       </div>
                     </div>
                   ))}
@@ -931,9 +848,7 @@ export default function ReportsPage() {
                         <Clock className="h-5 w-5 text-yellow-600" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold mb-1">
-                          {event.type}
-                        </p>
+                        <p className="text-sm font-semibold mb-1">{event.type}</p>
                         <p className="text-xs text-muted-foreground">
                           {(() => {
                             const d = safeParseDate(event.serverTime);
@@ -975,49 +890,44 @@ export default function ReportsPage() {
               </div>
             ) : (
               (reportData as any[]).map((item: any) => (
-                <div
-                  key={item.deviceId}
-                  className="border rounded-lg p-4 space-y-3"
-                >
+                <div key={item.deviceId} className="border rounded-lg p-4 space-y-3">
                   <h3 className="text-lg font-semibold">{item.deviceName}</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Distância
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-1">Distância</p>
                       <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
                         {((item.distance || 0) / 1000).toFixed(1)} km
                       </p>
                     </div>
                     <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Vel. Média
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-1">Vel. Média</p>
                       <p className="text-xl font-bold text-green-600 dark:text-green-400">
                         {(item.averageSpeed || 0).toFixed(0)} km/h
                       </p>
                     </div>
                     <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Vel. Máxima
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-1">Vel. Máxima</p>
                       <p className="text-xl font-bold text-red-600 dark:text-red-400">
                         {(item.maxSpeed || 0).toFixed(0)} km/h
                       </p>
                     </div>
                     <div className="bg-orange-50 dark:bg-orange-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Horas Motor
-                      </p>
+                      <p className="text-xs text-muted-foreground mb-1">Horas Motor</p>
                       <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
                         {(item.engineHours || 0).toFixed(1)} h
                       </p>
                     </div>
-                    <div className="bg-purple-50 dark:bg-purple-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Combustível
-                      </p>
-                      <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                    <div
+                      className="p-3 rounded-lg text-center"
+                      style={{
+                        background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.05))`,
+                      }}
+                    >
+                      <p className="text-xs text-muted-foreground mb-1">Combustível</p>
+                      <p
+                        className="text-xl font-bold"
+                        style={{ color: `hsl(${colors.primary.light})` }}
+                      >
                         {(item.spentFuel || 0).toFixed(1)} L
                       </p>
                     </div>
@@ -1040,12 +950,8 @@ export default function ReportsPage() {
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
                   Trechos encontrados
                 </div>
-                <p className="text-3xl font-bold">
-                  {speedResult.segments.length}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  acima de {minSpeed} km/h
-                </p>
+                <p className="text-3xl font-bold">{speedResult.segments.length}</p>
+                <p className="text-xs text-muted-foreground">acima de {minSpeed} km/h</p>
               </CardContent>
             </Card>
             <Card>
@@ -1056,9 +962,7 @@ export default function ReportsPage() {
                 </div>
                 <p className="text-3xl font-bold text-red-500">
                   {speedResult.segments.length > 0
-                    ? Math.max(
-                        ...speedResult.segments.map((s) => s.maxSpeed),
-                      ).toFixed(0)
+                    ? Math.max(...speedResult.segments.map((s) => s.maxSpeed)).toFixed(0)
                     : "—"}{" "}
                   km/h
                 </p>
@@ -1091,12 +995,8 @@ export default function ReportsPage() {
                   <TrendingUp className="w-4 h-4 text-blue-500" />
                   Posições no período
                 </div>
-                <p className="text-3xl font-bold">
-                  {speedResult.allPositions.length}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {speedResult.deviceName}
-                </p>
+                <p className="text-3xl font-bold">{speedResult.allPositions.length}</p>
+                <p className="text-xs text-muted-foreground">{speedResult.deviceName}</p>
               </CardContent>
             </Card>
           </div>
@@ -1115,58 +1015,55 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="h-[480px] w-full rounded-b-lg overflow-hidden">
-                {typeof window !== "undefined" &&
-                  speedResult.fullPolyline.length > 0 && (
-                    <MapContainer
-                      center={
-                        speedResult.fullPolyline[
-                          Math.floor(speedResult.fullPolyline.length / 2)
-                        ]
-                      }
-                      zoom={13}
-                      style={{ width: "100%", height: "100%" }}
-                      scrollWheelZoom
-                    >
-                      <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-                        attribution="&copy; OpenStreetMap &copy; CARTO"
-                        subdomains="abcd"
-                      />
+                {typeof window !== "undefined" && speedResult.fullPolyline.length > 0 && (
+                  <MapContainer
+                    center={
+                      speedResult.fullPolyline[Math.floor(speedResult.fullPolyline.length / 2)]
+                    }
+                    zoom={13}
+                    style={{ width: "100%", height: "100%" }}
+                    scrollWheelZoom
+                  >
+                    <TileLayer
+                      url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+                      attribution="&copy; OpenStreetMap &copy; CARTO"
+                      subdomains="abcd"
+                    />
 
-                      {/* Rota completa — cinza discreto */}
+                    {/* Rota completa — cinza discreto */}
+                    <Polyline
+                      positions={speedResult.fullPolyline}
+                      pathOptions={{
+                        color: "#475569",
+                        weight: 2,
+                        opacity: 0.5,
+                      }}
+                    />
+
+                    {/* Segmentos em excesso — vermelho/âmbar destacado */}
+                    {speedResult.segments.map((seg, i) => (
                       <Polyline
-                        positions={speedResult.fullPolyline}
+                        key={i}
+                        positions={seg.polyline}
                         pathOptions={{
-                          color: "#475569",
-                          weight: 2,
-                          opacity: 0.5,
+                          color: "#ef4444",
+                          weight: 5,
+                          opacity: 0.9,
+                          lineCap: "round",
+                          lineJoin: "round",
                         }}
                       />
+                    ))}
 
-                      {/* Segmentos em excesso — vermelho/âmbar destacado */}
-                      {speedResult.segments.map((seg, i) => (
-                        <Polyline
-                          key={i}
-                          positions={seg.polyline}
-                          pathOptions={{
-                            color: "#ef4444",
-                            weight: 5,
-                            opacity: 0.9,
-                            lineCap: "round",
-                            lineJoin: "round",
-                          }}
-                        />
-                      ))}
-
-                      {/* Marcador no início de cada segmento */}
-                      {L &&
-                        speedResult.segments.map((seg, i) => (
-                          <Marker
-                            key={`m-${i}`}
-                            position={seg.startLatLng}
-                            icon={L.divIcon({
-                              className: "",
-                              html: `<div style="
+                    {/* Marcador no início de cada segmento */}
+                    {L &&
+                      speedResult.segments.map((seg, i) => (
+                        <Marker
+                          key={`m-${i}`}
+                          position={seg.startLatLng}
+                          icon={L.divIcon({
+                            className: "",
+                            html: `<div style="
                             background:rgba(17,24,39,0.95);
                             border:1.5px solid rgba(255,255,255,0.15);
                             border-radius:8px;
@@ -1177,101 +1074,90 @@ export default function ReportsPage() {
                             white-space:nowrap;
                             box-shadow:0 2px 8px rgba(0,0,0,0.5);
                           ">${seg.maxSpeed.toFixed(0)} km/h</div>`,
-                              iconSize: [72, 24],
-                              iconAnchor: [36, 12],
-                            })}
-                          >
-                            <Popup>
+                            iconSize: [72, 24],
+                            iconAnchor: [36, 12],
+                          })}
+                        >
+                          <Popup>
+                            <div
+                              style={{
+                                fontFamily: "system-ui",
+                                background: "rgba(17,24,39,0.97)",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 10,
+                                margin: "-14px -20px",
+                                minWidth: 200,
+                                overflow: "hidden",
+                              }}
+                            >
                               <div
                                 style={{
-                                  fontFamily: "system-ui",
-                                  background: "rgba(17,24,39,0.97)",
-                                  border: "1px solid rgba(255,255,255,0.1)",
-                                  borderRadius: 10,
-                                  margin: "-14px -20px",
-                                  minWidth: 200,
-                                  overflow: "hidden",
+                                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                                  padding: "8px 14px",
                                 }}
                               >
-                                <div
+                                <span
                                   style={{
-                                    borderBottom:
-                                      "1px solid rgba(255,255,255,0.08)",
-                                    padding: "8px 14px",
+                                    fontWeight: 600,
+                                    fontSize: 12,
+                                    color: "#fbbf24",
+                                    textTransform: "uppercase",
+                                    letterSpacing: 0.4,
                                   }}
                                 >
-                                  <span
-                                    style={{
-                                      fontWeight: 600,
-                                      fontSize: 12,
-                                      color: "#fbbf24",
-                                      textTransform: "uppercase",
-                                      letterSpacing: 0.4,
-                                    }}
-                                  >
-                                    Trecho #{i + 1}
-                                  </span>
+                                  Trecho #{i + 1}
+                                </span>
+                              </div>
+                              <div
+                                style={{
+                                  padding: "10px 14px 12px",
+                                  fontSize: 12,
+                                  color: "#e2e8f0",
+                                }}
+                              >
+                                <div style={{ marginBottom: 6 }}>
+                                  <span style={{ color: "#64748b" }}>Início:</span>{" "}
+                                  {format(new Date(seg.startTime), "dd/MM/yyyy HH:mm:ss", {
+                                    locale: ptBR,
+                                  })}
+                                </div>
+                                <div style={{ marginBottom: 6 }}>
+                                  <span style={{ color: "#64748b" }}>Fim:</span>{" "}
+                                  {format(new Date(seg.endTime), "HH:mm:ss", {
+                                    locale: ptBR,
+                                  })}
                                 </div>
                                 <div
                                   style={{
-                                    padding: "10px 14px 12px",
-                                    fontSize: 12,
-                                    color: "#e2e8f0",
+                                    display: "flex",
+                                    gap: 12,
+                                    marginBottom: 6,
                                   }}
                                 >
-                                  <div style={{ marginBottom: 6 }}>
-                                    <span style={{ color: "#64748b" }}>
-                                      Início:
-                                    </span>{" "}
-                                    {format(
-                                      new Date(seg.startTime),
-                                      "dd/MM/yyyy HH:mm:ss",
-                                      { locale: ptBR },
-                                    )}
+                                  <div>
+                                    <span style={{ color: "#64748b" }}>Vel. máx:</span>{" "}
+                                    <strong style={{ color: "#ef4444" }}>
+                                      {seg.maxSpeed.toFixed(0)} km/h
+                                    </strong>
                                   </div>
-                                  <div style={{ marginBottom: 6 }}>
-                                    <span style={{ color: "#64748b" }}>
-                                      Fim:
-                                    </span>{" "}
-                                    {format(new Date(seg.endTime), "HH:mm:ss", {
-                                      locale: ptBR,
-                                    })}
+                                  <div>
+                                    <span style={{ color: "#64748b" }}>Média:</span> {seg.avgSpeed}{" "}
+                                    km/h
                                   </div>
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      gap: 12,
-                                      marginBottom: 6,
-                                    }}
-                                  >
-                                    <div>
-                                      <span style={{ color: "#64748b" }}>
-                                        Vel. máx:
-                                      </span>{" "}
-                                      <strong style={{ color: "#ef4444" }}>
-                                        {seg.maxSpeed.toFixed(0)} km/h
-                                      </strong>
-                                    </div>
-                                    <div>
-                                      <span style={{ color: "#64748b" }}>
-                                        Média:
-                                      </span>{" "}
-                                      {seg.avgSpeed} km/h
-                                    </div>
-                                  </div>
-                                  <div style={{ color: "#64748b" }}>
-                                    Duração:{" "}
-                                    {seg.durationSeconds >= 60
-                                      ? `${Math.floor(seg.durationSeconds / 60)}m ${seg.durationSeconds % 60}s`
-                                      : `${seg.durationSeconds}s`}
-                                  </div>
+                                </div>
+                                <div style={{ color: "#64748b" }}>
+                                  Duração:{" "}
+                                  {seg.durationSeconds >= 60
+                                    ? `${Math.floor(seg.durationSeconds / 60)}m ${seg.durationSeconds % 60}s`
+                                    : `${seg.durationSeconds}s`}
                                 </div>
                               </div>
-                            </Popup>
-                          </Marker>
-                        ))}
-                    </MapContainer>
-                  )}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                  </MapContainer>
+                )}
                 {speedResult.fullPolyline.length === 0 && (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
                     Nenhuma posição disponível para exibir no mapa
@@ -1285,8 +1171,7 @@ export default function ReportsPage() {
           {speedResult.segments.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                Nenhum trecho com velocidade ≥ {minSpeed} km/h encontrado no
-                período.
+                Nenhum trecho com velocidade ≥ {minSpeed} km/h encontrado no período.
               </CardContent>
             </Card>
           ) : (
@@ -1321,15 +1206,11 @@ export default function ReportsPage() {
                           key={i}
                           className="border-b last:border-0 hover:bg-muted/40 transition-colors"
                         >
-                          <td className="p-3 font-mono text-xs text-muted-foreground">
-                            {i + 1}
-                          </td>
+                          <td className="p-3 font-mono text-xs text-muted-foreground">{i + 1}</td>
                           <td className="p-3 font-medium">
-                            {format(
-                              new Date(seg.startTime),
-                              "dd/MM/yyyy HH:mm:ss",
-                              { locale: ptBR },
-                            )}
+                            {format(new Date(seg.startTime), "dd/MM/yyyy HH:mm:ss", {
+                              locale: ptBR,
+                            })}
                           </td>
                           <td className="p-3 text-muted-foreground">
                             {format(new Date(seg.endTime), "HH:mm:ss", {
@@ -1345,15 +1226,11 @@ export default function ReportsPage() {
                             <span className="font-bold text-red-500">
                               {seg.maxSpeed.toFixed(0)}
                             </span>
-                            <span className="text-xs text-muted-foreground ml-1">
-                              km/h
-                            </span>
+                            <span className="text-xs text-muted-foreground ml-1">km/h</span>
                           </td>
                           <td className="p-3 text-right">
                             <span className="font-medium">{seg.avgSpeed}</span>
-                            <span className="text-xs text-muted-foreground ml-1">
-                              km/h
-                            </span>
+                            <span className="text-xs text-muted-foreground ml-1">km/h</span>
                           </td>
                           <td className="p-3 text-right">
                             <Badge variant="destructive" className="text-xs">
@@ -1361,8 +1238,7 @@ export default function ReportsPage() {
                             </Badge>
                           </td>
                           <td className="p-3 font-mono text-xs text-muted-foreground">
-                            {seg.startLatLng[0].toFixed(5)},{" "}
-                            {seg.startLatLng[1].toFixed(5)}
+                            {seg.startLatLng[0].toFixed(5)}, {seg.startLatLng[1].toFixed(5)}
                           </td>
                         </tr>
                       ))}

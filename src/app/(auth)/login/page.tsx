@@ -1,15 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { login } from '@/lib/api/auth';
-import { useAuthStore } from '@/lib/stores/auth';
-import { Loader2, MapPin, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { login } from "@/lib/api/auth";
+import { useAuthStore } from "@/lib/stores/auth";
+import { useTenant } from "@/lib/hooks/useTenant";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import { Loader2, MapPin, ArrowRight } from "lucide-react";
 
 /* Ícones sociais (outline) */
 function TwitterIcon({ className }: { className?: string }) {
@@ -29,27 +31,29 @@ function FacebookIcon({ className }: { className?: string }) {
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
+  const colors = useTenantColors();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
       const response = await login(email, password);
       queryClient.clear(); // limpa cache de sessão anterior ao trocar de conta
       setAuth(response.user, response.token, response.organization, email, password, rememberMe);
-      router.push('/splash');
+      router.push("/splash");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login');
+      setError(err instanceof Error ? err.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -66,7 +70,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Coluna esquerda - Welcome (desktop) */}
-      <div className="hidden lg:flex lg:w-[42%] relative overflow-hidden bg-primary">
+      <div
+        className="hidden lg:flex lg:w-[42%] relative overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+        }}
+      >
         <div className="absolute inset-0 flex items-center justify-center opacity-20">
           <div className="w-72 h-72 rounded-3xl bg-white/30 rotate-12 translate-x-1/4" />
           <div className="absolute w-56 h-56 rounded-3xl bg-white/20 -rotate-6 -translate-x-1/4 translate-y-1/4" />
@@ -76,18 +85,23 @@ export default function LoginPage() {
             <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 mb-8">
               <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight"> TrackCore</h1>
-            <p className="text-white/95 text-base mt-2 font-normal">
-              Entre para acessar o sistema
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {tenant?.companyName || "TrackCore"}
+            </h1>
+            <p className="text-white/95 text-base mt-2 font-normal">Entre para acessar o sistema</p>
           </div>
         </div>
       </div>
 
       {/* Mobile: barra superior com marca */}
-      <div className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full bg-primary shrink-0 [color:hsl(var(--primary-foreground))]">
+      <div
+        className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full shrink-0 [color:hsl(var(--primary-foreground))]"
+        style={{
+          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+        }}
+      >
         <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
-        <span className="text-xl font-bold">TrackCore</span>
+        <span className="text-xl font-bold">{tenant?.companyName || "TrackCore"}</span>
       </div>
 
       {/* Coluna direita - Formulário */}
@@ -95,12 +109,8 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="bg-card rounded-2xl shadow-xl p-8 sm:p-10 border border-border">
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-foreground">
-                Entrar
-              </h2>
-              <p className="text-muted-foreground text-sm mt-1">
-                Entre para acessar o sistema
-              </p>
+              <h2 className="text-2xl font-bold text-foreground">Entrar</h2>
+              <p className="text-muted-foreground text-sm mt-1">Entre para acessar o sistema</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -138,7 +148,10 @@ export default function LoginPage() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-input bg-background text-primary focus:ring-ring"
                 />
-                <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer text-muted-foreground">
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-normal cursor-pointer text-muted-foreground"
+                >
                   Manter-me conectado
                 </Label>
               </div>
@@ -152,7 +165,10 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
+                style={{
+                  background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+                }}
+                className="w-full h-12 rounded-xl font-semibold text-white hover:shadow-lg transition-shadow focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
               >
                 {loading ? (
                   <>
@@ -168,10 +184,7 @@ export default function LoginPage() {
               </Button>
 
               <div className="text-center">
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:underline"
-                >
+                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
                   Esqueceu sua senha?
                 </Link>
               </div>

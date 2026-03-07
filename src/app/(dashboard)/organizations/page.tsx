@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // API functions
@@ -55,9 +56,7 @@ const getOrganizations = async (): Promise<Organization[]> => {
   return res.json();
 };
 
-const createOrganization = async (
-  data: Partial<Organization>,
-): Promise<Organization> => {
+const createOrganization = async (data: Partial<Organization>): Promise<Organization> => {
   const res = await fetch("/api/organizations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -87,6 +86,7 @@ const deleteOrganization = async (id: number): Promise<void> => {
 
 export default function OrganizationsPage() {
   const queryClient = useQueryClient();
+  const colors = useTenantColors();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -226,11 +226,7 @@ export default function OrganizationsPage() {
         </Badge>
       ),
     };
-    return (
-      variants[status as keyof typeof variants] || (
-        <Badge variant="outline">{status}</Badge>
-      )
-    );
+    return variants[status as keyof typeof variants] || <Badge variant="outline">{status}</Badge>;
   };
 
   const getPlanBadge = (plan: string) => {
@@ -244,17 +240,16 @@ export default function OrganizationsPage() {
       enterprise: (
         <Badge
           variant="outline"
-          className="text-purple-500 border-purple-500/50"
+          style={{
+            color: `hsl(${colors.primary.light})`,
+            borderColor: `hsla(${colors.primary.light}, 0.5)`,
+          }}
         >
           Enterprise
         </Badge>
       ),
     };
-    return (
-      variants[plan as keyof typeof variants] || (
-        <Badge variant="outline">{plan}</Badge>
-      )
-    );
+    return variants[plan as keyof typeof variants] || <Badge variant="outline">{plan}</Badge>;
   };
 
   return (
@@ -360,9 +355,7 @@ export default function OrganizationsPage() {
                       <Input
                         id="name"
                         value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="Ex: Transportadora ABC"
                       />
                     </div>
@@ -389,9 +382,7 @@ export default function OrganizationsPage() {
                       <Input
                         id="domain"
                         value={formData.domain}
-                        onChange={(e) =>
-                          setFormData({ ...formData, domain: e.target.value })
-                        }
+                        onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
                         placeholder="rastreamento.empresa.com.br"
                       />
                     </div>
@@ -399,18 +390,14 @@ export default function OrganizationsPage() {
                       <Label htmlFor="plan">Plano</Label>
                       <Select
                         value={formData.plan}
-                        onValueChange={(v: any) =>
-                          setFormData({ ...formData, plan: v })
-                        }
+                        onValueChange={(v: any) => setFormData({ ...formData, plan: v })}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="basic">Básico</SelectItem>
-                          <SelectItem value="professional">
-                            Profissional
-                          </SelectItem>
+                          <SelectItem value="professional">Profissional</SelectItem>
                           <SelectItem value="enterprise">Enterprise</SelectItem>
                         </SelectContent>
                       </Select>
@@ -419,9 +406,7 @@ export default function OrganizationsPage() {
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
-                        onValueChange={(v: any) =>
-                          setFormData({ ...formData, status: v })
-                        }
+                        onValueChange={(v: any) => setFormData({ ...formData, status: v })}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -463,15 +448,10 @@ export default function OrganizationsPage() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSubmit}>
-                      {editingOrg ? "Atualizar" : "Criar"}
-                    </Button>
+                    <Button onClick={handleSubmit}>{editingOrg ? "Atualizar" : "Criar"}</Button>
                   </div>
                 </div>
               </DialogContent>
@@ -501,10 +481,7 @@ export default function OrganizationsPage() {
               <TableBody>
                 {filteredOrgs.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhuma organização encontrada
                     </TableCell>
                   </TableRow>
@@ -516,9 +493,7 @@ export default function OrganizationsPage() {
                           <Building2 className="w-4 h-4 text-muted-foreground" />
                           <div>
                             <div className="font-medium">{org.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              ID: {org.id}
-                            </div>
+                            <div className="text-xs text-muted-foreground">ID: {org.id}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -556,18 +531,10 @@ export default function OrganizationsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(org)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(org)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(org.id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(org.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
