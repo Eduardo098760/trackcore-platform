@@ -26,6 +26,7 @@ class ApiClient {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       ...config,
     };

@@ -1,52 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { getDevices, getPositions } from "@/lib/api";
+import { getDevices, getPositions, getDeviceRoute } from "@/lib/api";
 import { updateDevice } from "@/lib/api/devices";
-import { Device, Position, VehicleCategory, SpeedAlert } from "@/types";
-import { Card } from "@/components/ui/card";
+import { Device, Position, SpeedAlert } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Navigation,
-  Zap,
-  ZapOff,
-  Circle,
-  Wifi,
-  WifiOff,
-  Edit,
-  Gauge,
-  Car,
-  Calendar,
-  Palette,
-  Phone,
-  Route,
-  ShieldCheck,
-  Tag,
-} from "lucide-react";
-import { formatSpeed, formatDate, getDeviceStatusColor } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { Route, List } from "lucide-react";
 import { getVehicleIconSVG } from "@/lib/vehicle-icons";
-import { getWebSocketClient } from "@/lib/websocket";
+import { bearingDeg } from "@/lib/utils";
 import { getPlannedRouteById, getRouteGeometry } from "@/lib/api/routes";
-import { useSearchStore } from "@/lib/stores/search";
-import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-panel";
+
 import { toast } from "sonner";
 import {
   getGeofences,
@@ -57,13 +24,28 @@ import {
 import { parseWKT } from "@/lib/parse-wkt";
 import type { Geofence } from "@/types";
 
-// Importar Leaflet apenas no cliente
+// Map components
+import { SpeedAlertMarker } from "@/components/map/speed-alert-marker";
+import { MapStatusHeader } from "@/components/map/map-status-header";
+import { MapStyleSelector } from "@/components/map/map-style-selector";
+import { MapToolbar } from "@/components/map/map-toolbar";
+import { VehicleListPanel } from "@/components/map/vehicle-list-panel";
+import { EditVehicleDialog } from "@/components/map/edit-vehicle-dialog";
+import { GeofenceManageDialog } from "@/components/map/geofence-manage-dialog";
+import { SendCommandDialog } from "@/components/map/send-command-dialog";
+import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-panel";
+import { useMapState } from "@/lib/hooks/useMapState";
+import { useMapWebSocket } from "@/lib/hooks/useMapWebSocket";
+import {
+  TILE_LAYERS,
+  getMarkerColor,
+} from "@/components/map/map-constants";
+
+// Leaflet instance (client-only)
 let L: any;
 if (typeof window !== "undefined") {
   L = require("leaflet");
 }
-
-// Importar Leaflet dinamicamente para evitar problemas com SSR
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
   { ssr: false },
@@ -99,473 +81,71 @@ const LeafletPopup = dynamic(
   { ssr: false },
 );
 
-type TileLayerKey = "dark" | "light" | "streets" | "satellite";
-
-const TILE_LAYERS: Record<
-  TileLayerKey,
-  {
-    url: string;
-    attribution: string;
-    label: string;
-    subdomains?: string | string[];
-    maxNativeZoom?: number;
-  }
-> = {
-  dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    label: "Escuro",
-    subdomains: "abcd",
-    // Em alguns ambientes com alta densidade (retina), o Leaflet pode tentar buscar tiles acima do limite.
-    // Mantemos maxNativeZoom 18 para permitir overzoom por scaling e evitar tela "branca".
-    maxNativeZoom: 18,
-  },
-  light: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    label: "Claro",
-    subdomains: "abcd",
-    maxNativeZoom: 18,
-  },
-  streets: {
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    label: "Ruas",
-    subdomains: "abcd",
-    maxNativeZoom: 18,
-  },
-  satellite: {
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Tiles &copy; Esri",
-    label: "Satélite",
-    // Em algumas regiões o Esri não entrega tiles no z=19; usar overzoom evita tela branca.
-    maxNativeZoom: 18,
-  },
-};
-
-// Componente de marcador de excesso de velocidade — FORA do MapPage para
-// evitar que cada re-render crie uma nova referência de função e feche o popup
-function SpeedAlertMarker({ alert }: { alert: SpeedAlert }) {
-  const { useMap } = require("react-leaflet");
-  const map = useMap();
-  if (!L) return null;
-  return (
-    <Marker
-      position={[alert.latitude, alert.longitude]}
-      icon={L.divIcon({
-        className: "speed-alert-icon",
-        html: `<div style="
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          border: 2.5px solid #fff;
-          border-radius: 50%;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 15px;
-          box-shadow: 0 0 0 3px rgba(245,158,11,0.35), 0 3px 10px rgba(0,0,0,0.7);
-        ">&#x26A1;</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-      })}
-    >
-      <LeafletPopup minWidth={270} maxWidth={270} closeButton={false}>
-        <div
-          style={{
-            fontFamily:
-              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            background: "#111827",
-            borderRadius: 12,
-            overflow: "hidden",
-            margin: "-14px -20px",
-            width: 270,
-            border: "1px solid #1a2535",
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              background: "#0d1117",
-              borderLeft: "3px solid #f59e0b",
-              padding: "9px 10px 9px 12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#fbbf24"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "#fbbf24",
-                  letterSpacing: 0.8,
-                  textTransform: "uppercase",
-                }}
-              >
-                Excesso de Velocidade
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                try {
-                  map.closePopup();
-                } catch {
-                  /* ignore */
-                }
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#4b5563",
-                fontSize: 20,
-                lineHeight: 1,
-                padding: "0 4px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 4,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "#cbd5e1";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "#4b5563";
-              }}
-              title="Fechar"
-            >
-              ×
-            </button>
-          </div>
-
-          <div
-            style={{
-              padding: "12px 14px 14px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {/* Nome do veículo + placa */}
-            <div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "#e2e8f0",
-                  lineHeight: 1.3,
-                }}
-              >
-                {alert.vehicleName || alert.deviceName}
-              </div>
-              {alert.vehicleName && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#4b5563",
-                    marginTop: 2,
-                    fontFamily: "monospace",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  {alert.deviceName}
-                </div>
-              )}
-            </div>
-
-            {/* Divisória */}
-            <div style={{ borderTop: "1px solid #1a2335" }} />
-
-            {/* Velocidades lado a lado */}
-            <div style={{ display: "flex", gap: 8 }}>
-              {/* Registrado */}
-              <div
-                style={{
-                  flex: 1,
-                  background: "#0d1117",
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  border: "1px solid #1a2535",
-                  borderTop: "2px solid #f59e0b",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.8,
-                    marginBottom: 4,
-                  }}
-                >
-                  Registrado
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 26,
-                      fontWeight: 800,
-                      color: "#fbbf24",
-                      lineHeight: 1,
-                    }}
-                  >
-                    {alert.speed}
-                  </span>
-                  <span style={{ fontSize: 11, color: "#6b7280" }}>km/h</span>
-                </div>
-              </div>
-
-              {/* Limite definido — sempre visível */}
-              <div
-                style={{
-                  flex: 1,
-                  background: "#0d1117",
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  border: "1px solid #1a2535",
-                  borderTop: "2px solid #2d3a4a",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.8,
-                    marginBottom: 4,
-                  }}
-                >
-                  Limite
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 26,
-                      fontWeight: 800,
-                      color: "#94a3b8",
-                      lineHeight: 1,
-                    }}
-                  >
-                    {alert.speedLimit > 0 ? Math.round(alert.speedLimit) : "—"}
-                  </span>
-                  {alert.speedLimit > 0 && (
-                    <span style={{ fontSize: 11, color: "#6b7280" }}>km/h</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Badge de excesso — sempre visível quando há limite */}
-            {alert.speedLimit > 0 && (
-              <div
-                style={{
-                  background: "rgba(245,158,11,0.08)",
-                  border: "1px solid rgba(245,158,11,0.22)",
-                  borderRadius: 6,
-                  padding: "6px 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  Ultrapassou o limite em
-                </span>
-                <span
-                  style={{ fontSize: 14, fontWeight: 800, color: "#fbbf24" }}
-                >
-                  +{Math.max(0, Math.round(alert.speed - alert.speedLimit))}{" "}
-                  km/h
-                </span>
-              </div>
-            )}
-
-            {/* Data e hora */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#374151"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              <span style={{ fontSize: 11, color: "#4b5563" }}>
-                {new Date(alert.timestamp).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-          </div>
-        </div>
-      </LeafletPopup>
-    </Marker>
-  );
-}
-
 export default function MapPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { searchTerm } = useSearchStore();
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const hasAppliedUrlDevice = useRef<number | null>(null);
-  const [isClient, setIsClient] = useState(false);
-  const [isHighDpi, setIsHighDpi] = useState(false);
-  const [followVehicle, setFollowVehicle] = useState(true);
-  const [deviceTrails, setDeviceTrails] = useState<
-    Map<number, { lat: number; lng: number; ts: number }[]>
-  >(new Map());
-  const [deviceRecentDistance, setDeviceRecentDistance] = useState<
-    Map<number, number>
-  >(new Map());
-  const [isWsConnected, setIsWsConnected] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const mapState = useMapState();
+  const [isVehicleListOpen, setIsVehicleListOpen] = useState(false);
+  const [commandDialogDevice, setCommandDialogDevice] = useState<Device | null>(null);
+  const {
+    searchParams,
+    routeIdFromUrl,
+    selectedDevice,
+    setSelectedDevice,
+    hasAppliedUrlDevice,
+    isClient,
+    isHighDpi,
+    followVehicle,
+    setFollowVehicle,
+    deviceTrails,
+    setDeviceTrails,
+    deviceRecentDistance,
+    setDeviceRecentDistance,
+    isWsConnected,
+    setIsWsConnected,
+    isEditDialogOpen,
+    setIsEditDialogOpen,
+    editingDevice,
+    editForm,
+    setEditForm,
+    handleEditDevice,
+    geofenceDialogDevice,
+    setGeofenceDialogDevice,
+    assigningGeofenceId,
+    setAssigningGeofenceId,
+    showGeofences,
+    setShowGeofences,
+    showSpeedAlerts,
+    setShowSpeedAlerts,
+    showVehicleLabels,
+    toggleVehicleLabels,
+    speedAlerts,
+    setSpeedAlerts,
+    mapStyle,
+    setMapStyle,
+    plannedRouteGeometry,
+    setPlannedRouteGeometry,
+    plannedRouteName,
+    setPlannedRouteName,
+    showPlannedRouteLabel,
+    setShowPlannedRouteLabel,
+  } = mapState;
 
-  // Dialog de gerenciamento de cercas
-  const [geofenceDialogDevice, setGeofenceDialogDevice] =
-    useState<Device | null>(null);
-  const [assigningGeofenceId, setAssigningGeofenceId] = useState<number | null>(
-    null,
+  // WebSocket real-time updates
+  const onWsConnectionChange = useCallback(
+    (connected: boolean) => setIsWsConnected(connected),
+    [setIsWsConnected],
   );
-  const [showGeofences, setShowGeofences] = useState(true);
-  const [showSpeedAlerts, setShowSpeedAlerts] = useState(true);
-  const [showVehicleLabels, setShowVehicleLabels] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      return localStorage.getItem("mapShowVehicleLabels") !== "false";
-    } catch {
-      return true;
-    }
-  });
-  const [speedAlerts, setSpeedAlerts] = useState<SpeedAlert[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("speedAlerts");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [editForm, setEditForm] = useState({
-    name: "",
-    uniqueId: "",
-    plate: "",
-    phone: "",
-    category: "car" as VehicleCategory,
-    model: "",
-    year: new Date().getFullYear(),
-    color: "",
-    contact: "",
-    speedLimit: 80,
-    groupId: 0,
-    expiryDate: "",
+  const { deviceTrailsRef, updateDevicesRef } = useMapWebSocket({
+    onWsConnectionChange,
+    setDeviceTrails,
+    setDeviceRecentDistance,
   });
 
-  // Estilo do mapa (melhor qualidade visual + satélite)
-  const [mapStyle, setMapStyle] = useState<TileLayerKey>("dark");
-
-  // Trilhas são pesadas com muitos veículos: manter apenas do selecionado
-  // Rota planejada (quando ?routeId= na URL)
-  const routeIdFromUrl = searchParams?.get("routeId") || null;
-  const [plannedRouteGeometry, setPlannedRouteGeometry] = useState<
-    [number, number][]
-  >([]);
-  const [plannedRouteName, setPlannedRouteName] = useState<string | null>(null);
-  const [showPlannedRouteLabel, setShowPlannedRouteLabel] = useState(true);
-
+  // Keep trails ref in sync
   useEffect(() => {
-    setIsClient(true);
-    try {
-      setIsHighDpi(
-        typeof window !== "undefined" && (window.devicePixelRatio || 1) > 1,
-      );
-    } catch {
-      setIsHighDpi(false);
-    }
-  }, []);
-
-  // Ouvir novos SpeedAlerts e eventos de limpeza em tempo real
-  useEffect(() => {
-    const addHandler = (e: Event) => {
-      const alert = (e as CustomEvent<SpeedAlert>).detail;
-      setSpeedAlerts((prev) => {
-        // Evitar duplicatas
-        if (prev.some((a) => a.id === alert.id)) return prev;
-        return [alert, ...prev].slice(0, 100);
-      });
-    };
-
-    // Limpar todos os alertas (notificações limpas no painel)
-    const clearHandler = () => {
-      setSpeedAlerts([]);
-    };
-
-    // Remover alerta individual (notificação excluída no painel)
-    const removeHandler = (e: Event) => {
-      const { id } = (e as CustomEvent<{ id: string }>).detail;
-      setSpeedAlerts((prev) => prev.filter((a) => a.id !== id));
-    };
-
-    window.addEventListener("speedAlertAdded", addHandler);
-    window.addEventListener("speedAlertsCleared", clearHandler);
-    window.addEventListener("speedAlertRemoved", removeHandler);
-
-    // Re-sincronizar com localStorage ao montar (captura alertas criados antes da montagem,
-    // ex: quando o usuário clica "Ver no mapa" na página de eventos e navega aqui)
-    try {
-      const stored = localStorage.getItem("speedAlerts");
-      if (stored) {
-        const parsed: SpeedAlert[] = JSON.parse(stored);
-        if (parsed.length > 0) {
-          setSpeedAlerts(parsed);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-
-    return () => {
-      window.removeEventListener("speedAlertAdded", addHandler);
-      window.removeEventListener("speedAlertsCleared", clearHandler);
-      window.removeEventListener("speedAlertRemoved", removeHandler);
-    };
-  }, []);
+    deviceTrailsRef.current = deviceTrails;
+  }, [deviceTrails, deviceTrailsRef]);
 
   function MapResizeInvalidator() {
     const { useMap } = require("react-leaflet");
@@ -603,7 +183,14 @@ export default function MapPage() {
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: () => getDevices(),
+    staleTime: 30_000,
+    refetchInterval: 60_000, // safety net: refetch a cada 60s caso WS não envie devices
   });
+
+  // Keep devicesRef in sync for WebSocket hook
+  useEffect(() => {
+    updateDevicesRef(devices);
+  }, [devices, updateDevicesRef]);
 
   // IDs dos dispositivos que pertencem à conta logada (filtra alertas de outras contas)
   const userDeviceIds = useMemo(
@@ -620,6 +207,7 @@ export default function MapPage() {
   const { data: positions = [] } = useQuery({
     queryKey: ["positions"],
     queryFn: () => getPositions(),
+    staleTime: 5_000, // WS atualiza via cache — query só refetcha se stale
   });
 
   // Todas as cercas disponíveis
@@ -661,19 +249,6 @@ export default function MapPage() {
     }
   };
 
-  // Evita que o effect do WebSocket reconecte a cada mudança de `devices`
-  const devicesRef = useRef<Device[]>([]);
-  useEffect(() => {
-    devicesRef.current = devices;
-  }, [devices]);
-
-  // Corrige stale-closure ao calcular distância baseado em trilhas
-  const deviceTrailsRef = useRef<
-    Map<number, { lat: number; lng: number; ts: number }[]>
-  >(new Map());
-  useEffect(() => {
-    deviceTrailsRef.current = deviceTrails;
-  }, [deviceTrails]);
 
   const { data: plannedRoute } = useQuery({
     queryKey: ["planned-route", routeIdFromUrl],
@@ -842,25 +417,6 @@ export default function MapPage() {
     },
   });
 
-  const handleEditDevice = (device: Device) => {
-    setEditingDevice(device);
-    setEditForm({
-      name: device.name,
-      uniqueId: device.uniqueId,
-      plate: device.plate,
-      phone: device.phone || "",
-      category: device.category,
-      model: device.model || "",
-      year: device.year || new Date().getFullYear(),
-      color: device.color || "",
-      contact: device.contact || "",
-      speedLimit: Math.round(device.speedLimit || 80),
-      groupId: 0,
-      expiryDate: "",
-    });
-    setIsEditDialogOpen(true);
-  };
-
   const handleSaveDevice = () => {
     if (editingDevice) {
       updateMutation.mutate({
@@ -869,156 +425,6 @@ export default function MapPage() {
       });
     }
   };
-
-  // WebSocket real-time updates + Polling Fallback (para TODOS os veículos)
-  useEffect(() => {
-    const wsClient = getWebSocketClient();
-    let pollingInterval: NodeJS.Timeout | null = null;
-    let lastMessageTime = Date.now();
-
-    // Throttle de updates para não travar em bursts do WS
-    let flushTimer: NodeJS.Timeout | null = null;
-    let pendingPositions: Position[] | null = null;
-
-    const processPositionUpdates = (positionList: Position[]) => {
-      console.debug(
-        `[Map] Processando ${positionList.length} posições para ${devicesRef.current.length} veículos`,
-      );
-
-      // Atualizar React Query com novas posições para TODOS os veículos
-      queryClient.setQueryData(["positions"], (old: Position[] = []) => {
-        const newPositions = [...old];
-        positionList.forEach((newPos) => {
-          const index = newPositions.findIndex(
-            (p) => p.deviceId === newPos.deviceId,
-          );
-          if (index !== -1) {
-            newPositions[index] = newPos;
-          } else {
-            newPositions.push(newPos);
-          }
-        });
-        return newPositions;
-      });
-
-      // Atualizar trilhas de TODOS os veículos
-      setDeviceTrails((prev) => {
-        const trails = new Map(prev);
-        positionList.forEach((position) => {
-          const ts = position.fixTime
-            ? new Date(position.fixTime).getTime()
-            : position.serverTime
-              ? new Date(position.serverTime).getTime()
-              : Date.now();
-          const current = trails.get(position.deviceId) || [];
-          const newPoint = {
-            lat: position.latitude,
-            lng: position.longitude,
-            ts,
-          };
-          const cutoff = Date.now() - 5 * 60 * 1000;
-          const merged = [...current, newPoint];
-          const updated = merged.filter((p) => p.ts >= cutoff).slice(-60);
-          trails.set(position.deviceId, updated);
-        });
-        deviceTrailsRef.current = trails;
-        return trails;
-      });
-
-      // Calcular distância para TODOS os veículos
-      setDeviceRecentDistance((prevD) => {
-        const m = new Map(prevD);
-        try {
-          const { distanceKm } = require("@/lib/utils");
-          positionList.forEach((position) => {
-            const current =
-              deviceTrailsRef.current.get(position.deviceId) || [];
-            let distKm = 0;
-            for (let i = 1; i < current.length; i++) {
-              const a = current[i - 1];
-              const b = current[i];
-              distKm += distanceKm(a.lat, a.lng, b.lat, b.lng);
-            }
-            m.set(position.deviceId, distKm);
-          });
-        } catch (err) {
-          console.error("[Map] Erro ao calcular distância:", err);
-        }
-        return m;
-      });
-    };
-
-    const scheduleProcessPositionUpdates = (positionList: Position[]) => {
-      pendingPositions = positionList;
-      if (flushTimer) return;
-      flushTimer = setTimeout(() => {
-        flushTimer = null;
-        const pending = pendingPositions;
-        pendingPositions = null;
-        if (pending && pending.length) processPositionUpdates(pending);
-      }, 250);
-    };
-
-    const unsubscribe = wsClient.subscribe((message) => {
-      if (message.type === "positions") {
-        console.debug("[WS] Posições recebidas:", message.data.length);
-        lastMessageTime = Date.now();
-        scheduleProcessPositionUpdates(message.data);
-      } else if (message.type === "devices") {
-        queryClient.setQueryData(["devices"], message.data);
-      } else if (message.type === "events") {
-        message.data.forEach((event) => {
-          toast.info(`${event.type}: ${event.attributes.message || ""}`);
-        });
-      }
-    });
-
-    wsClient.connect();
-    console.debug("[Map] WebSocket conectando...");
-
-    // Fallback polling: se WebSocket não enviar mensagens por 10s, inicia polling
-    const startPollingIfNeeded = () => {
-      if (!wsClient.isConnected() || Date.now() - lastMessageTime > 10000) {
-        if (!pollingInterval) {
-          console.warn("[Map] Iniciando polling de emergência...");
-          pollingInterval = setInterval(async () => {
-            try {
-              const freshPositions = await getPositions();
-              if (freshPositions.length > 0) {
-                console.debug(
-                  "[Polling] Atualizando com",
-                  freshPositions.length,
-                  "posições",
-                );
-                scheduleProcessPositionUpdates(freshPositions);
-              }
-            } catch (err) {
-              console.error("[Polling] Erro:", err);
-            }
-          }, 3000);
-        }
-      }
-    };
-
-    const checkConnection = setInterval(() => {
-      const isConnected = wsClient.isConnected();
-      setIsWsConnected(isConnected);
-      if (!isConnected && Date.now() - lastMessageTime > 10000) {
-        startPollingIfNeeded();
-      } else if (isConnected && pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
-      }
-    }, 1000);
-
-    return () => {
-      unsubscribe();
-      clearInterval(checkConnection);
-      if (pollingInterval) clearInterval(pollingInterval);
-      if (flushTimer) clearTimeout(flushTimer);
-      wsClient.disconnect();
-    };
-  }, [queryClient]);
 
   const positionsMap = useMemo(
     () => new Map((positions as Position[]).map((p) => [p.deviceId, p])),
@@ -1233,25 +639,6 @@ export default function MapPage() {
     );
   }, [devices.length, positions.length, deviceTrails.size]);
 
-  // parseWKT agora usa o utilitário compartilhado em @/lib/parse-wkt
-  // que detecta automaticamente a ordem das coordenadas (lng lat vs lat lng)
-
-  const getMarkerColor = (status: string) => {
-    switch (status) {
-      case "moving":
-        return "#3b82f6"; // blue
-      case "online":
-      case "stopped":
-        return "#10b981"; // green
-      case "offline":
-        return "#6b7280"; // gray
-      case "blocked":
-        return "#ef4444"; // red
-      default:
-        return "#6b7280";
-    }
-  };
-
   const iconCacheRef = useRef(new Map<number, { key: string; icon: any }>());
 
   const createCustomIcon = (
@@ -1388,21 +775,77 @@ export default function MapPage() {
     [positionsMap],
   );
 
-  const visibleDevices = useMemo(() => {
-    if (!searchTerm) return devices;
-    const searchLower = searchTerm.toLowerCase();
-    return devices.filter(
-      (d) =>
-        d.name?.toLowerCase().includes(searchLower) ||
-        d.plate?.toLowerCase().includes(searchLower) ||
-        d.uniqueId?.toLowerCase().includes(searchLower),
-    );
-  }, [devices, searchTerm]);
 
+
+  // Mostra trilhas para qualquer veículo que tenha dados de trail acumulados
   const devicesForTrails = useMemo(() => {
-    if (!selectedDevice) return [] as Device[];
-    return [selectedDevice];
-  }, [selectedDevice]);
+    const set = new Map<number, Device>();
+    const devicesById = new Map(devices.map((d) => [d.id, d]));
+    deviceTrails.forEach((trail, deviceId) => {
+      if (trail.length >= 2) {
+        const d = devicesById.get(deviceId);
+        if (d) set.set(deviceId, d);
+      }
+    });
+    if (selectedDevice) set.set(selectedDevice.id, selectedDevice);
+    return Array.from(set.values());
+  }, [devices, selectedDevice, deviceTrails]);
+
+  // Busca rotas recentes (últimos 15 min) para qualquer device com posição conhecida
+  const loadedTrailsRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    // Qualquer device que não seja offline pode ter rota recente
+    const candidateIds = new Set<number>();
+    devices.forEach((d) => {
+      if (d.status !== "offline") candidateIds.add(d.id);
+    });
+    if (selectedDevice) candidateIds.add(selectedDevice.id);
+
+    const toLoad = Array.from(candidateIds).filter(
+      (id) => !loadedTrailsRef.current.has(id),
+    );
+    if (toLoad.length === 0) return;
+
+    const now = new Date();
+    const from = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
+    const to = now.toISOString();
+
+    toLoad.forEach((id) => loadedTrailsRef.current.add(id));
+
+    const batch = toLoad.slice(0, 5);
+    Promise.allSettled(
+      batch.map((id) => getDeviceRoute(id, from, to)),
+    ).then((results) => {
+      setDeviceTrails((prev) => {
+        const trails = new Map(prev);
+        results.forEach((result, i) => {
+          if (result.status !== "fulfilled" || !result.value.length) return;
+          const deviceId = batch[i];
+          const existingTrail = trails.get(deviceId) || [];
+          // Converte posições históricas para trail points
+          const newPoints = result.value
+            .map((pos) => ({
+              lat: pos.latitude,
+              lng: pos.longitude,
+              ts: new Date(pos.fixTime || pos.serverTime || Date.now()).getTime() || Date.now(),
+            }))
+            .filter((p) => !isNaN(p.ts) && p.ts > 946684800000); // válido se > ano 2000
+          if (newPoints.length === 0) return;
+          const existingSet = new Set(
+            existingTrail.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`),
+          );
+          const unique = newPoints.filter(
+            (p) => !existingSet.has(`${p.lat.toFixed(6)},${p.lng.toFixed(6)}`),
+          );
+          const merged = [...unique, ...existingTrail]
+            .sort((a, b) => a.ts - b.ts)
+            .slice(-100);
+          trails.set(deviceId, merged);
+        });
+        return trails;
+      });
+    });
+  }, [devices, selectedDevice, setDeviceTrails]);
 
   if (!isClient) {
     return (
@@ -1418,47 +861,18 @@ export default function MapPage() {
   return (
     <div className="h-full relative">
       {/* Compact Header */}
-      <div
-        className={`absolute top-3 z-[1000] flex items-center gap-2 transition-all ${selectedDevice ? "right-[328px]" : "right-3"}`}
-      >
-        <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg">
-          <div className="px-3 py-1.5 flex items-center space-x-3">
-            <div className="flex items-center space-x-1.5">
-              {isWsConnected ? (
-                <>
-                  <Wifi className="w-3 h-3 text-green-500" />
-                  <span className="text-xs text-green-400">Real-time</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3 h-3 text-orange-500" />
-                  <span className="text-xs text-orange-400">Polling</span>
-                </>
-              )}
-            </div>
-            <div className="w-px h-4 bg-white/20"></div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs text-gray-200">Movimento</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-xs text-gray-200">Parado</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-              <span className="text-xs text-gray-200">Offline</span>
-            </div>
-            <div className="w-px h-4 bg-white/20"></div>
-            <span className="text-xs text-blue-400 font-medium">
-              {devices.length} veículos
-            </span>
-          </div>
-        </Card>
-      </div>
+      <MapStatusHeader
+        isWsConnected={isWsConnected}
+        deviceCount={devices.length}
+        selectedDevice={!!selectedDevice}
+      />
 
       {/* Canto superior esquerdo: rota planejada (se ativa) + seletor de estilo */}
-      <div className="absolute top-3 left-3 z-[1000] flex flex-col gap-2">
+      <div
+        className={`absolute top-3 z-[1000] flex flex-col gap-2 transition-all duration-300 ${
+          isVehicleListOpen ? "left-[336px]" : "left-3"
+        }`}
+      >
         {plannedRouteName &&
           plannedRouteGeometry.length >= 2 &&
           showPlannedRouteLabel && (
@@ -1480,97 +894,37 @@ export default function MapPage() {
               </Button>
             </Card>
           )}
-        {/* Seletor de estilo do mapa */}
+
         <div className="flex items-center gap-1">
-          <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg overflow-hidden">
-            <div className="flex rounded-lg overflow-hidden">
-              {(["dark", "light", "streets", "satellite"] as const).map(
-                (style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    onClick={() => setMapStyle(style)}
-                    className={`px-3 py-2 text-xs font-medium transition-colors ${
-                      mapStyle === style
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-white/5 text-gray-300 hover:bg-white/10"
-                    }`}
-                  >
-                    {TILE_LAYERS[style].label}
-                  </button>
-                ),
-              )}
-            </div>
-          </Card>
-
-          {/* Toggle de cercas */}
+          {/* Toggle lista de veículos */}
           <button
             type="button"
-            onClick={() => setShowGeofences((v) => !v)}
-            title={showGeofences ? "Ocultar cercas" : "Mostrar cercas"}
+            onClick={() => setIsVehicleListOpen((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
-              showGeofences
-                ? "bg-orange-500/80 border-orange-400/50 text-white"
+              isVehicleListOpen
+                ? "bg-blue-500/80 border-blue-400/50 text-white"
                 : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
             }`}
+            title={isVehicleListOpen ? "Fechar lista" : "Abrir lista de veículos"}
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Cercas {allGeofences.length > 0 && `(${allGeofences.length})`}
+            <List className="w-3.5 h-3.5" />
+            <span>{devices.length}</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           </button>
-
-          {/* Toggle de alertas de velocidade */}
-          <button
-            type="button"
-            onClick={() => setShowSpeedAlerts((v) => !v)}
-            title={
-              showSpeedAlerts
-                ? "Ocultar alertas de velocidade"
-                : "Mostrar alertas de velocidade"
-            }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
-              showSpeedAlerts && visibleSpeedAlerts.length > 0
-                ? "bg-amber-500/80 border-amber-400/50 text-white"
-                : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            Excessos{" "}
-            {visibleSpeedAlerts.length > 0 && `(${visibleSpeedAlerts.length})`}
-          </button>
-
-          {/* Toggle de placas nos marcadores */}
-          <button
-            type="button"
-            onClick={() => {
-              setShowVehicleLabels((v) => {
-                const next = !v;
-                try {
-                  localStorage.setItem(
-                    "mapShowVehicleLabels",
-                    next ? "true" : "false",
-                  );
-                } catch {
-                  /* ignore */
-                }
-                return next;
-              });
-              // Limpar cache de ícones para forçar recriação com/sem label
+          <MapStyleSelector mapStyle={mapStyle} onStyleChange={setMapStyle} />
+          <MapToolbar
+            showGeofences={showGeofences}
+            onToggleGeofences={() => setShowGeofences((v) => !v)}
+            geofenceCount={allGeofences.length}
+            showSpeedAlerts={showSpeedAlerts}
+            onToggleSpeedAlerts={() => setShowSpeedAlerts((v) => !v)}
+            speedAlertCount={visibleSpeedAlerts.length}
+            showVehicleLabels={showVehicleLabels}
+            onToggleVehicleLabels={() => {
+              toggleVehicleLabels();
               iconCacheRef.current.clear();
             }}
-            title={
-              showVehicleLabels
-                ? "Ocultar placas nos marcadores"
-                : "Mostrar placas nos marcadores"
-            }
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
-              showVehicleLabels
-                ? "bg-sky-500/80 border-sky-400/50 text-white"
-                : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            Placas
-          </button>
+          />
         </div>
       </div>
 
@@ -1686,27 +1040,26 @@ export default function MapPage() {
           </>
         )}
 
-        {/* Trilhas de movimento (últimos 5 minutos) */}
+        {/* Trilhas de movimento */}
         {devicesForTrails.map((device) => {
           const trail = deviceTrails.get(device.id) || [];
-          if (trail.length < 1) return null; // Renderizar mesmo com 1 ponto
+          if (trail.length < 2) return null;
           const coords = trail.map((p) => [p.lat, p.lng] as [number, number]);
           const smoothCoords = smoothTrail(coords, 1);
+          if (smoothCoords.length < 2) return null;
           return (
-            <div key={`trail-${device.id}`}>
-              {smoothCoords.length >= 2 && (
-                <Polyline
-                  positions={smoothCoords}
-                  pathOptions={{
-                    color: getMarkerColor(device.status),
-                    weight: 4,
-                    opacity: 0.95,
-                    dashArray: "6, 8",
-                    lineCap: "round",
-                    lineJoin: "round",
-                  }}
-                />
-              )}
+            <React.Fragment key={`trail-${device.id}`}>
+              <Polyline
+                positions={smoothCoords}
+                pathOptions={{
+                  color: getMarkerColor(device.status),
+                  weight: 4,
+                  opacity: 0.95,
+                  dashArray: "6, 8",
+                  lineCap: "round",
+                  lineJoin: "round",
+                }}
+              />
 
               {/* Setas ao longo da trilha */}
               {smoothCoords.map((c, i) => {
@@ -1737,7 +1090,7 @@ export default function MapPage() {
                   />
                 );
               })}
-            </div>
+            </React.Fragment>
           );
         })}
 
@@ -1783,341 +1136,26 @@ export default function MapPage() {
         })}
       </MapContainer>
 
-      {/* Compact Vehicle List */}
-      <div className="absolute bottom-3 left-3 w-64 max-h-[50vh] overflow-hidden z-[1000]">
-        <Card className="backdrop-blur-xl bg-black/40 dark:bg-black/60 border-white/10 shadow-lg">
-          <div className="p-3">
-            <h3 className="font-semibold text-sm mb-2 text-gray-200 flex items-center justify-between">
-              <span>Veículos</span>
-              <span className="text-xs text-blue-400">
-                {searchTerm
-                  ? `${visibleDevices.length} / ${devices.length}`
-                  : devices.length}
-              </span>
-            </h3>
+      {/* Vehicle List Panel — slide-out drawer */}
+      <VehicleListPanel
+        devices={devices}
+        positionsMap={positionsMap}
+        selectedDeviceId={selectedDevice?.id ?? null}
+        onDeviceClick={handleDeviceClick}
+        isOpen={isVehicleListOpen}
+        onToggle={() => setIsVehicleListOpen((v) => !v)}
+      />
 
-            <div className="space-y-1.5 max-h-[45vh] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600/30 scrollbar-track-transparent">
-              {visibleDevices.map((device) => {
-                const position = positionsMap.get(device.id);
-                return (
-                  <button
-                    key={device.id}
-                    onClick={() => handleDeviceClick(device)}
-                    className={`w-full px-2.5 py-2 rounded-md text-left transition-all ${
-                      selectedDevice?.id === device.id
-                        ? "bg-blue-600/80 text-white"
-                        : "bg-white/5 hover:bg-white/10 text-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center space-x-1.5 flex-1 min-w-0">
-                        <div
-                          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          style={{
-                            backgroundColor: getMarkerColor(device.status),
-                          }}
-                        />
-                        <span className="font-semibold truncate text-xs">
-                          {device.name || device.plate}
-                        </span>
-                      </div>
-                      {position && (
-                        <span className="text-[10px] font-bold ml-2 flex-shrink-0">
-                          {Math.round(position.speed)} km/h
-                        </span>
-                      )}
-                    </div>
-                    {device.name && device.plate && (
-                      <div className="text-[9px] text-gray-400 ml-3 truncate">
-                        {device.plate}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Edit Speed Limit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="w-5 h-5 text-purple-500" />
-              Editar Veículo
-            </DialogTitle>
-          </DialogHeader>
-          {editingDevice && (
-            <div className="space-y-4 py-2">
-              {/* Info atual */}
-              <div className="bg-muted p-3 rounded-lg">
-                <p className="text-sm font-medium">
-                  Editando: {editingDevice.plate} - {editingDevice.name}
-                </p>
-              </div>
-
-              {/* Grid de Campos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Nome do Veículo */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="name" className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-blue-500" />
-                    Nome do Veículo *
-                  </Label>
-                  <Input
-                    id="name"
-                    value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, name: e.target.value })
-                    }
-                    placeholder="Ex: Caminhão Branco"
-                    required
-                  />
-                </div>
-
-                {/* Identificador (IMEI) */}
-                <div className="space-y-2">
-                  <Label htmlFor="uniqueId" className="flex items-center gap-2">
-                    <Circle className="w-4 h-4 text-cyan-500" />
-                    Identificador (IMEI) *
-                  </Label>
-                  <Input
-                    id="uniqueId"
-                    value={editForm.uniqueId}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, uniqueId: e.target.value })
-                    }
-                    placeholder="Ex: 864943044660344"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    IMEI, número de serial ou outro ID único
-                  </p>
-                </div>
-
-                {/* Placa */}
-                <div className="space-y-2">
-                  <Label htmlFor="plate" className="flex items-center gap-2">
-                    <Circle className="w-4 h-4 text-green-500" />
-                    Placa *
-                  </Label>
-                  <Input
-                    id="plate"
-                    value={editForm.plate}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        plate: e.target.value.toUpperCase(),
-                      })
-                    }
-                    placeholder="ABC-1234"
-                    maxLength={8}
-                    required
-                  />
-                </div>
-
-                {/* Telefone (SIM) */}
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-emerald-500" />
-                    Telefone (SIM Card)
-                  </Label>
-                  <Input
-                    id="phone"
-                    value={editForm.phone}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, phone: e.target.value })
-                    }
-                    placeholder="Ex: 5562999958024"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Número do chip instalado no rastreador
-                  </p>
-                </div>
-
-                {/* Categoria */}
-                <div className="space-y-2">
-                  <Label htmlFor="category" className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-purple-500" />
-                    Categoria *
-                  </Label>
-                  <Select
-                    value={editForm.category}
-                    onValueChange={(value) =>
-                      setEditForm({
-                        ...editForm,
-                        category: value as VehicleCategory,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="car">Carro</SelectItem>
-                      <SelectItem value="motorcycle">Moto</SelectItem>
-                      <SelectItem value="truck">Caminhão</SelectItem>
-                      <SelectItem value="bus">Ônibus</SelectItem>
-                      <SelectItem value="van">Van</SelectItem>
-                      <SelectItem value="trailer">Carreta</SelectItem>
-                      <SelectItem value="bicycle">Bicicleta</SelectItem>
-                      <SelectItem value="boat">Barco</SelectItem>
-                      <SelectItem value="airplane">Avião</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Modelo */}
-                <div className="space-y-2">
-                  <Label htmlFor="model" className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-indigo-500" />
-                    Modelo
-                  </Label>
-                  <Input
-                    id="model"
-                    value={editForm.model}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, model: e.target.value })
-                    }
-                    placeholder="Ex: KYX-5E62"
-                  />
-                </div>
-
-                {/* Ano */}
-                <div className="space-y-2">
-                  <Label htmlFor="year" className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-orange-500" />
-                    Ano
-                  </Label>
-                  <Input
-                    id="year"
-                    type="number"
-                    value={editForm.year}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        year: parseInt(e.target.value) || 2024,
-                      })
-                    }
-                    min="1900"
-                    max={new Date().getFullYear() + 1}
-                  />
-                </div>
-
-                {/* Cor */}
-                <div className="space-y-2">
-                  <Label htmlFor="color" className="flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-pink-500" />
-                    Cor
-                  </Label>
-                  <Input
-                    id="color"
-                    value={editForm.color}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, color: e.target.value })
-                    }
-                    placeholder="Ex: Branco"
-                  />
-                </div>
-
-                {/* Contato (ICCID) */}
-                <div className="space-y-2">
-                  <Label htmlFor="contact" className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-cyan-500" />
-                    Contato / ICCID
-                  </Label>
-                  <Input
-                    id="contact"
-                    value={editForm.contact}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, contact: e.target.value })
-                    }
-                    placeholder="Ex: ICCID 8955320210007029201Z"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Nome do responsável ou ICCID do chip
-                  </p>
-                </div>
-
-                {/* Limite de Velocidade */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="speedLimit"
-                    className="flex items-center gap-2"
-                  >
-                    <Gauge className="w-4 h-4 text-yellow-500" />
-                    Limite de Velocidade
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="speedLimit"
-                      type="number"
-                      value={editForm.speedLimit}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          speedLimit: parseInt(e.target.value) || 80,
-                        })
-                      }
-                      min="10"
-                      max="200"
-                      className="flex-1"
-                    />
-                    <span className="text-sm text-muted-foreground">km/h</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Alerta quando exceder {editForm.speedLimit} km/h
-                  </p>
-                </div>
-
-                {/* Validade */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label
-                    htmlFor="expiryDate"
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar className="w-4 h-4 text-red-500" />
-                    Validade do Rastreador
-                  </Label>
-                  <Input
-                    id="expiryDate"
-                    type="date"
-                    value={editForm.expiryDate}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, expiryDate: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Data de vencimento do contrato ou licença do dispositivo
-                  </p>
-                </div>
-              </div>
-
-              {/* Botões */}
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  onClick={handleSaveDevice}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700"
-                  disabled={updateMutation.isPending}
-                >
-                  {updateMutation.isPending
-                    ? "Salvando..."
-                    : "Salvar Alterações"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditDialogOpen(false)}
-                  disabled={updateMutation.isPending}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Edit Vehicle Dialog */}
+      <EditVehicleDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        editingDevice={editingDevice}
+        editForm={editForm}
+        onEditFormChange={setEditForm}
+        onSave={handleSaveDevice}
+        isPending={updateMutation.isPending}
+      />
 
       {/* Vehicle Details Panel */}
       <VehicleDetailsPanel
@@ -2139,83 +1177,33 @@ export default function MapPage() {
         onVideo={(deviceId) => router.push(`/video?device=${deviceId}`)}
         onDetails={(deviceId) => router.push(`/vehicles/${deviceId}`)}
         onManageGeofences={(device) => setGeofenceDialogDevice(device)}
+        onSendCommand={(device) => setCommandDialogDevice(device)}
         onStreetView={(lat, lng) => {
           const url = `https://www.google.com/maps/@${lat},${lng},18z`;
           window.open(url, "_blank");
         }}
       />
 
+      {/* Dialog: Enviar Comando */}
+      <SendCommandDialog
+        device={commandDialogDevice}
+        open={!!commandDialogDevice}
+        onOpenChange={(open) => {
+          if (!open) setCommandDialogDevice(null);
+        }}
+      />
+
       {/* Dialog: Gerenciar Cercas do Veículo */}
-      <Dialog
-        open={!!geofenceDialogDevice}
+      <GeofenceManageDialog
+        device={geofenceDialogDevice}
         onOpenChange={(open) => {
           if (!open) setGeofenceDialogDevice(null);
         }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-orange-400" />
-              Cercas de {geofenceDialogDevice?.name}
-            </DialogTitle>
-          </DialogHeader>
-
-          {allGeofences.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              Nenhuma cerca cadastrada. Crie cercas em{" "}
-              <strong>/geofences</strong>.
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {allGeofences.map((geofence) => {
-                const isLinked = deviceGeofenceIds.has(geofence.id);
-                const isLoading = assigningGeofenceId === geofence.id;
-                return (
-                  <div
-                    key={geofence.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                      isLinked
-                        ? "border-orange-500/50 bg-orange-500/10"
-                        : "border-border bg-card/60"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: geofence.color || "#3b82f6" }}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {geofence.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {geofence.type}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isLinked ? "destructive" : "default"}
-                      disabled={isLoading}
-                      onClick={() => handleToggleGeofence(geofence.id)}
-                      className="flex-shrink-0 ml-2"
-                    >
-                      {isLoading ? (
-                        <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      ) : isLinked ? (
-                        "Remover"
-                      ) : (
-                        "Aplicar"
-                      )}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        allGeofences={allGeofences}
+        deviceGeofenceIds={deviceGeofenceIds}
+        assigningGeofenceId={assigningGeofenceId}
+        onToggleGeofence={handleToggleGeofence}
+      />
     </div>
   );
 }

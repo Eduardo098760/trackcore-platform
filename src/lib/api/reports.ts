@@ -181,5 +181,7 @@ export async function getRoutePositions(
     throw new Error(`Erro ao buscar histórico de rota: ${text || response.status}`);
   }
 
-  return response.json();
+  const positions: RoutePosition[] = await response.json();
+  // Traccar retorna speed em knots — normaliza para km/h
+  return positions.map(p => ({ ...p, speed: p.speed * 1.852 }));
 }

@@ -520,7 +520,7 @@ export const mockCommands: Command[] = [
   {
     id: 2,
     deviceId: 1,
-    type: "positionRequest",
+    type: "positionSingle",
     sentTime: new Date(Date.now() - 300000).toISOString(),
     status: "delivered",
     attributes: {},

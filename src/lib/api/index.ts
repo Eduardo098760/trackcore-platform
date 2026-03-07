@@ -3,6 +3,7 @@ import {
   Position,
   Event,
   Command,
+  TraccarCommand,
   Client,
   User,
   DashboardStats,
@@ -67,11 +68,17 @@ function mapUserToTraccar(user: Partial<User>): any {
 }
 
 function mapTraccarToUser(traccarUser: any): User {
+  // Extrair lastLogin: prioridade attributes.lastLogin > campo login do Traccar
+  // Ignorar valor "false" que é lixo em alguns usuários
+  const rawLogin = traccarUser.login && traccarUser.login !== "false" ? traccarUser.login : null;
+  const lastLogin = traccarUser.attributes?.lastLogin || rawLogin || null;
+
   // 1. administrator: true → admin
   if (traccarUser.administrator) {
     return {
       ...traccarUser,
       role: "admin",
+      lastLogin,
       createdAt: traccarUser.createdAt || new Date().toISOString(),
       updatedAt: traccarUser.updatedAt || new Date().toISOString(),
     } as User;
@@ -101,6 +108,7 @@ function mapTraccarToUser(traccarUser: any): User {
   return {
     ...traccarUser,
     role,
+    lastLogin,
     createdAt: traccarUser.createdAt || new Date().toISOString(),
     updatedAt: traccarUser.updatedAt || new Date().toISOString(),
   } as User;
@@ -118,12 +126,18 @@ export async function getDeviceById(id: number): Promise<Device> {
 }
 
 // Positions API (usando Traccar)
+// Traccar retorna speed em knots — normalizamos para km/h aqui
+function normalizePositionSpeed<T extends { speed: number }>(pos: T): T {
+  return { ...pos, speed: pos.speed * 1.852 };
+}
+
 export async function getPositions(params?: {
   deviceId?: number;
   from?: string;
   to?: string;
 }): Promise<Position[]> {
-  return api.get<Position[]>("/positions", params);
+  const positions = await api.get<Position[]>("/positions", params);
+  return positions.map(normalizePositionSpeed);
 }
 
 export async function getPositionByDevice(deviceId: number): Promise<Position> {
@@ -131,14 +145,15 @@ export async function getPositionByDevice(deviceId: number): Promise<Position> {
   if (!positions || positions.length === 0) {
     throw new Error("Position not found");
   }
-  return positions[0];
+  return normalizePositionSpeed(positions[0]);
 }
 
 // Busca uma posição histórica específica pelo seu ID (útil para eventos com positionId)
 export async function getPositionById(id: number): Promise<Position | null> {
   try {
     const positions = await api.get<Position[]>("/positions", { id });
-    return positions?.[0] ?? null;
+    const pos = positions?.[0] ?? null;
+    return pos ? normalizePositionSpeed(pos) : null;
   } catch {
     return null;
   }
@@ -213,19 +228,20 @@ export async function markEventAsResolved(eventId: number): Promise<Event> {
 export async function sendCommand(
   deviceId: number,
   type: string,
-  attributes?: any,
-): Promise<Command> {
+  attributes?: Record<string, any>,
+): Promise<TraccarCommand> {
   const command = {
     deviceId,
     type,
     attributes: attributes || {},
   };
 
-  return api.post<Command>("/commands/send", command);
+  return api.post<TraccarCommand>("/commands/send", command);
 }
 
-export async function getCommands(deviceId?: number): Promise<Command[]> {
-  return api.get<Command[]>("/commands", deviceId ? { deviceId } : undefined);
+/** Retorna templates de comandos salvos no Traccar */
+export async function getSavedCommands(deviceId?: number): Promise<TraccarCommand[]> {
+  return api.get<TraccarCommand[]>("/commands", deviceId ? { deviceId } : undefined);
 }
 
 // Clients API (Traccar não tem "clients", mas podemos usar Groups)

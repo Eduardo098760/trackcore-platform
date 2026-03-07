@@ -12,7 +12,7 @@ import L from 'leaflet';
 import { RoutePosition } from '@/types';
 
 // ─── helpers locais ───────────────────────────────────────────────────────────
-const knotsToKmh = (k: number) => k * 1.852;
+
 
 function fmtDateTime(iso: string) {
   try {
@@ -76,7 +76,7 @@ export default function ReplayMap({
   routeFirst, routeLast,
   currentPos, speedLimit, onSeek,
 }: ReplayMapProps) {
-  const speedKmh = knotsToKmh(currentPos.speed ?? 0);
+  const speedKmh = currentPos.speed ?? 0;
   const stopped  = speedKmh <= 2;
   const speeding = speedLimit > 0 && speedKmh > speedLimit;
   const color    = stopped ? '#f97316' : speeding ? '#dc2626' : '#3b82f6';

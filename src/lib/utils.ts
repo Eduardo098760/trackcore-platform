@@ -16,6 +16,11 @@ export function formatDate(date: string | Date): string {
   });
 }
 
+/** Converte velocidade de knots (Traccar) para km/h */
+export function knotsToKmh(knots: number): number {
+  return knots * 1.852;
+}
+
 export function formatSpeed(speed: number): string {
   return `${Math.round(speed)} km/h`;
 }
@@ -99,35 +104,83 @@ export function getDeviceStatusLabel(status: string): string {
 
 export function getEventTypeLabel(type: string): string {
   const labels: Record<string, string> = {
+    // Conexão / Status
+    commandResult: 'Resultado de comando',
+    deviceOnline: 'Dispositivo online',
+    deviceUnknown: 'Status desconhecido',
+    deviceOffline: 'Dispositivo offline',
+    deviceInactive: 'Dispositivo inativo',
+    // Movimento
+    deviceMoving: 'Em movimento',
+    deviceStopped: 'Parado',
+    deviceOverspeed: 'Excesso de velocidade',
+    speedLimit: 'Excesso de velocidade',
+    // Combustível
+    fuelDrop: 'Queda de combustível',
+    fuelIncrease: 'Abastecimento',
+    // Ignição
     ignitionOn: 'Ignição ligada',
     ignitionOff: 'Ignição desligada',
-    speedLimit: 'Excesso de velocidade',
+    // Cercas
     geofence: 'Cerca eletrônica',
+    geofenceEnter: 'Entrada em cerca',
+    geofenceExit: 'Saída de cerca',
+    // Alarmes
+    alarm: 'Alarme',
+    // Bateria
     lowBattery: 'Bateria fraca',
+    // Conexão legado
     connectionLost: 'Conexão perdida',
     connectionRestored: 'Conexão restabelecida',
+    // Bloqueio
     deviceBlocked: 'Veículo bloqueado',
-    deviceUnblocked: 'Veículo desbloqueado'
+    deviceUnblocked: 'Veículo desbloqueado',
+    // Manutenção
+    maintenance: 'Manutenção necessária',
+    // Motorista
+    driverChanged: 'Motorista alterado',
+    // Mídia
+    media: 'Mídia recebida',
   };
   return labels[type] || type;
 }
 
 export function getEventTypeColor(type: string): string {
   switch (type) {
+    // Positivos (verde)
     case 'ignitionOn':
     case 'connectionRestored':
     case 'deviceUnblocked':
-      return 'text-green-600 bg-green-50';
+    case 'deviceOnline':
+    case 'fuelIncrease':
+      return 'text-green-600 bg-green-50 dark:bg-green-950/30';
+    // Avisos (amarelo/amber)
     case 'speedLimit':
+    case 'deviceOverspeed':
     case 'geofence':
+    case 'geofenceEnter':
+    case 'geofenceExit':
     case 'lowBattery':
-      return 'text-yellow-600 bg-yellow-50';
+    case 'maintenance':
+    case 'deviceUnknown':
+    case 'deviceInactive':
+    case 'driverChanged':
+      return 'text-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    // Críticos (vermelho)
     case 'ignitionOff':
     case 'connectionLost':
     case 'deviceBlocked':
-      return 'text-red-600 bg-red-50';
+    case 'deviceOffline':
+    case 'alarm':
+    case 'fuelDrop':
+      return 'text-red-600 bg-red-50 dark:bg-red-950/30';
+    // Informativos (azul)
+    case 'deviceMoving':
+    case 'deviceStopped':
+    case 'commandResult':
+    case 'media':
     default:
-      return 'text-blue-600 bg-blue-50';
+      return 'text-blue-600 bg-blue-50 dark:bg-blue-950/30';
   }
 }
 

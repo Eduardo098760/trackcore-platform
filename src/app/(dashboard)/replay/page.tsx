@@ -160,9 +160,6 @@ function haversineM(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Traccar retorna speed em knots — converte para km/h
-const knotsToKmh = (knots: number) => knots * 1.852;
-
 // Detecta paradas: velocidade ≤ maxSpeedKmh por pelo menos minStopSec segundos
 function detectStops(
   positions: RoutePosition[],
@@ -172,11 +169,11 @@ function detectStops(
   const stops: StopEvent[] = [];
   let i = 0;
   while (i < positions.length) {
-    if (knotsToKmh(positions[i].speed ?? 0) <= maxSpeedKmh) {
+    if ((positions[i].speed ?? 0) <= maxSpeedKmh) {
       const start = i;
       while (
         i < positions.length &&
-        knotsToKmh(positions[i].speed ?? 0) <= maxSpeedKmh
+        (positions[i].speed ?? 0) <= maxSpeedKmh
       )
         i++;
       const end = i - 1;
@@ -258,15 +255,15 @@ function calcSummary(
   const stoppedDurationSec = stops.reduce((s, st) => s + st.durationSec, 0);
   const movingDurationSec = Math.max(0, totalDurationSec - stoppedDurationSec);
 
-  const movingPos = positions.filter((p) => knotsToKmh(p.speed ?? 0) > 2);
+  const movingPos = positions.filter((p) => (p.speed ?? 0) > 2);
   const maxSpeed =
     movingPos.length > 0
-      ? Math.max(...movingPos.map((p) => knotsToKmh(p.speed ?? 0)))
+      ? Math.max(...movingPos.map((p) => (p.speed ?? 0)))
       : 0;
   const avgSpeed =
     movingPos.length > 0
       ? Math.round(
-          movingPos.reduce((s, p) => s + knotsToKmh(p.speed ?? 0), 0) /
+          movingPos.reduce((s, p) => s + (p.speed ?? 0), 0) /
             movingPos.length,
         )
       : 0;
@@ -295,12 +292,12 @@ function detectSpeedViolations(
   const violations: SpeedViolation[] = [];
   let i = 0;
   while (i < positions.length) {
-    const speedKmh = knotsToKmh(positions[i].speed ?? 0);
+    const speedKmh = (positions[i].speed ?? 0);
     if (speedKmh > limitKmh) {
       const start = i;
       while (
         i < positions.length &&
-        knotsToKmh(positions[i].speed ?? 0) > limitKmh
+        (positions[i].speed ?? 0) > limitKmh
       )
         i++;
       const end = i - 1;
@@ -325,7 +322,7 @@ function detectSpeedViolations(
         (a, p) => ((p.speed ?? 0) > (a.speed ?? 0) ? p : a),
         chunk[0],
       );
-      const maxSpeed = Math.round(knotsToKmh(peakPos.speed ?? 0));
+      const maxSpeed = Math.round((peakPos.speed ?? 0));
       violations.push({
         index: start,
         endIndex: end,
@@ -1570,16 +1567,16 @@ export default function RouteReplayPage() {
                       <span className="text-red-400 font-bold animate-pulse">
                         ⚠ EXCESSO:{" "}
                         <strong>
-                          {Math.round(knotsToKmh(currentPos.speed))}
+                          {Math.round(currentPos.speed)}
                         </strong>{" "}
                         km/h (+
-                        {Math.round(knotsToKmh(currentPos.speed)) - speedLimit})
+                        {Math.round(currentPos.speed) - speedLimit})
                       </span>
                     ) : (
                       <span>
                         ⚡{" "}
                         <strong>
-                          {Math.round(knotsToKmh(currentPos.speed))}
+                          {Math.round(currentPos.speed)}
                         </strong>{" "}
                         km/h
                       </span>

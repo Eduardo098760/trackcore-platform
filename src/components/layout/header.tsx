@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Bell, Moon, Sun, LogOut, User, Settings, UserCheck, Loader2 } from 'lucide-react';
+import { Bell, Moon, Sun, LogOut, User, Settings, UserCheck, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -17,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/lib/stores/auth';
-import { useSearchStore } from '@/lib/stores/search';
+
 import { ConnectionStatus } from '@/components/ui/connection-status';
 import { NotificationBadge } from '@/components/ui/notification-badge';
 import { NotificationPanel } from '@/components/layout/notification-panel';
@@ -28,7 +27,6 @@ export function Header() {
   const { user, clearAuth, isImpersonating, adminSnapshot } = useAuthStore();
   const { returnToAdmin, loading: impersonationLoading } = useImpersonation();
 
-  const { searchTerm, setSearchTerm } = useSearchStore();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
@@ -123,22 +121,8 @@ export function Header() {
         </div>
       )}
 
-    <header className="relative flex items-center justify-between h-16 px-6 bg-gradient-to-r from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 border-b border-white/10 backdrop-blur-xl">
+    <header className="relative flex items-center justify-end h-16 px-6 bg-gradient-to-r from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 border-b border-white/10 backdrop-blur-xl">
       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
-      
-      {/* Search */}
-      <div className="relative flex-1 max-w-md z-10">
-        <div className="relative group">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-400 transition-colors" />
-          <Input
-            type="search"
-            placeholder="Buscar veículo, placa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:bg-white/10 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
-          />
-        </div>
-      </div>
 
       {/* Actions */}
       <div className="relative flex items-center space-x-4 z-10">

@@ -145,26 +145,33 @@ export interface Position {
   };
 }
 
-// Event Types
+// Event Types (based on Traccar)
 export type EventType =
-  | "ignitionOn"
-  | "ignitionOff"
-  | "speedLimit"
-  | "deviceOverspeed"
-  | "geofence"
-  | "geofenceEnter"
-  | "geofenceExit"
-  | "alarm"
+  | "commandResult"
   | "deviceOnline"
+  | "deviceUnknown"
   | "deviceOffline"
+  | "deviceInactive"
   | "deviceMoving"
   | "deviceStopped"
+  | "deviceOverspeed"
+  | "speedLimit"
+  | "fuelDrop"
+  | "fuelIncrease"
+  | "geofenceEnter"
+  | "geofenceExit"
+  | "geofence"
+  | "alarm"
+  | "ignitionOn"
+  | "ignitionOff"
+  | "maintenance"
+  | "driverChanged"
+  | "media"
   | "lowBattery"
   | "connectionLost"
   | "connectionRestored"
   | "deviceBlocked"
   | "deviceUnblocked"
-  | "maintenance"
   | string; // fallback para tipos não mapeados
 
 export interface Event {
@@ -190,17 +197,29 @@ export interface SpeedAlert {
   timestamp: string;
 }
 
-// Command Types
+// Command Types (devem corresponder exatamente ao enum do Traccar)
 export type CommandType =
-  | "positionRequest"
+  | "positionSingle"
   | "engineStop"
   | "engineResume"
-  | "deviceReboot";
+  | "rebootDevice"
+  | "custom";
 
+/** Resposta do Traccar para POST /api/commands/send */
+export interface TraccarCommand {
+  id: number;
+  deviceId: number;
+  type: string;
+  description?: string;
+  textChannel?: boolean;
+  attributes?: Record<string, any>;
+}
+
+/** Histórico local de comandos enviados */
 export interface Command {
   id: number;
   deviceId: number;
-  type: CommandType;
+  type: CommandType | string;
   sentTime: string;
   status: "pending" | "sent" | "delivered" | "failed";
   attributes?: Record<string, any>;

@@ -45,9 +45,11 @@ function mapTraccarRole(traccarUser: any): string {
 }
 
 function applyRole(traccarUser: any): User {
+  const rawLogin = traccarUser.login && traccarUser.login !== "false" ? traccarUser.login : null;
   return {
     ...traccarUser,
     role: mapTraccarRole(traccarUser),
+    lastLogin: traccarUser.attributes?.lastLogin || rawLogin || null,
   } as User;
 }
 
@@ -81,6 +83,21 @@ export async function login(
 
   const rawUser = await response.json();
   const user: User = applyRole(rawUser);
+
+  // Registrar lastLogin nos attributes do Traccar
+  try {
+    const now = new Date().toISOString();
+    const updatedAttributes = { ...(rawUser.attributes || {}), lastLogin: now };
+    await fetch(`${api.getConfig().baseURL}/users/${user.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ ...rawUser, attributes: updatedAttributes }),
+    });
+    user.lastLogin = now;
+  } catch (e) {
+    console.warn("[auth] Falha ao salvar lastLogin:", e);
+  }
 
   // Validate user belongs to the organization (if specified)
   let organization: Organization | undefined;

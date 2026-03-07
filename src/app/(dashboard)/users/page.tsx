@@ -422,7 +422,8 @@ export default function UsersPage() {
   };
 
   const getConnectionStatus = (user: User) => {
-    if (!user.lastLogin) {
+    // Ignorar valores inválidos como "false" ou null
+    if (!user.lastLogin || user.lastLogin === "false") {
       return {
         status: "Nunca conectado",
         variant: "secondary" as const,
