@@ -37,6 +37,7 @@ function mapUserToTraccar(user: Partial<User>): any {
     avatar,
     clientId,
     organizationId,
+    lastLogin,
     ...traccarUser
   } = user as any;
 

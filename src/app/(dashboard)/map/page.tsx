@@ -9,7 +9,7 @@ import { updateDevice } from "@/lib/api/devices";
 import { Device, Position, SpeedAlert } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Route, List } from "lucide-react";
+import { Route, List, X, Navigation2 } from "lucide-react";
 import { getVehicleIconSVG } from "@/lib/vehicle-icons";
 import { bearingDeg } from "@/lib/utils";
 import { getPlannedRouteById, getRouteGeometry } from "@/lib/api/routes";
@@ -85,7 +85,8 @@ export default function MapPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const mapState = useMapState();
-  const [isVehicleListOpen, setIsVehicleListOpen] = useState(false);
+  const [isVehicleListOpen, setIsVehicleListOpen] = useState(true);
+  const [streetViewActive, setStreetViewActive] = useState(false);
   const [commandDialogDevice, setCommandDialogDevice] = useState<Device | null>(null);
   const {
     searchParams,
@@ -331,15 +332,16 @@ export default function MapPage() {
     const layer = TILE_LAYERS[mapStyle];
     const isCarto =
       mapStyle === "dark" || mapStyle === "light" || mapStyle === "streets";
+    const isGoogle = mapStyle.startsWith("google");
     const url =
       isCarto && isHighDpi ? layer.url.replace(/\.png$/, "@2x.png") : layer.url;
 
     return {
       url,
       attribution: layer.attribution,
-      // O mapa permite até 19; se o TileLayer tiver maxZoom menor, no zoom alto ele fica em branco.
+      // O mapa permite até 21; se o TileLayer tiver maxZoom menor, no zoom alto ele fica em branco.
       // maxNativeZoom controla até onde existem tiles "nativos"; acima disso, o Leaflet faz overzoom (scaling).
-      maxZoom: 19,
+      maxZoom: 21,
       maxNativeZoom: layer.maxNativeZoom ?? 19,
       // Tiles HD (@2x) com tileSize/zoomOffset corretos para melhorar nitidez
       ...(isCarto && isHighDpi ? { tileSize: 512, zoomOffset: -1 } : {}),
@@ -431,28 +433,45 @@ export default function MapPage() {
     [positions],
   );
 
-  // Smooth polyline helper (Chaikin's algorithm - simple smoothing)
-  const smoothTrail = (coords: [number, number][], iterations = 1) => {
-    if (!coords || coords.length < 3) return coords;
-    let pts = coords.map((p) => [p[0], p[1]] as [number, number]);
-    for (let it = 0; it < iterations; it++) {
-      const next: [number, number][] = [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-        const q: [number, number] = [
-          0.75 * a[0] + 0.25 * b[0],
-          0.75 * a[1] + 0.25 * b[1],
-        ];
-        const r: [number, number] = [
-          0.25 * a[0] + 0.75 * b[0],
-          0.25 * a[1] + 0.75 * b[1],
-        ];
-        next.push(q, r);
-      }
-      pts = [pts[0], ...next, pts[pts.length - 1]];
+  // Distância rápida (Haversine simplificado) entre dois pontos em metros
+  const quickDistM = (a: [number, number], b: [number, number]) => {
+    const R = 6371000;
+    const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+    const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+    const lat1 = (a[0] * Math.PI) / 180;
+    const lat2 = (b[0] * Math.PI) / 180;
+    const s =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  };
+
+  // Remove outliers GPS (saltos impossíveis >200km/h entre pontos consecutivos)
+  const filterOutliers = (coords: [number, number][]) => {
+    if (coords.length < 2) return coords;
+    const result: [number, number][] = [coords[0]];
+    for (let i = 1; i < coords.length; i++) {
+      const d = quickDistM(result[result.length - 1], coords[i]);
+      // ~55m/s ≈ 200km/h — intervalo ~1s entre pontos websocket
+      if (d < 55) result.push(coords[i]);
     }
-    return pts;
+    return result;
+  };
+
+  // Divide trilha em segmentos onde há salto > 300m (evita linhas retas artificiais)
+  const splitTrailSegments = (coords: [number, number][]) => {
+    if (coords.length < 2) return [coords];
+    const segments: [number, number][][] = [];
+    let current: [number, number][] = [coords[0]];
+    for (let i = 1; i < coords.length; i++) {
+      if (quickDistM(current[current.length - 1], coords[i]) > 300) {
+        if (current.length >= 2) segments.push(current);
+        current = [];
+      }
+      current.push(coords[i]);
+    }
+    if (current.length >= 2) segments.push(current);
+    return segments;
   };
 
   // Map follow handler component - centers map on a vehicle when `followVehicle` is true
@@ -653,13 +672,13 @@ export default function MapPage() {
     const isPulsing = device.status === "moving";
     const course = typeof bearing === "number" ? bearing : position.course || 0;
     const vehicleIcon = getVehicleIconSVG(device.category, "#ffffff", 0);
-    const plate = (device.plate || "").trim();
-    const hasLabel = showLabel && !!plate;
+    const labelText = (device.plate || device.name || "").trim();
+    const hasLabel = showLabel && !!labelText;
     // Placa posicionada logo abaixo do círculo (52px do topo do container 48px)
     const labelHtml = hasLabel
       ? `
-      <div style="position:absolute;left:50%;transform:translateX(-50%);top:52px;background:rgba(0,0,0,0.78);border:1px solid rgba(255,255,255,0.18);border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700;color:#fff;font-family:monospace;letter-spacing:0.6px;white-space:nowrap;pointer-events:none;user-select:none;">
-        ${plate}
+      <div style="position:absolute;left:50%;transform:translateX(-50%);top:52px;background:rgba(0,0,0,0.78);border:1px solid rgba(255,255,255,0.18);border-radius:3px;padding:1px 6px;font-size:9px;font-weight:700;color:#fff;font-family:monospace;letter-spacing:0.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;pointer-events:none;user-select:none;">
+        ${labelText}
       </div>`
       : "";
     // Badge de velocidade: afasta mais quando a placa está visível
@@ -746,7 +765,8 @@ export default function MapPage() {
         : Math.round(position.speed || 0);
     const blocked = device.attributes?.blocked ? 1 : 0;
 
-    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}|${showLabel ? 1 : 0}`;
+    const labelText = (device.plate || device.name || "").trim();
+    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}|${showLabel ? 1 : 0}|${labelText}`;
     const cached = iconCacheRef.current.get(device.id);
     if (cached?.key === cacheKey) return cached.icon;
 
@@ -900,16 +920,19 @@ export default function MapPage() {
           <button
             type="button"
             onClick={() => setIsVehicleListOpen((v) => !v)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border ${
               isVehicleListOpen
-                ? "bg-blue-500/80 border-blue-400/50 text-white"
-                : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
+                ? "bg-blue-600/90 border-blue-400/40 text-white shadow-blue-500/25"
+                : "bg-black/50 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
             }`}
             title={isVehicleListOpen ? "Fechar lista" : "Abrir lista de veículos"}
           >
-            <List className="w-3.5 h-3.5" />
-            <span>{devices.length}</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <List className="w-4 h-4" />
+            <span>Veículos</span>
+            <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-white/20 text-[11px] font-bold px-1.5">
+              {devices.length}
+            </span>
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           </button>
           <MapStyleSelector mapStyle={mapStyle} onStyleChange={setMapStyle} />
           <MapToolbar
@@ -933,7 +956,14 @@ export default function MapPage() {
         center={[-23.5505, -46.6333]}
         zoom={12}
         minZoom={3}
-        maxZoom={19}
+        maxZoom={21}
+        zoomSnap={1}
+        zoomDelta={1}
+        wheelDebounceTime={80}
+        wheelPxPerZoomLevel={120}
+        zoomAnimation={true}
+        markerZoomAnimation={true}
+        fadeAnimation={true}
         style={{ width: "100%", height: "100%", background: "#0a0f1a" }}
         className="z-0 leaflet-map-quality"
         scrollWheelZoom={true}
@@ -1044,52 +1074,60 @@ export default function MapPage() {
         {devicesForTrails.map((device) => {
           const trail = deviceTrails.get(device.id) || [];
           if (trail.length < 2) return null;
-          const coords = trail.map((p) => [p.lat, p.lng] as [number, number]);
-          const smoothCoords = smoothTrail(coords, 1);
-          if (smoothCoords.length < 2) return null;
+          const rawCoords = trail.map(
+            (p) => [p.lat, p.lng] as [number, number],
+          );
+          const filtered = filterOutliers(rawCoords);
+          const segments = splitTrailSegments(filtered);
+          if (segments.length === 0) return null;
+          const trailColor = getMarkerColor(device.status);
           return (
             <React.Fragment key={`trail-${device.id}`}>
-              <Polyline
-                positions={smoothCoords}
-                pathOptions={{
-                  color: getMarkerColor(device.status),
-                  weight: 4,
-                  opacity: 0.95,
-                  dashArray: "6, 8",
-                  lineCap: "round",
-                  lineJoin: "round",
-                }}
-              />
-
-              {/* Setas ao longo da trilha */}
-              {smoothCoords.map((c, i) => {
-                if (i === 0 || i % 3 !== 0 || i === smoothCoords.length - 1)
-                  return null;
-                const prev = smoothCoords[i - 1];
-                const dx = c[1] - prev[1];
-                const dy = c[0] - prev[0];
-                const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-                const arrowHtml = `
-                  <div style="transform: rotate(${angle}deg);">
-                    <svg width=12 height=12 viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
-                      <path d='M2 12 L18 12 L14 8 L14 16 Z' fill='white' stroke='${getMarkerColor(device.status)}' stroke-width='0.5'/>
-                    </svg>
-                  </div>`;
-                const icon = L.divIcon({
-                  className: "arrow-marker",
-                  html: arrowHtml,
-                  iconSize: [12, 12],
-                  iconAnchor: [6, 6],
-                });
-                return (
-                  <Marker
-                    key={`arrow-${device.id}-${i}`}
-                    position={c}
-                    icon={icon}
-                    interactive={false}
+              {segments.map((seg, si) => (
+                <React.Fragment key={`seg-${device.id}-${si}`}>
+                  <Polyline
+                    positions={seg}
+                    pathOptions={{
+                      color: trailColor,
+                      weight: 4,
+                      opacity: 0.95,
+                      dashArray: "6, 8",
+                      lineCap: "round",
+                      lineJoin: "round",
+                    }}
                   />
-                );
-              })}
+
+                  {/* Setas ao longo do segmento */}
+                  {seg.map((c, i) => {
+                    if (i === 0 || i % 3 !== 0 || i === seg.length - 1)
+                      return null;
+                    const prev = seg[i - 1];
+                    const dx = c[1] - prev[1];
+                    const dy = c[0] - prev[0];
+                    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+                    const arrowHtml = `
+                      <div style="transform: rotate(${angle}deg);">
+                        <svg width=12 height=12 viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
+                          <path d='M2 12 L18 12 L14 8 L14 16 Z' fill='white' stroke='${trailColor}' stroke-width='0.5'/>
+                        </svg>
+                      </div>`;
+                    const icon = L.divIcon({
+                      className: "arrow-marker",
+                      html: arrowHtml,
+                      iconSize: [12, 12],
+                      iconAnchor: [6, 6],
+                    });
+                    return (
+                      <Marker
+                        key={`arrow-${device.id}-${si}-${i}`}
+                        position={c}
+                        icon={icon}
+                        interactive={false}
+                      />
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </React.Fragment>
           );
         })}
@@ -1178,11 +1216,33 @@ export default function MapPage() {
         onDetails={(deviceId) => router.push(`/vehicles/${deviceId}`)}
         onManageGeofences={(device) => setGeofenceDialogDevice(device)}
         onSendCommand={(device) => setCommandDialogDevice(device)}
-        onStreetView={(lat, lng) => {
-          const url = `https://www.google.com/maps/@${lat},${lng},18z`;
-          window.open(url, "_blank");
-        }}
+        onStreetView={() => setStreetViewActive((v) => !v)}
+        streetViewActive={streetViewActive}
       />
+
+      {/* Street View Embed */}
+      {streetViewActive && selectedDevice && positionsMap.get(selectedDevice.id) && (
+        <div
+          className="absolute z-[1001] rounded-xl overflow-hidden shadow-2xl border border-white/10"
+          style={{ bottom: 12, right: 350, width: 400, maxWidth: "50vw", height: 220 }}
+        >
+          <button
+            type="button"
+            className="absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+            onClick={() => setStreetViewActive(false)}
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <iframe
+            title="Street View"
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            loading="lazy"
+            src={`https://www.google.com/maps/embed/v1/streetview?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&location=${positionsMap.get(selectedDevice.id)!.latitude},${positionsMap.get(selectedDevice.id)!.longitude}&heading=0&pitch=0&fov=90`}
+          />
+        </div>
+      )}
 
       {/* Dialog: Enviar Comando */}
       <SendCommandDialog

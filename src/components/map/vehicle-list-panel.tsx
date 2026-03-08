@@ -14,7 +14,11 @@ import {
   Search,
   X,
   ChevronLeft,
+  ChevronRight,
+  Radio,
+  List,
 } from "lucide-react";
+import { useRelativeTime } from "@/lib/hooks/useRelativeTime";
 
 type StatusFilter = "all" | "moving" | "stopped" | "online" | "offline";
 
@@ -65,6 +69,17 @@ function BatteryIndicator({ level }: { level: number }) {
   );
 }
 
+function LastSeenLabel({ lastUpdate }: { lastUpdate?: string | null }) {
+  const relTime = useRelativeTime(lastUpdate);
+  if (!relTime) return null;
+  return (
+    <div className="flex items-center gap-1 mt-0.5 text-[9px] text-gray-500">
+      <Radio className="w-2.5 h-2.5" />
+      <span>{relTime}</span>
+    </div>
+  );
+}
+
 export function VehicleListPanel({
   devices,
   positionsMap,
@@ -76,6 +91,24 @@ export function VehicleListPanel({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [localSearch, setLocalSearch] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [firstOpen, setFirstOpen] = useState(() => {
+    try {
+      return !localStorage.getItem("vehicleListSeen");
+    } catch {
+      return false;
+    }
+  });
+
+  // Clear first-open pulse after a few seconds
+  useEffect(() => {
+    if (isOpen && firstOpen) {
+      const t = setTimeout(() => {
+        setFirstOpen(false);
+        try { localStorage.setItem("vehicleListSeen", "1"); } catch {}
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen, firstOpen]);
 
   // Focus search when panel opens
   useEffect(() => {
@@ -121,6 +154,29 @@ export function VehicleListPanel({
 
   return (
     <>
+      {/* Side tab handle — visible when panel is closed */}
+      {!isOpen && (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-[1001] group"
+          title="Abrir lista de veículos"
+        >
+          <div className="flex items-center bg-black/70 backdrop-blur-xl border border-white/10 border-l-0 rounded-r-xl px-1.5 py-4 shadow-2xl transition-all hover:bg-black/80 hover:px-2.5 group-hover:border-blue-500/30">
+            <ChevronRight className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+            <div className="flex flex-col items-center ml-0.5">
+              <List className="w-3.5 h-3.5 text-blue-400 mb-1" />
+              <span className="text-[10px] font-bold text-blue-300 tracking-widest [writing-mode:vertical-lr] rotate-180">
+                VEÍCULOS
+              </span>
+              <span className="mt-1 text-[9px] font-mono text-blue-400 bg-blue-500/15 px-1 py-0.5 rounded">
+                {devices.length}
+              </span>
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* Slide-out panel */}
       <div
         className={`absolute top-0 left-0 h-full z-[1000] transition-transform duration-300 ease-out ${
@@ -128,7 +184,7 @@ export function VehicleListPanel({
         }`}
         style={{ width: 320 }}
       >
-        <Card className="h-full rounded-none rounded-r-2xl backdrop-blur-2xl bg-black/70 dark:bg-black/80 border-y-0 border-l-0 border-r border-white/10 shadow-2xl flex flex-col overflow-hidden">
+        <Card className={`h-full rounded-none rounded-r-2xl backdrop-blur-2xl bg-black/70 dark:bg-black/80 border-y-0 border-l-0 border-r border-white/10 shadow-2xl flex flex-col overflow-hidden ${firstOpen ? 'ring-2 ring-blue-500/60 ring-offset-0 animate-pulse' : ''}`}>
           {/* Header */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <h3 className="font-semibold text-sm text-gray-100 flex items-center gap-2">
@@ -315,6 +371,9 @@ export function VehicleListPanel({
                             <BatteryIndicator level={batteryLevel} />
                           )}
                       </div>
+
+                      {/* Last seen */}
+                      <LastSeenLabel lastUpdate={device.lastUpdate} />
                     </div>
                   </div>
                 </button>

@@ -91,8 +91,22 @@ export function useMapState() {
     }
   });
 
-  // Map style
-  const [mapStyle, setMapStyle] = useState<TileLayerKey>("dark");
+  // Map style — persist across sessions
+  const [mapStyle, setMapStyleState] = useState<TileLayerKey>(() => {
+    if (typeof window === "undefined") return "dark";
+    try {
+      const stored = localStorage.getItem("mapStyle");
+      if (stored && ["dark", "light", "streets", "satellite", "googleRoads", "googleSatellite", "googleHybrid"].includes(stored)) {
+        return stored as TileLayerKey;
+      }
+    } catch {}
+    return "dark";
+  });
+
+  const setMapStyle = useCallback((style: TileLayerKey) => {
+    setMapStyleState(style);
+    try { localStorage.setItem("mapStyle", style); } catch {}
+  }, []);
 
   // Planned route
   const routeIdFromUrl = searchParams?.get("routeId") || null;

@@ -108,6 +108,15 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
+/* Zoom suave — GPU hints */
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  will-change: transform;
+  transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
+.leaflet-tile {
+  will-change: opacity;
+}
+
 /* Custom Leaflet Marker Styles */
 .custom-marker {
   background: transparent !important;

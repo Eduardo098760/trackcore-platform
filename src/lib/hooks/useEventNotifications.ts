@@ -110,10 +110,7 @@ async function processEvent(event: Event, devices: Device[] = []) {
         latitude = position.latitude;
         longitude = position.longitude;
 
-        // event.attributes.speed vem do Traccar em KNOTS → converte para km/h.
-        // position.speed já vem normalizado em km/h pela camada de API.
-        const rawEventSpeed = event.attributes?.speed || 0;
-        const speed = Math.round(rawEventSpeed > 0 ? rawEventSpeed * 1.852 : (position.speed || 0));
+        const speed = Math.round(event.attributes?.speed || position.speed || 0);
         // Prioriza o limite configurado pelo usuário (já em km/h).
         // event.attributes.speedLimit vem do Traccar em KNOTS → converte * 1.852 apenas como fallback.
         const rawEventLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
@@ -155,8 +152,6 @@ async function processEvent(event: Event, devices: Device[] = []) {
     'ignitionOff': 'ignitionOff',
     'deviceOnline': 'deviceOnline',
     'deviceOffline': 'deviceOffline',
-    'deviceUnknown': 'deviceUnknown',
-    'deviceInactive': 'deviceInactive',
     'geofenceEnter': 'geofenceEnter',
     'geofenceExit': 'geofenceExit',
     'alarm': 'sos',
@@ -165,13 +160,6 @@ async function processEvent(event: Event, devices: Device[] = []) {
     'maintenance': 'maintenance',
     'deviceMoving': 'deviceMoving',
     'deviceStopped': 'deviceStopped',
-    'fuelDrop': 'fuelDrop',
-    'fuelIncrease': 'fuelIncrease',
-    'driverChanged': 'driverChanged',
-    'commandResult': 'commandResult',
-    'media': 'media',
-    'lowBattery': 'lowBattery',
-    'textMessage': 'textMessage',
   };
 
   const internalType = eventTypeMap[event.type] || event.type;
@@ -185,19 +173,11 @@ async function processEvent(event: Event, devices: Device[] = []) {
     ignitionOff: false,
     deviceOffline: true,
     deviceOnline: false,
-    deviceUnknown: false,
-    deviceInactive: false,
     deviceMoving: false,
     deviceStopped: false,
     lowBattery: true,
     maintenance: true,
     sos: true,
-    fuelDrop: true,
-    fuelIncrease: false,
-    driverChanged: false,
-    commandResult: false,
-    media: false,
-    textMessage: false,
   };
 
   // Verificar se o tipo de evento está habilitado nas configurações do usuário.
@@ -280,8 +260,7 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       type: 'warning',
       title: '⚡ Excesso de Velocidade',
       message: (() => {
-        const rawSpeed = event.attributes?.speed || 0;
-        const speed = rawSpeed > 0 ? Math.round(rawSpeed * 1.852) : 0;
+        const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
         // Prioriza o limite configurado pelo usuário (km/h).
         // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
         const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
@@ -297,8 +276,7 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       type: 'warning',
       title: '⚡ Excesso de Velocidade',
       message: (() => {
-        const rawSpeed = event.attributes?.speed || 0;
-        const speed = rawSpeed > 0 ? Math.round(rawSpeed * 1.852) : 0;
+        const speed = event.attributes?.speed ? Math.round(event.attributes.speed) : 0;
         // Prioriza o limite configurado pelo usuário (km/h).
         // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
         const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
@@ -324,71 +302,6 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       type: 'info',
       title: '🛑 Dispositivo Parado',
       message: `${deviceName} parou`,
-    },
-    'lowBattery': {
-      type: 'warning',
-      title: '🔋 Bateria Fraca',
-      message: (() => {
-        const level = event.attributes?.batteryLevel;
-        if (level != null) return `${deviceName} está com bateria em ${Math.round(level)}%`;
-        return `${deviceName} está com bateria fraca`;
-      })(),
-    },
-    'deviceUnknown': {
-      type: 'warning',
-      title: '❓ Dispositivo Desconhecido',
-      message: `${deviceName} entrou em estado desconhecido`,
-    },
-    'deviceInactive': {
-      type: 'warning',
-      title: '⏸️ Dispositivo Inativo',
-      message: `${deviceName} está inativo há muito tempo`,
-    },
-    'fuelDrop': {
-      type: 'error',
-      title: '⛽ Queda de Combustível',
-      message: (() => {
-        const level = event.attributes?.fuelLevel;
-        if (level != null) return `${deviceName} teve queda de combustível (${Math.round(level)}%)`;
-        return `${deviceName} teve queda no nível de combustível`;
-      })(),
-    },
-    'fuelIncrease': {
-      type: 'success',
-      title: '⛽ Abastecimento',
-      message: (() => {
-        const level = event.attributes?.fuelLevel;
-        if (level != null) return `${deviceName} foi abastecido (${Math.round(level)}%)`;
-        return `${deviceName} teve aumento no nível de combustível`;
-      })(),
-    },
-    'driverChanged': {
-      type: 'info',
-      title: '👤 Motorista Alterado',
-      message: (() => {
-        const driverId = event.attributes?.driverUniqueId;
-        if (driverId) return `${deviceName} - motorista alterado: ${driverId}`;
-        return `${deviceName} teve alteração de motorista`;
-      })(),
-    },
-    'commandResult': {
-      type: 'info',
-      title: '💻 Resultado de Comando',
-      message: (() => {
-        const result = event.attributes?.result;
-        if (result) return `${deviceName}: ${String(result).slice(0, 80)}`;
-        return `${deviceName} respondeu a um comando`;
-      })(),
-    },
-    'media': {
-      type: 'info',
-      title: '📷 Mídia Recebida',
-      message: `${deviceName} enviou mídia`,
-    },
-    'textMessage': {
-      type: 'info',
-      title: '💬 Mensagem de Texto',
-      message: `${deviceName} recebeu uma mensagem de texto`,
     },
   };
 

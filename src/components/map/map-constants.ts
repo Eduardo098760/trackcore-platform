@@ -1,4 +1,4 @@
-export type TileLayerKey = "dark" | "light" | "streets" | "satellite";
+export type TileLayerKey = "dark" | "light" | "streets" | "satellite" | "googleRoads" | "googleSatellite" | "googleHybrid";
 
 export const TILE_LAYERS: Record<
   TileLayerKey,
@@ -39,6 +39,27 @@ export const TILE_LAYERS: Record<
     attribution: "Tiles &copy; Esri",
     label: "Satélite",
     maxNativeZoom: 18,
+  },
+  googleRoads: {
+    url: "https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    attribution: '&copy; Google Maps',
+    label: "Google",
+    subdomains: "0123",
+    maxNativeZoom: 20,
+  },
+  googleSatellite: {
+    url: "https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    attribution: '&copy; Google Maps',
+    label: "Google Sat.",
+    subdomains: "0123",
+    maxNativeZoom: 20,
+  },
+  googleHybrid: {
+    url: "https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+    attribution: '&copy; Google Maps',
+    label: "Google Híbrido",
+    subdomains: "0123",
+    maxNativeZoom: 20,
   },
 };
 

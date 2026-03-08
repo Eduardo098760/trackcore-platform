@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Device, Position } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,12 @@ import {
   Radio,
   ChevronRight,
   Terminal,
+  Bell,
+  BellOff,
+  ChevronDown,
+  AlertCircle,
+  Info,
+  CheckCircle2,
 } from 'lucide-react';
 import { formatDate, getDeviceStatusColor, deriveDeviceStatus, getDeviceStatusLabel } from '@/lib/utils';
 import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
@@ -41,11 +47,12 @@ interface VehicleDetailsPanelProps {
   onReplay: (deviceId: number) => void;
   onVideo: (deviceId: number) => void;
   onDetails: (deviceId: number) => void;
-  onStreetView?: (lat: number, lng: number) => void;
+  onStreetView?: () => void;
   onManageGeofences?: (device: Device) => void;
   onSendCommand?: (device: Device) => void;
   recentDistanceKm?: number;
   recentTrail?: {lat:number; lng:number; ts:number}[];
+  streetViewActive?: boolean;
 }
 
 function BatteryBar({ level }: { level: number }) {
@@ -82,6 +89,7 @@ export function VehicleDetailsPanel({
   onSendCommand,
   recentDistanceKm,
   recentTrail,
+  streetViewActive,
 }: VehicleDetailsPanelProps) {
   const { enrichedPosition, isLoadingAddress } = usePositionAddress(position);
   
@@ -166,8 +174,8 @@ export function VehicleDetailsPanel({
             {getDeviceStatusLabel(effectiveStatus)}
           </Badge>
           {lastCommunication && (
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Radio className="w-3 h-3" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-[11px] font-medium text-primary">
+              <Radio className="w-3 h-3 animate-pulse" />
               {lastCommunication}
             </div>
           )}
@@ -249,11 +257,26 @@ export function VehicleDetailsPanel({
           </div>
         </div>
 
-        {/* GPS Time */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40">
-          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-[11px] text-muted-foreground">GPS:</span>
-          <span className="text-[11px] font-mono font-medium">{formatDate(position.fixTime)}</span>
+        {/* Horários */}
+        <div className="rounded-xl p-3 border border-border/50 bg-card/60">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[11px] text-muted-foreground font-medium">Horários</span>
+          </div>
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Dispositivo:</span>
+              <span className="font-mono font-medium">{formatDate(position.deviceTime)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Servidor:</span>
+              <span className="font-mono font-medium">{formatDate(position.serverTime)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">GPS:</span>
+              <span className="font-mono font-medium">{formatDate(position.fixTime)}</span>
+            </div>
+          </div>
         </div>
 
         {/* Últimos 5 min */}
@@ -307,9 +330,12 @@ export function VehicleDetailsPanel({
         <div className="grid grid-cols-4 gap-1.5">
           <ActionButton icon={History} label="Replay" onClick={() => onReplay(device.id)} color="text-purple-400" />
           <ActionButton icon={Video} label="Vídeo" onClick={() => onVideo(device.id)} color="text-green-400" />
-          <ActionButton icon={Navigation2} label="Street" onClick={() => onStreetView?.(position.latitude, position.longitude)} color="text-cyan-400" />
+          <ActionButton icon={Navigation2} label="Street" onClick={() => onStreetView?.()} color="text-cyan-400" active={streetViewActive} />
           <ActionButton icon={Edit} label="Editar" onClick={() => onEdit(device)} color="text-yellow-400" />
         </div>
+
+        {/* Alertas por veículo */}
+        <VehicleNotificationQuick deviceId={device.id} />
 
         {/* Ações secundárias */}
         <div className="flex gap-1.5">
@@ -353,14 +379,247 @@ export function VehicleDetailsPanel({
   );
 }
 
-function ActionButton({ icon: Icon, label, onClick, color }: { icon: React.ElementType; label: string; onClick: () => void; color: string }) {
+function ActionButton({ icon: Icon, label, onClick, color, active }: { icon: React.ElementType; label: string; onClick: () => void; color: string; active?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-border/50 bg-card/60 hover:bg-muted/80 transition-colors"
+      className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-colors ${
+        active
+          ? 'border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-500/30'
+          : 'border-border/50 bg-card/60 hover:bg-muted/80'
+      }`}
     >
-      <Icon className={`w-4 h-4 ${color}`} />
-      <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+      <Icon className={`w-4 h-4 ${active ? 'text-cyan-400' : color}`} />
+      <span className={`text-[10px] font-medium ${active ? 'text-cyan-400' : 'text-muted-foreground'}`}>{label}</span>
     </button>
+  );
+}
+
+// ─── Catálogo de tipos de evento ─────────────────
+const NOTIFICATION_EVENT_CATALOG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  speedLimit:    { label: 'Excesso de Velocidade', icon: Activity,      color: 'text-amber-500' },
+  geofenceEnter: { label: 'Entrada em Cerca',     icon: ShieldCheck,   color: 'text-blue-500' },
+  geofenceExit:  { label: 'Saída de Cerca',       icon: ShieldCheck,   color: 'text-orange-500' },
+  ignitionOn:    { label: 'Ignição Ligada',        icon: Zap,           color: 'text-green-500' },
+  ignitionOff:   { label: 'Ignição Desligada',     icon: Zap,           color: 'text-gray-400' },
+  deviceOffline: { label: 'Ficou Offline',         icon: AlertCircle,   color: 'text-red-500' },
+  deviceOnline:  { label: 'Ficou Online',          icon: CheckCircle2,  color: 'text-green-500' },
+  deviceMoving:  { label: 'Começou a Mover',       icon: Activity,      color: 'text-blue-400' },
+  deviceStopped: { label: 'Parou',                 icon: Info,          color: 'text-gray-400' },
+};
+
+interface VehicleNotifRule {
+  id: string;
+  eventType: string;
+  sound: boolean;
+  createdAt: string;
+}
+
+function loadVehicleNotifRules(deviceId: number): VehicleNotifRule[] {
+  try {
+    const stored = localStorage.getItem('vehicleNotifRulesV2');
+    const all: Record<string, VehicleNotifRule[]> = stored ? JSON.parse(stored) : {};
+    return all[deviceId] || [];
+  } catch { return []; }
+}
+
+function saveVehicleNotifRules(deviceId: number, rules: VehicleNotifRule[]) {
+  try {
+    const stored = localStorage.getItem('vehicleNotifRulesV2');
+    const all: Record<string, VehicleNotifRule[]> = stored ? JSON.parse(stored) : {};
+    all[deviceId] = rules;
+    localStorage.setItem('vehicleNotifRulesV2', JSON.stringify(all));
+    // Sincronizar com formato legado para o hook de notificações
+    syncVehicleLegacy(all);
+  } catch {}
+}
+
+function syncVehicleLegacy(all: Record<string, VehicleNotifRule[]>) {
+  try {
+    const legacy: Record<string, Record<string, boolean>> = {};
+    for (const [devId, rules] of Object.entries(all)) {
+      const devRules: Record<string, boolean> = {};
+      for (const r of rules) devRules[r.eventType] = true;
+      legacy[devId] = devRules;
+    }
+    localStorage.setItem('vehicleNotificationRules', JSON.stringify(legacy));
+  } catch {}
+}
+
+function VehicleNotificationQuick({ deviceId }: { deviceId: number }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [selectedType, setSelectedType] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [rules, setRules] = useState<VehicleNotifRule[]>(() => loadVehicleNotifRules(deviceId));
+
+  const handleCreate = useCallback(() => {
+    if (!selectedType) return;
+    const newRule: VehicleNotifRule = {
+      id: `${deviceId}-${selectedType}-${Date.now()}`,
+      eventType: selectedType,
+      sound: soundEnabled,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...rules, newRule];
+    setRules(updated);
+    saveVehicleNotifRules(deviceId, updated);
+    setSelectedType('');
+    setSoundEnabled(true);
+    setIsCreating(false);
+  }, [deviceId, selectedType, soundEnabled, rules]);
+
+  const handleDelete = useCallback((ruleId: string) => {
+    const updated = rules.filter(r => r.id !== ruleId);
+    setRules(updated);
+    saveVehicleNotifRules(deviceId, updated);
+  }, [deviceId, rules]);
+
+  // Tipos já configurados
+  const configuredTypes = new Set(rules.map(r => r.eventType));
+  const availableTypes = Object.entries(NOTIFICATION_EVENT_CATALOG).filter(([key]) => !configuredTypes.has(key));
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card/60 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setIsOpen(v => !v)}
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          {rules.length > 0 ? (
+            <Bell className="w-3.5 h-3.5 text-primary" />
+          ) : (
+            <BellOff className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+          <span className="text-[11px] font-medium">
+            Notificações
+            {rules.length > 0 && (
+              <span className="ml-1.5 text-primary">({rules.length})</span>
+            )}
+          </span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="px-3 pb-3 space-y-2">
+          {/* Lista das notificações configuradas */}
+          {rules.length > 0 ? (
+            <div className="space-y-1">
+              {rules.map(rule => {
+                const cat = NOTIFICATION_EVENT_CATALOG[rule.eventType];
+                if (!cat) return null;
+                const Icon = cat.icon;
+                return (
+                  <div
+                    key={rule.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10 group"
+                  >
+                    <Icon className={`w-3 h-3 flex-shrink-0 ${cat.color}`} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-medium truncate block">{cat.label}</span>
+                      <span className="text-[9px] text-muted-foreground">
+                        {rule.sound ? '🔊 Som ativo' : '🔇 Sem som'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(rule.id)}
+                      className="p-0.5 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remover"
+                    >
+                      <X className="w-3 h-3 text-destructive" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground text-center py-1">
+              Nenhuma notificação configurada
+            </p>
+          )}
+
+          {/* Formulário de criação */}
+          {isCreating ? (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 space-y-2">
+              <p className="text-[10px] font-semibold text-primary">Nova notificação</p>
+
+              {/* Seletor de tipo */}
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">Tipo de evento:</p>
+                <div className="max-h-[120px] overflow-y-auto space-y-0.5">
+                  {availableTypes.length > 0 ? availableTypes.map(([key, cat]) => {
+                    const Icon = cat.icon;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setSelectedType(key)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] transition-colors ${
+                          selectedType === key
+                            ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+                            : 'hover:bg-muted/40 text-muted-foreground'
+                        }`}
+                      >
+                        <Icon className={`w-3 h-3 ${cat.color}`} />
+                        <span>{cat.label}</span>
+                      </button>
+                    );
+                  }) : (
+                    <p className="text-[10px] text-muted-foreground text-center py-2">
+                      Todos os tipos já foram configurados
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Som */}
+              {selectedType && (
+                <button
+                  type="button"
+                  onClick={() => setSoundEnabled(v => !v)}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] w-full transition-colors ${
+                    soundEnabled ? 'bg-primary/10 text-primary' : 'hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  {soundEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
+                  <span>{soundEnabled ? 'Som ativado' : 'Som desativado'}</span>
+                </button>
+              )}
+
+              {/* Ações */}
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setIsCreating(false); setSelectedType(''); }}
+                  className="flex-1 py-1.5 rounded-md text-[11px] font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={!selectedType}
+                  className="flex-1 py-1.5 rounded-md text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Criar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsCreating(true)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-primary/30 text-[11px] font-medium text-primary hover:bg-primary/5 transition-colors"
+            >
+              <Bell className="w-3 h-3" />
+              Criar notificação
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
