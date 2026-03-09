@@ -10,9 +10,14 @@ import {
   getPositions,
 } from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/auth";
+import { useDashboardConfig } from "@/lib/hooks/useDashboardConfig";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { DeviceStatusChart } from "@/components/dashboard/device-status-chart";
 import { RecentEvents } from "@/components/dashboard/recent-events";
+import { RecentCommands } from "@/components/dashboard/recent-commands";
+import { MaintenanceSummary } from "@/components/dashboard/maintenance-summary";
+import { FleetKpi } from "@/components/dashboard/fleet-kpi";
+import { DashboardCustomizeMenu } from "@/components/dashboard/dashboard-customize-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deriveDeviceStatus } from "@/lib/utils";
 import type { UserRole } from "@/types";
@@ -44,6 +49,8 @@ function getDeviceIdsForUser(
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const { widgets, toggleWidget, isVisible, resetToDefaults } =
+    useDashboardConfig();
 
   const { data: devices, isLoading: devicesLoading } = useQuery({
     queryKey: ["devices"],
@@ -128,54 +135,130 @@ export default function DashboardPage() {
     if (eventsError) console.error("Events query error:", eventsError);
   }
 
+  const showStatsPrimary = isVisible("stats-primary");
+  const showStatsSecondary = isVisible("stats-secondary");
+  const showAnyStats = showStatsPrimary || showStatsSecondary;
+
+  // Collect visible bottom widgets
+  const bottomWidgets: { id: string; node: React.ReactNode }[] = [];
+  if (isVisible("device-chart")) {
+    bottomWidgets.push({
+      id: "device-chart",
+      node: devicesLoading ? (
+        <Skeleton className="h-80" />
+      ) : (
+        <DeviceStatusChart devices={enrichedDevices} />
+      ),
+    });
+  }
+  if (isVisible("recent-events")) {
+    bottomWidgets.push({
+      id: "recent-events",
+      node: eventsLoading ? (
+        <Skeleton className="h-80" />
+      ) : events ? (
+        <RecentEvents
+          events={events.slice(0, 10)}
+          devices={filteredDevices}
+          clients={clients}
+        />
+      ) : (
+        <div className="text-sm text-red-500">Falha ao carregar eventos</div>
+      ),
+    });
+  }
+  if (isVisible("recent-commands")) {
+    bottomWidgets.push({
+      id: "recent-commands",
+      node: <RecentCommands devices={filteredDevices} />,
+    });
+  }
+  if (isVisible("maintenance-summary")) {
+    bottomWidgets.push({
+      id: "maintenance-summary",
+      node: <MaintenanceSummary />,
+    });
+  }
+
+  // Grid cols based on visible count
+  const gridCols =
+    bottomWidgets.length <= 1
+      ? "lg:grid-cols-1"
+      : bottomWidgets.length === 2
+        ? "lg:grid-cols-2"
+        : bottomWidgets.length === 3
+          ? "lg:grid-cols-3"
+          : "lg:grid-cols-2 xl:grid-cols-4";
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Dashboard
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Visão geral do sistema de rastreamento
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Visão geral do sistema de rastreamento
+          </p>
+        </div>
+        <DashboardCustomizeMenu
+          widgets={widgets}
+          onToggle={toggleWidget}
+          onReset={resetToDefaults}
+        />
       </div>
 
       {/* Stats Cards */}
-      {statsLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      ) : stats ? (
-        <StatsCards stats={stats} />
-      ) : (
-        <div className="text-sm text-red-500">
-          Falha ao carregar estatísticas
-        </div>
+      {showAnyStats && (
+        <>
+          {statsLoading ? (
+            <div className="space-y-3">
+              {showStatsPrimary && (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} className="h-24" />
+                  ))}
+                </div>
+              )}
+              {showStatsSecondary && (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={`s-${i}`} className="h-24" />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : stats ? (
+            <StatsCards
+              stats={stats}
+              showPrimary={showStatsPrimary}
+              showSecondary={showStatsSecondary}
+            />
+          ) : (
+            <div className="text-sm text-red-500">
+              Falha ao carregar estatísticas
+            </div>
+          )}
+        </>
       )}
 
-      {/* Charts and Recent Events */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Device Status Chart */}
-        {devicesLoading ? (
-          <Skeleton className="h-80" />
-        ) : (
-          <DeviceStatusChart devices={enrichedDevices} />
-        )}
+      {/* KPIs */}
+      {isVisible("fleet-kpi") && (
+        <FleetKpi
+          devices={enrichedDevices}
+          positions={positions}
+          events={events ?? []}
+        />
+      )}
 
-        {/* Recent Events */}
-        {eventsLoading ? (
-          <Skeleton className="h-80" />
-        ) : events ? (
-          <RecentEvents
-            events={events.slice(0, 10)}
-            devices={filteredDevices}
-            clients={clients}
-          />
-        ) : (
-          <div className="text-sm text-red-500">Falha ao carregar eventos</div>
-        )}
-      </div>
+      {/* Bottom widgets grid */}
+      {bottomWidgets.length > 0 && (
+        <div className={`grid gap-6 ${gridCols}`}>
+          {bottomWidgets.map((w) => (
+            <div key={w.id}>{w.node}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

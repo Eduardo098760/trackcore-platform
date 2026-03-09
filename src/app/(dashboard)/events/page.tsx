@@ -25,6 +25,7 @@ import {
   Wifi,
   WifiOff,
   Fuel,
+  Terminal,
 } from "lucide-react";
 import { Event, Device } from "@/types";
 import { toast } from "sonner";
@@ -205,7 +206,10 @@ export default function EventsPage() {
         event.type === typeFilter ||
         // deviceOverspeed e speedLimit são o mesmo conceito
         (typeFilter === "speedLimit" && event.type === "deviceOverspeed") ||
-        (typeFilter === "deviceOverspeed" && event.type === "speedLimit");
+        (typeFilter === "deviceOverspeed" && event.type === "speedLimit") ||
+        // commandResult e textMessage são ambos do grupo "Comandos"
+        (typeFilter === "commandResult" && event.type === "textMessage") ||
+        (typeFilter === "textMessage" && event.type === "commandResult");
       const matchesDevice =
         !deviceIdFilter || event.deviceId === deviceIdFilter;
       return matchesSearch && matchesStatus && matchesType && matchesDevice;
@@ -224,7 +228,7 @@ export default function EventsPage() {
 
   // Contagem por categoria
   const eventCounts = useMemo(() => {
-    const counts = { speed: 0, geofence: 0, alarm: 0, online: 0, offline: 0, fuel: 0, other: 0 };
+    const counts = { speed: 0, geofence: 0, alarm: 0, online: 0, offline: 0, fuel: 0, commands: 0, other: 0 };
     for (const e of events) {
       if (e.type === "speedLimit" || e.type === "deviceOverspeed") counts.speed++;
       else if (e.type === "geofenceEnter" || e.type === "geofenceExit" || e.type === "geofence") counts.geofence++;
@@ -232,6 +236,7 @@ export default function EventsPage() {
       else if (e.type === "deviceOnline" || e.type === "connectionRestored") counts.online++;
       else if (e.type === "deviceOffline" || e.type === "connectionLost") counts.offline++;
       else if (e.type === "fuelDrop" || e.type === "fuelIncrease") counts.fuel++;
+      else if (e.type === "commandResult" || e.type === "textMessage") counts.commands++;
       else counts.other++;
     }
     return counts;
@@ -274,7 +279,7 @@ export default function EventsPage() {
       />
 
       {/* ─── Quick stats cards ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <QuickStatCard
           icon={<Zap className="w-4 h-4 text-amber-500" />}
           label="Velocidade"
@@ -316,6 +321,13 @@ export default function EventsPage() {
           count={eventCounts.fuel}
           active={typeFilter === "fuelDrop" || typeFilter === "fuelIncrease"}
           onClick={() => handleQuickFilter("fuelDrop")}
+        />
+        <QuickStatCard
+          icon={<Terminal className="w-4 h-4 text-cyan-500" />}
+          label="Comandos"
+          count={eventCounts.commands}
+          active={typeFilter === "commandResult" || typeFilter === "textMessage"}
+          onClick={() => handleQuickFilter("commandResult")}
         />
       </div>
 
