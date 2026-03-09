@@ -167,3 +167,9 @@
   width: 4px;
   height: 4px;
 }
+
+/* Satellite orbit animation */
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

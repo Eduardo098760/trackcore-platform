@@ -189,7 +189,6 @@ async function processEvent(event: Event, devices: Device[] = []) {
     sos: true,
     commandResult: true,
     textMessage: true,
-    lowBattery: true,
     driverChanged: false,
     fuelDrop: true,
     fuelIncrease: false,
@@ -204,10 +203,36 @@ async function processEvent(event: Event, devices: Device[] = []) {
     const settingsStr = localStorage.getItem('notificationSettings');
     const saved = settingsStr ? JSON.parse(settingsStr) : {};
     const eventsConfig: Record<string, boolean> = { ...DEFAULT_EVENTS, ...(saved.events || {}) };
-    const isEnabled = eventsConfig[internalType] ?? false;
-    if (!isEnabled) {
-      console.debug(`[Notificações] Tipo "${internalType}" desabilitado — ignorado`);
-      return;
+
+    // 1) Verificar regras POR VEÍCULO (vehicleNotifRulesV2 do painel de detalhes)
+    const vehicleRulesStr = localStorage.getItem('vehicleNotifRulesV2');
+    const vehicleRulesAll: Record<string, Array<{ eventType: string }>> = vehicleRulesStr
+      ? JSON.parse(vehicleRulesStr) : {};
+    const deviceRules = vehicleRulesAll[String(event.deviceId)];
+
+    if (deviceRules && deviceRules.length > 0) {
+      // Dispositivo tem regras específicas — só disparar se o tipo consta nelas
+      const hasRule = deviceRules.some(r => r.eventType === internalType);
+      if (!hasRule) {
+        console.debug(`[Notificações] Veículo #${event.deviceId}: tipo "${internalType}" não está nas regras do veículo — ignorado`);
+        return;
+      }
+      // Tipo está permitido nas regras do veículo → prosseguir com notificação
+    } else {
+      // 2) Sem regras por veículo — usar configuração global
+      const isEnabled = eventsConfig[internalType] ?? false;
+      if (!isEnabled) {
+        console.debug(`[Notificações] Tipo "${internalType}" desabilitado — ignorado`);
+        return;
+      }
+
+      // 3) Verificar filtro por veículo da central (eventDevices)
+      const eventDevices: Record<string, number[]> = saved.eventDevices || {};
+      const allowedDevices = eventDevices[internalType];
+      if (allowedDevices && allowedDevices.length > 0 && !allowedDevices.includes(event.deviceId)) {
+        console.debug(`[Notificações] Veículo #${event.deviceId} não está na lista de "${internalType}" — ignorado`);
+        return;
+      }
     }
   } catch { /* se não conseguir ler, bloqueia por segurança */ return; }
 

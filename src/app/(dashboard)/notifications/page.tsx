@@ -104,6 +104,40 @@ function saveSettings(settings: NotificationSettings) {
   localStorage.setItem("notificationSettings", JSON.stringify(settings));
   // Sync rules format for compatibility
   syncRulesFormat(settings);
+  // Sync vehicle-specific rules to vehicleNotifRulesV2 (bidirectional with vehicle panel)
+  syncToVehicleNotifRules(settings);
+}
+
+/**
+ * Sincroniza eventDevices da central para vehicleNotifRulesV2,
+ * garantindo que regras criadas aqui apareçam no painel do veículo.
+ */
+function syncToVehicleNotifRules(settings: NotificationSettings) {
+  try {
+    const stored = localStorage.getItem('vehicleNotifRulesV2');
+    const all: Record<string, Array<{ id: string; eventType: string; sound: boolean; createdAt: string }>> =
+      stored ? JSON.parse(stored) : {};
+
+    for (const [eventType, deviceIds] of Object.entries(settings.eventDevices)) {
+      if (!settings.events[eventType]) continue;
+      for (const deviceId of deviceIds) {
+        const key = String(deviceId);
+        const existing = all[key] || [];
+        const hasRule = existing.some(r => r.eventType === eventType);
+        if (!hasRule) {
+          existing.push({
+            id: `${deviceId}-${eventType}-${Date.now()}`,
+            eventType,
+            sound: settings.inApp?.sound ?? true,
+            createdAt: new Date().toISOString(),
+          });
+          all[key] = existing;
+        }
+      }
+    }
+
+    localStorage.setItem('vehicleNotifRulesV2', JSON.stringify(all));
+  } catch {}
 }
 
 function syncRulesFormat(settings: NotificationSettings) {

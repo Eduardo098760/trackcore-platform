@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -245,13 +246,51 @@ export default function LoginPage() {
         </div>
         <div className="relative z-10 flex flex-col items-center justify-center px-12 text-left w-full [color:hsl(var(--primary-foreground))]">
           <div className="w-full max-w-xs flex flex-col items-center">
-            <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 mb-8">
-              <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
-            </div>
+            {tenant?.faviconUrl ? (
+              <div className="relative w-40 h-40 mb-8 flex items-center justify-center">
+                {/* Logo central */}
+                <Image
+                  src={tenant.faviconUrl}
+                  alt={tenant.companyName || "Logo"}
+                  width={72}
+                  height={72}
+                  className="object-contain drop-shadow-lg brightness-0 invert relative z-10"
+                  priority
+                />
+                {tenant.slug === "sv02.rastrear.app.br" && (
+                  <>
+                    {/* Anel orbital com brilho */}
+                    <div className="absolute inset-1 rounded-full border border-white/10" />
+                    <div className="absolute inset-1 rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 25%, transparent 50%)' }} />
+
+                    {/* Satélite principal - órbita circular */}
+                    <div className="absolute inset-1 animate-[orbit_10s_linear_infinite]">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_8px_2px_rgba(255,255,255,0.5)]" />
+                      </div>
+                    </div>
+
+                    {/* Segundo ponto - órbita contrária, maior */}
+                    <div className="absolute -inset-1 animate-[orbit_16s_linear_infinite_reverse]">
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <div className="w-1.5 h-1.5 bg-white/40 rounded-full shadow-[0_0_6px_1px_rgba(255,255,255,0.3)]" />
+                      </div>
+                    </div>
+
+                    {/* Brilho radiante sutil ao redor da logo */}
+                    <div className="absolute inset-6 rounded-full bg-white/5 blur-md animate-pulse" />
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 mb-8">
+                <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
+              </div>
+            )}
             <h1 className="text-3xl font-bold tracking-tight">
-              {tenant?.companyName || "TrackCore"}
+              {tenant.companyName}
             </h1>
-            <p className="text-white/95 text-base mt-2 font-normal">Plataforma de rastreamento</p>
+            <p className="text-white/95 text-base mt-2 font-normal">{tenant?.metadata?.title || "Plataforma de rastreamento"}</p>
           </div>
         </div>
       </div>
@@ -263,8 +302,23 @@ export default function LoginPage() {
           background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
         }}
       >
-        <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
-        <span className="text-xl font-bold">{tenant?.companyName || "TrackCore"}</span>
+        {tenant?.faviconUrl ? (
+          <div className="relative w-32 h-8">
+            <Image
+              src={tenant.faviconUrl}
+              alt={tenant.companyName || "Logo"}
+              fill
+              className="object-contain brightness-0 invert"
+              priority
+            />
+          </div>
+        ) : (
+          <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
+        )}
+        <div className="flex flex-col">
+          <span className="text-xl font-bold">{tenant.companyName}</span>
+          <span className="text-xs text-white/80">{tenant?.metadata?.description || "Plataforma de rastreamento"}</span>
+        </div>
       </div>
 
       {/* Coluna direita - Formulário */}

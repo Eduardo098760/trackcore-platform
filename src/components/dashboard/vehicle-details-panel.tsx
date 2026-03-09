@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Device, Position } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -437,6 +437,47 @@ function saveVehicleNotifRules(deviceId: number, rules: VehicleNotifRule[]) {
     localStorage.setItem('vehicleNotifRulesV2', JSON.stringify(all));
     // Sincronizar com formato legado para o hook de notificações
     syncVehicleLegacy(all);
+    // Sincronizar com notificationSettings (central de notificações)
+    syncToNotificationSettings(deviceId, rules);
+  } catch {}
+}
+
+/**
+ * Sincroniza regras por veículo para notificationSettings,
+ * garantindo que o tipo fique habilitado e o deviceId apareça em eventDevices.
+ */
+function syncToNotificationSettings(deviceId: number, rules: VehicleNotifRule[]) {
+  try {
+    const raw = localStorage.getItem('notificationSettings');
+    const settings = raw ? JSON.parse(raw) : {};
+    const events: Record<string, boolean> = settings.events || {};
+    const eventDevices: Record<string, number[]> = settings.eventDevices || {};
+
+    // Habilitar cada tipo de evento das regras do veículo
+    for (const rule of rules) {
+      events[rule.eventType] = true;
+
+      // Adicionar deviceId na lista de eventDevices se não estiver
+      const list = eventDevices[rule.eventType] || [];
+      if (!list.includes(deviceId)) {
+        eventDevices[rule.eventType] = [...list, deviceId];
+      }
+    }
+
+    // Remover deviceId dos tipos que FORAM removidos do veículo
+    const activeTypes = new Set(rules.map(r => r.eventType));
+    for (const [eventType, deviceIds] of Object.entries(eventDevices)) {
+      if (!activeTypes.has(eventType) && deviceIds.includes(deviceId)) {
+        eventDevices[eventType] = deviceIds.filter(id => id !== deviceId);
+        if (eventDevices[eventType].length === 0) {
+          delete eventDevices[eventType];
+        }
+      }
+    }
+
+    settings.events = events;
+    settings.eventDevices = eventDevices;
+    localStorage.setItem('notificationSettings', JSON.stringify(settings));
   } catch {}
 }
 
@@ -458,6 +499,13 @@ function VehicleNotificationQuick({ deviceId }: { deviceId: number }) {
   const [selectedType, setSelectedType] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [rules, setRules] = useState<VehicleNotifRule[]>(() => loadVehicleNotifRules(deviceId));
+
+  // Recarregar regras quando localStorage muda (outra aba ou central de notificações)
+  useEffect(() => {
+    const reload = () => setRules(loadVehicleNotifRules(deviceId));
+    window.addEventListener('storage', reload);
+    return () => window.removeEventListener('storage', reload);
+  }, [deviceId]);
 
   const handleCreate = useCallback(() => {
     if (!selectedType) return;

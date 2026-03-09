@@ -69,7 +69,7 @@ export const TENANTS_CONFIG: Record<string, TenantConfig> = {
       primaryForegroundDark: "0 0% 100%",
     },
     metadata: {
-      title: "Rastrear - Plataforma de Rastreamento Veicular",
+      title: "Plataforma de Rastreamento Veicular",
       description: "Sistema completo de rastreamento de frota em tempo real",
       website: "https://sv02.rastrear.app.br",
       serverUrl: "http://sv01.rastrear.app.br",
