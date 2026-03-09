@@ -69,6 +69,7 @@ import {
 } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareLocationDialog } from "@/components/vehicles/share-location-dialog";
+import { SendCommandDialog } from "@/components/map/send-command-dialog";
 
 interface ActiveShare {
   shareId: string;
@@ -112,6 +113,8 @@ export default function VehiclesPage() {
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [shareDevice, setShareDevice] = useState<Device | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [commandDevice, setCommandDevice] = useState<Device | null>(null);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
 
   // shares ativos: map deviceId -> lista de shares
   const [activeSharesMap, setActiveSharesMap] = useState<
@@ -970,6 +973,18 @@ export default function VehiclesPage() {
                             <Button
                               size="sm"
                               variant="ghost"
+                              className="hover:bg-blue-50 dark:hover:bg-blue-950/20 text-blue-600"
+                              title="Enviar comando"
+                              onClick={() => {
+                                setCommandDevice(device);
+                                setIsCommandOpen(true);
+                              }}
+                            >
+                              <Terminal className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
                               onClick={() => {
                                 if (hasShares) {
                                   setExpandedShares((prev) => {
@@ -1132,6 +1147,12 @@ export default function VehiclesPage() {
         onOpenChange={setIsShareOpen}
         device={shareDevice}
         onShareChange={refreshActiveShares}
+      />
+
+      <SendCommandDialog
+        device={commandDevice}
+        open={isCommandOpen}
+        onOpenChange={setIsCommandOpen}
       />
     </div>
   );

@@ -29,6 +29,7 @@ import {
   Siren,
   Camera,
   Terminal,
+  MessageSquare,
   UserCheck,
   Clock,
   TrendingUp,
@@ -79,6 +80,8 @@ function getEventIcon(type: string, alarmType?: string) {
       return <UserCheck className="w-5 h-5" />;
     case "commandResult":
       return <Terminal className="w-5 h-5" />;
+    case "textMessage":
+      return <MessageSquare className="w-5 h-5" />;
     case "media":
       return <Camera className="w-5 h-5" />;
     default:
@@ -387,6 +390,18 @@ const EventDetails = React.memo(function EventDetails({
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-mono">
           <Terminal className="w-3 h-3" />
           {String(attrs.result).slice(0, 100)}
+        </span>
+      </div>
+    );
+  }
+
+  // Mensagem de texto
+  if (type === "textMessage" && attrs.message) {
+    return (
+      <div className="mt-2 text-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+          <MessageSquare className="w-3 h-3" />
+          {String(attrs.message).slice(0, 120)}
         </span>
       </div>
     );

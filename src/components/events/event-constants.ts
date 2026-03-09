@@ -56,6 +56,13 @@ export const EVENT_CATEGORIES: {
     ],
   },
   {
+    label: "Comandos",
+    types: [
+      { value: "commandResult", label: "Resultado de comando" },
+      { value: "textMessage", label: "Mensagem de texto" },
+    ],
+  },
+  {
     label: "Outros",
     types: [
       { value: "maintenance", label: "Manutenção" },
@@ -63,7 +70,6 @@ export const EVENT_CATEGORIES: {
       { value: "lowBattery", label: "Bateria fraca" },
       { value: "deviceBlocked", label: "Veículo bloqueado" },
       { value: "deviceUnblocked", label: "Veículo desbloqueado" },
-      { value: "commandResult", label: "Resultado de comando" },
       { value: "media", label: "Mídia" },
     ],
   },

@@ -106,6 +106,7 @@ export function getEventTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     // Conexão / Status
     commandResult: 'Resultado de comando',
+    textMessage: 'Mensagem de texto',
     deviceOnline: 'Dispositivo online',
     deviceUnknown: 'Status desconhecido',
     deviceOffline: 'Dispositivo offline',
@@ -178,6 +179,7 @@ export function getEventTypeColor(type: string): string {
     case 'deviceMoving':
     case 'deviceStopped':
     case 'commandResult':
+    case 'textMessage':
     case 'media':
     default:
       return 'text-blue-600 bg-blue-50 dark:bg-blue-950/30';

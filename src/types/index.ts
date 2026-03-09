@@ -167,6 +167,7 @@ export type EventType =
   | "maintenance"
   | "driverChanged"
   | "media"
+  | "textMessage"
   | "lowBattery"
   | "connectionLost"
   | "connectionRestored"

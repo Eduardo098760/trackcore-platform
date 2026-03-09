@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   Route,
   KeyRound,
+  Wrench,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { usePermissions } from "@/lib/hooks/usePermissions";
@@ -64,6 +65,7 @@ const advanced = [
   },
   { name: "Computador de Bordo", href: "/obd", icon: Gauge, key: "obd" },
   { name: "Estatísticas", href: "/statistics", icon: BarChart3, key: "statistics" },
+  { name: "Manutenção", href: "/maintenance", icon: Wrench, key: "maintenance" },
 ];
 
 const management = [

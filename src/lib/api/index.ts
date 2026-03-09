@@ -529,126 +529,13 @@ export async function deleteDriver(id: number): Promise<void> {
   await api.delete<void>(`/drivers/${id}`);
 }
 
-// Maintenances API (Traccar /maintenance endpoint)
-export async function getMaintenances(): Promise<
-  import("@/types").Maintenance[]
-> {
-  const impersonatingUserId = getImpersonatingUserId();
-  const params = impersonatingUserId
-    ? { userId: impersonatingUserId }
-    : undefined;
-  if (impersonatingUserId) {
-    console.log(
-      "[getMaintenances] Impersonação ativa — filtrando por userId:",
-      impersonatingUserId,
-    );
-  }
-  try {
-    const items = await api.get<any[]>("/maintenance", params);
-    return (items || []).map((m) => ({
-      id: m.id,
-      deviceId: m.attributes?.deviceId || 0,
-      deviceName: m.attributes?.deviceName || "",
-      type: m.attributes?.maintenanceType || "general_inspection",
-      description: m.name || m.attributes?.description || "",
-      status: m.attributes?.status || "scheduled",
-      scheduledDate: m.attributes?.scheduledDate || "",
-      completedDate: m.attributes?.completedDate,
-      cost: m.attributes?.cost || 0,
-      odometer: m.start || m.attributes?.odometer || 0,
-      nextOdometer: m.period ? m.start + m.period : m.attributes?.nextOdometer,
-      notes: m.attributes?.notes || "",
-      createdAt: m.attributes?.createdAt || new Date().toISOString(),
-      updatedAt: m.attributes?.updatedAt || new Date().toISOString(),
-    }));
-  } catch (error) {
-    console.error("[getMaintenances] Erro ao buscar manutenções:", error);
-    return [];
-  }
-}
-
-export async function createMaintenance(
-  data: Partial<import("@/types").Maintenance>,
-): Promise<import("@/types").Maintenance> {
-  const payload = {
-    name: data.description || "Manutenção",
-    type: "totalDistance",
-    start: data.odometer || 0,
-    period: data.nextOdometer
-      ? data.nextOdometer - (data.odometer || 0)
-      : 10000,
-    attributes: {
-      deviceId: data.deviceId,
-      deviceName: data.deviceName || "",
-      maintenanceType: data.type,
-      description: data.description || "",
-      status: data.status || "scheduled",
-      scheduledDate: data.scheduledDate || "",
-      cost: data.cost || 0,
-      odometer: data.odometer || 0,
-      nextOdometer: data.nextOdometer,
-      notes: data.notes || "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  };
-  const result = await api.post<any>("/maintenance", payload);
-  return {
-    ...data,
-    id: result.id,
-    createdAt: result.attributes?.createdAt || new Date().toISOString(),
-    updatedAt: result.attributes?.updatedAt || new Date().toISOString(),
-  } as import("@/types").Maintenance;
-}
-
-export async function updateMaintenance(
-  id: number,
-  data: Partial<import("@/types").Maintenance>,
-): Promise<import("@/types").Maintenance> {
-  let currentAttributes: Record<string, any> = {};
-  try {
-    const current = await api.get<any>(`/maintenance/${id}`);
-    currentAttributes = current?.attributes || {};
-  } catch {}
-  const payload = {
-    id,
-    name: data.description || currentAttributes.description || "Manutenção",
-    type: "totalDistance",
-    start: data.odometer || currentAttributes.odometer || 0,
-    period: data.nextOdometer
-      ? data.nextOdometer - (data.odometer || 0)
-      : 10000,
-    attributes: {
-      ...currentAttributes,
-      ...(data.deviceId !== undefined ? { deviceId: data.deviceId } : {}),
-      ...(data.deviceName !== undefined ? { deviceName: data.deviceName } : {}),
-      ...(data.type !== undefined ? { maintenanceType: data.type } : {}),
-      ...(data.description !== undefined
-        ? { description: data.description }
-        : {}),
-      ...(data.status !== undefined ? { status: data.status } : {}),
-      ...(data.scheduledDate !== undefined
-        ? { scheduledDate: data.scheduledDate }
-        : {}),
-      ...(data.completedDate !== undefined
-        ? { completedDate: data.completedDate }
-        : {}),
-      ...(data.cost !== undefined ? { cost: data.cost } : {}),
-      ...(data.notes !== undefined ? { notes: data.notes } : {}),
-      updatedAt: new Date().toISOString(),
-    },
-  };
-  const result = await api.put<any>(`/maintenance/${id}`, payload);
-  return {
-    ...data,
-    id: result.id,
-    updatedAt: new Date().toISOString(),
-  } as import("@/types").Maintenance;
-}
-
-export async function deleteMaintenance(id: number): Promise<void> {
-  await api.delete<void>(`/maintenance/${id}`);
-}
+// Maintenances API — delegado para módulo dedicado
+export {
+  getMaintenances,
+  createMaintenance,
+  updateMaintenance,
+  deleteMaintenance,
+} from "./maintenance";
 
 // User Permissions API (gerenciar dispositivos do usuário - Traccar)
 export async function getUserDevices(userId: number): Promise<Device[]> {

@@ -160,6 +160,15 @@ async function processEvent(event: Event, devices: Device[] = []) {
     'maintenance': 'maintenance',
     'deviceMoving': 'deviceMoving',
     'deviceStopped': 'deviceStopped',
+    'commandResult': 'commandResult',
+    'textMessage': 'textMessage',
+    'lowBattery': 'lowBattery',
+    'driverChanged': 'driverChanged',
+    'media': 'media',
+    'deviceBlocked': 'deviceBlocked',
+    'deviceUnblocked': 'deviceUnblocked',
+    'fuelDrop': 'fuelDrop',
+    'fuelIncrease': 'fuelIncrease',
   };
 
   const internalType = eventTypeMap[event.type] || event.type;
@@ -178,6 +187,15 @@ async function processEvent(event: Event, devices: Device[] = []) {
     lowBattery: true,
     maintenance: true,
     sos: true,
+    commandResult: true,
+    textMessage: true,
+    lowBattery: true,
+    driverChanged: false,
+    fuelDrop: true,
+    fuelIncrease: false,
+    deviceBlocked: true,
+    deviceUnblocked: true,
+    media: false,
   };
 
   // Verificar se o tipo de evento está habilitado nas configurações do usuário.
@@ -302,6 +320,55 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
       type: 'info',
       title: '🛑 Dispositivo Parado',
       message: `${deviceName} parou`,
+    },
+    'commandResult': {
+      type: 'info',
+      title: '📟 Resultado de Comando',
+      message: event.attributes?.result
+        ? `${deviceName}: ${String(event.attributes.result).slice(0, 80)}`
+        : `${deviceName} respondeu ao comando`,
+    },
+    'textMessage': {
+      type: 'info',
+      title: '💬 Mensagem de Texto',
+      message: event.attributes?.message
+        ? `${deviceName}: ${String(event.attributes.message).slice(0, 80)}`
+        : `${deviceName} enviou uma mensagem`,
+    },
+    'lowBattery': {
+      type: 'warning',
+      title: '🔋 Bateria Fraca',
+      message: `${deviceName} está com bateria baixa`,
+    },
+    'driverChanged': {
+      type: 'info',
+      title: '👤 Motorista Alterado',
+      message: `${deviceName} teve o motorista alterado`,
+    },
+    'fuelDrop': {
+      type: 'warning',
+      title: '⛽ Queda de Combustível',
+      message: `${deviceName} registrou queda de combustível`,
+    },
+    'fuelIncrease': {
+      type: 'success',
+      title: '⛽ Abastecimento',
+      message: `${deviceName} foi abastecido`,
+    },
+    'deviceBlocked': {
+      type: 'error',
+      title: '🔒 Veículo Bloqueado',
+      message: `${deviceName} foi bloqueado`,
+    },
+    'deviceUnblocked': {
+      type: 'success',
+      title: '🔓 Veículo Desbloqueado',
+      message: `${deviceName} foi desbloqueado`,
+    },
+    'media': {
+      type: 'info',
+      title: '📷 Mídia Recebida',
+      message: `${deviceName} enviou uma mídia`,
     },
   };
 
