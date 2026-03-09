@@ -31,7 +31,7 @@ function normalizeDevice(raw: any): Device {
   // enquanto o valor real está em attributes.plate — ?? não filtra strings vazias.
   return {
     ...raw,
-    plate: raw.plate || attrs.plate || "",
+    plate: raw.plate || attrs.licensePlate || attrs.plate || "",
     year: raw.year || attrs.year,
     color: raw.color || attrs.color,
     speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit) : undefined,
@@ -131,7 +131,7 @@ export async function createDevice(
   const mergedAttributes: Record<string, any> = {
     ...(incomingAttributes || {}),
     ...(organizationId !== undefined ? { organizationId } : {}),
-    ...(plate !== undefined ? { plate } : {}),
+    ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(speedLimit !== undefined ? { speedLimit } : {}),
@@ -221,7 +221,7 @@ export async function updateDevice(
     ...currentAttributes,
     ...(incomingAttributes || {}),
     // campos customizados da plataforma
-    ...(plate !== undefined ? { plate } : {}),
+    ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),
     ...(speedLimit !== undefined ? { speedLimit } : {}),

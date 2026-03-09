@@ -64,6 +64,17 @@ class ApiClient {
     const headers = { ...this.config.headers };
     // Traccar não usa Authorization header, usa cookies de sessão
     // O token é mantido apenas para compatibilidade com o sistema
+
+    // Multi-tenant: envia servidor alvo para o proxy
+    if (typeof window !== 'undefined') {
+      try {
+        const server = localStorage.getItem('traccar-server');
+        if (server && /^https?:\/\//i.test(server)) {
+          headers['x-traccar-server'] = server;
+        }
+      } catch {}
+    }
+
     return headers;
   }
 

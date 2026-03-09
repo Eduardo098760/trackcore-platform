@@ -1,10 +1,30 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { IncomingMessage } from "http";
 
-const TRACCAR_URL =
-  process.env.TRACCAR_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:8082";
+/**
+ * Resolve a URL do servidor Traccar de forma dinâmica (multi-tenant).
+ * Prioridade: header x-traccar-server > cookie traccar-server.
+ * Retorna null se nenhum servidor foi configurado.
+ */
+function resolveTraccarUrl(req: NextApiRequest): string | null {
+  // 1. Header customizado (set pelo ApiClient)
+  const headerUrl = req.headers["x-traccar-server"] as string | undefined;
+  if (headerUrl && /^https?:\/\//i.test(headerUrl)) {
+    return headerUrl.replace(/\/+$/, "");
+  }
+
+  // 2. Cookie (set pela tela de login)
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(/(?:^|;\s*)traccar-server=([^;]+)/);
+  if (match) {
+    try {
+      const decoded = decodeURIComponent(match[1]);
+      if (/^https?:\/\//i.test(decoded)) return decoded.replace(/\/+$/, "");
+    } catch {}
+  }
+
+  return null;
+}
 
 /**
  * Desabilita o body parser do Next.js para este proxy.
@@ -55,7 +75,10 @@ export default async function handler(
       : String(path || "");
 
     const addApiPrefer = process.env.TRACCAR_ADD_API !== "false";
-    const base = TRACCAR_URL.replace(/\/$/, "");
+    const base = resolveTraccarUrl(req);
+    if (!base) {
+      return res.status(400).json({ error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login." });
+    }
     const query = req.url?.split("?")[1];
 
     const makeUrl = (useApi: boolean) => {

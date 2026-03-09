@@ -226,16 +226,20 @@ export async function markEventAsResolved(eventId: number): Promise<Event> {
 }
 
 // Commands API (usando Traccar)
+// Payload segue exatamente o formato nativo: { id:0, deviceId, type, attributes }
 export async function sendCommand(
   deviceId: number,
   type: string,
   attributes?: Record<string, any>,
+  textChannel?: boolean,
 ): Promise<TraccarCommand> {
-  const command = {
+  const command: Record<string, any> = {
+    id: 0,
     deviceId,
     type,
     attributes: attributes || {},
   };
+  if (textChannel) command.textChannel = true;
 
   return api.post<TraccarCommand>("/commands/send", command);
 }

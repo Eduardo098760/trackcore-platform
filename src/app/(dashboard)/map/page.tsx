@@ -556,53 +556,27 @@ export default function MapPage() {
       animatedSelectionForId.current = selectedDeviceId;
       transitionRunning.current = true;
 
-      let t1: number | undefined;
-      let t2: number | undefined;
-
       try {
-        try {
-          map.stop?.();
-        } catch {
-          /* ignore */
-        }
-        const currentZoom = map.getZoom();
-        const zoomOut = Math.max(13, Math.min(15, currentZoom - 3));
-        map.flyTo([lat, lng], zoomOut, { duration: 0.65 });
+        map.stop?.();
+      } catch { /* ignore */ }
+
+      // Animação única: voa direto para o veículo em zoom 17
+      try {
+        map.flyTo([lat, lng], 17, { duration: 1.2 });
       } catch {
         try {
-          map.setView([lat, lng], map.getZoom());
-        } catch {
-          /* ignore */
-        }
+          map.setView([lat, lng], 17);
+        } catch { /* ignore */ }
       }
 
-      t1 = window.setTimeout(() => {
-        try {
-          try {
-            map.stop?.();
-          } catch {
-            /* ignore */
-          }
-          map.flyTo([lat, lng], 17, { duration: 0.95 });
-        } catch {
-          try {
-            map.setView([lat, lng], 17);
-          } catch {
-            /* ignore */
-          }
-        }
-      }, 740);
-
-      t2 = window.setTimeout(() => {
+      const t = window.setTimeout(() => {
         transitionRunning.current = false;
         prev.current = { lat, lng };
-        // libera zoom/pan manual depois da animação
         setFollowVehicle(false);
-      }, 1900);
+      }, 1400);
 
       return () => {
-        if (t1) window.clearTimeout(t1);
-        if (t2) window.clearTimeout(t2);
+        window.clearTimeout(t);
         transitionRunning.current = false;
       };
     }, [follow, map, selectedDeviceId, positions]);

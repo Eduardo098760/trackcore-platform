@@ -9,14 +9,7 @@ const nextConfig = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/traccar/:path*",
-        destination: "http://unotracker.rastrear.app.br/api/:path*",
-      },
-    ];
-  },
+
 };
 
 module.exports = nextConfig;

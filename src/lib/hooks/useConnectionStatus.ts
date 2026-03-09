@@ -7,7 +7,7 @@ export interface ConnectionStatus {
   error: string | null;
 }
 
-export function useConnectionStatus(checkInterval: number = 30000) {
+export function useConnectionStatus(checkInterval: number = 120_000) {
   const [status, setStatus] = useState<ConnectionStatus>({
     isOnline: false,
     lastCheck: null,

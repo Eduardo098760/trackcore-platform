@@ -214,7 +214,7 @@ export default function VehiclesPage() {
   const { data: positions = [] } = useQuery({
     queryKey: ["positions"],
     queryFn: () => getPositions(),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   });
 
   const createMutation = useMutation({

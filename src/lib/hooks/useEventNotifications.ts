@@ -38,8 +38,8 @@ export function useEventNotifications(enabled: boolean = true) {
       }
     },
     enabled,
-    refetchInterval: 5000, // Verificar a cada 5 segundos (mais responsivo)
-    refetchOnWindowFocus: true, // Refetch quando voltar para janela
+    refetchInterval: 30_000, // Verificar a cada 30 segundos
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

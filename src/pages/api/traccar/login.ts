@@ -12,8 +12,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const traccarUrl = process.env.TRACCAR_API_URL || 'http://localhost:8082';
-    const base = traccarUrl.replace(/\/$/, '');
+    // Multi-tenant: ler servidor do header ou cookie
+    const headerUrl = req.headers['x-traccar-server'] as string | undefined;
+    let serverUrl = '';
+    if (headerUrl && /^https?:\/\//i.test(headerUrl)) {
+      serverUrl = headerUrl;
+    } else {
+      const cookies = req.headers.cookie || '';
+      const match = cookies.match(/(?:^|;\s*)traccar-server=([^;]+)/);
+      if (match) { try { serverUrl = decodeURIComponent(match[1]); } catch {} }
+    }
+    if (!serverUrl || !/^https?:\/\//i.test(serverUrl)) {
+      return res.status(400).json({ error: 'Nenhum servidor configurado. Informe o endereço do servidor na tela de login.' });
+    }
+    const base = serverUrl.replace(/\/$/, '');
 
     console.log('[traccar-login] Authenticating with', `${base}/api/session`);
 

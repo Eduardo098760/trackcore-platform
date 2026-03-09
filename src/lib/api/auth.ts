@@ -2,6 +2,18 @@ import { AuthResponse, User, Organization } from "@/types";
 import { api } from "./client";
 import { getOrganizationBySlug } from "./organizations";
 
+/** Retorna headers extras para multi-tenant (servidor dinâmico) */
+function getServerHeader(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const server = localStorage.getItem("traccar-server");
+    if (server && /^https?:\/\//i.test(server)) {
+      return { "x-traccar-server": server };
+    }
+  } catch {}
+  return {};
+}
+
 /**
  * Extrai a role correta do usuário Traccar alinhada ao modelo nativo:
  *
@@ -72,8 +84,9 @@ export async function login(
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
+      ...getServerHeader(),
     },
-    credentials: "include", // Important: include cookies
+    credentials: "include",
     body: formData.toString(),
   });
 
@@ -90,7 +103,7 @@ export async function login(
     const updatedAttributes = { ...(rawUser.attributes || {}), lastLogin: now };
     await fetch(`${api.getConfig().baseURL}/users/${user.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getServerHeader() },
       credentials: "include",
       body: JSON.stringify({ ...rawUser, attributes: updatedAttributes }),
     });
@@ -136,6 +149,7 @@ export async function login(
 export async function getCurrentUser(): Promise<User> {
   const response = await fetch(`${api.getConfig().baseURL}/session`, {
     credentials: "include",
+    headers: { ...getServerHeader() },
   });
 
   if (!response.ok) {
@@ -153,6 +167,7 @@ export async function logout(): Promise<void> {
   await fetch(`${api.getConfig().baseURL}/session`, {
     method: "DELETE",
     credentials: "include",
+    headers: { ...getServerHeader() },
   });
 }
 

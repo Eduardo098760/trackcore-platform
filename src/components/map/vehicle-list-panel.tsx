@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Radio,
   List,
+  Lock,
 } from "lucide-react";
 import { useRelativeTime } from "@/lib/hooks/useRelativeTime";
 
@@ -370,6 +371,16 @@ export function VehicleListPanel({
                           batteryLevel > 0 && (
                             <BatteryIndicator level={batteryLevel} />
                           )}
+
+                        {/* Blocked */}
+                        {device.attributes?.blocked && (
+                          <div
+                            className="flex items-center text-red-400"
+                            title="Veículo bloqueado"
+                          >
+                            <Lock className="w-2.5 h-2.5" />
+                          </div>
+                        )}
                       </div>
 
                       {/* Last seen */}

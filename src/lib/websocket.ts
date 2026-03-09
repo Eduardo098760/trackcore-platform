@@ -12,10 +12,25 @@ type ConnectionCallback = (connected: boolean) => void;
 
 /**
  * Deriva a URL do WebSocket do Traccar a partir da URL da API configurada.
+ * Suporta multi-tenant via localStorage.
  */
 function deriveTraccarWsUrl(): string {
   if (process.env.NEXT_PUBLIC_WS_URL) {
     return process.env.NEXT_PUBLIC_WS_URL;
+  }
+
+  // Multi-tenant: ler servidor dinâmico do localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const server = localStorage.getItem('traccar-server');
+      if (server && /^https?:\/\//i.test(server)) {
+        const wsBase = server
+          .replace(/^http:/i, 'ws:')
+          .replace(/^https:/i, 'wss:')
+          .replace(/\/+$/, '');
+        return `${wsBase}/api/socket`;
+      }
+    } catch {}
   }
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';

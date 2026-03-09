@@ -54,7 +54,7 @@ export default function DashboardPage() {
   const { data: positions = [] } = useQuery({
     queryKey: ["positions"],
     queryFn: () => getPositions(),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   });
 
   const positionsMap = useMemo(
@@ -97,7 +97,7 @@ export default function DashboardPage() {
     queryKey: ["dashboard-stats", deviceIdsKey],
     queryFn: () => getDashboardStats({ deviceIds }),
     enabled: devices !== undefined,
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
   });
 
   const {
@@ -116,7 +116,7 @@ export default function DashboardPage() {
       });
     },
     enabled: devices !== undefined,
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
   });
 
   // Log de erro para depuração em cliente

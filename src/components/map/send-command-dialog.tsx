@@ -23,6 +23,7 @@ import {
   Loader2,
   FileText,
   WifiOff,
+  MessageSquare,
 } from "lucide-react";
 import { deriveDeviceStatus } from "@/lib/utils";
 
@@ -35,14 +36,14 @@ const COMMAND_TYPES = [
     dangerous: false,
   },
   {
-    value: "engineStop",
+    value: "engineResume",
     label: "Bloquear Veículo",
     description: "Corta a alimentação do motor remotamente",
     icon: Lock,
     dangerous: true,
   },
   {
-    value: "engineResume",
+    value: "engineStop",
     label: "Desbloquear Veículo",
     description: "Restaura a alimentação do motor",
     icon: Unlock,
@@ -93,6 +94,7 @@ interface SendCommandDialogProps {
 export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDialogProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [customText, setCustomText] = useState("");
+  const [useSms, setUseSms] = useState(false);
   const [confirmDangerous, setConfirmDangerous] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -103,14 +105,15 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
   }, [device]);
 
   const mutation = useMutation({
-    mutationFn: ({ deviceId, type, attributes }: { deviceId: number; type: string; attributes?: Record<string, any> }) =>
-      sendCommand(deviceId, type, attributes),
+    mutationFn: ({ deviceId, type, attributes, textChannel }: { deviceId: number; type: string; attributes?: Record<string, any>; textChannel?: boolean }) =>
+      sendCommand(deviceId, type, attributes, textChannel),
     onSuccess: (_data, variables) => {
       addToLocalHistory(variables.deviceId, variables.type, "sent");
       setResult({ success: true, message: "Comando enviado com sucesso!" });
       setTimeout(() => {
         setSelected(null);
         setCustomText("");
+        setUseSms(false);
         setResult(null);
         setConfirmDangerous(false);
         onOpenChange(false);
@@ -134,13 +137,14 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     if (selected === "custom" && customText.trim()) {
       attributes.data = customText.trim();
     }
-    mutation.mutate({ deviceId: device.id, type: selected, attributes });
+    mutation.mutate({ deviceId: device.id, type: selected, attributes, textChannel: useSms || undefined });
   };
 
   const handleClose = (open: boolean) => {
     if (!open) {
       setSelected(null);
       setCustomText("");
+      setUseSms(false);
       setResult(null);
       setConfirmDangerous(false);
       mutation.reset();
@@ -223,6 +227,26 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
               <p className="text-[10px] text-muted-foreground mt-1">
                 Texto para protocolos text-based ou hex para binários.
               </p>
+            </div>
+          )}
+
+          {/* Canal de envio: GPRS ou SMS */}
+          {selected && (
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-muted/40">
+              <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium">Enviar via SMS</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Se GPRS não funcionar
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUseSms(!useSms)}
+                className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${useSms ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-700"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${useSms ? "translate-x-5" : ""}`} />
+              </button>
             </div>
           )}
 

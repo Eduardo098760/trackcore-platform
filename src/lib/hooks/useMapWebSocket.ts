@@ -23,7 +23,7 @@ interface UseMapWebSocketOptions {
 const TRAIL_WINDOW_MS = 5 * 60 * 1000; // 5 minutos
 const TRAIL_MAX_POINTS = 100;
 const FLUSH_INTERVAL_MS = 200;
-const POLL_INTERVAL_ALWAYS = 3_000; // Sempre faz polling a cada 3s
+const POLL_FALLBACK_INTERVAL = 15_000; // Polling apenas quando WS desconectado
 
 /** Tenta extrair timestamp de um campo ISO ou epoch; retorna Date.now() se falhar */
 function safeTimestamp(val: string | number | undefined | null): number {
@@ -189,23 +189,45 @@ export function useMapWebSocket({
 
     wsClient.connect();
 
-    // ─── Polling SEMPRE ativo — é a fonte primária de dados ───
-    pollingRef.current = setInterval(async () => {
-      try {
-        const freshPositions = await getPositions();
-        if (freshPositions.length > 0) {
-          enqueuePositions(freshPositions);
+    // ─── Polling apenas como fallback quando WS desconectado ───
+    const startFallbackPolling = () => {
+      if (pollingRef.current) return; // já rodando
+      pollingRef.current = setInterval(async () => {
+        try {
+          const freshPositions = await getPositions();
+          if (freshPositions.length > 0) {
+            enqueuePositions(freshPositions);
+          }
+        } catch {
+          // silencioso
         }
-      } catch {
-        // silencioso
+      }, POLL_FALLBACK_INTERVAL);
+    };
+    const stopFallbackPolling = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
       }
-    }, POLL_INTERVAL_ALWAYS);
+    };
+
+    // Inicia polling imediatamente (WS ainda não conectou)
+    startFallbackPolling();
+
+    // Gerencia polling baseado na conexão WS
+    const unsubscribePolling = wsClient.onConnectionChange((connected) => {
+      if (connected) {
+        stopFallbackPolling();
+      } else {
+        startFallbackPolling();
+      }
+    });
 
     return () => {
       unsubscribe();
       unsubscribeConnection();
+      unsubscribePolling();
       clearInterval(flushInterval);
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      stopFallbackPolling();
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
       flushPositions();
       wsClient.disconnect();

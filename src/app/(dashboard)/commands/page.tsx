@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getDevices, sendCommand } from "@/lib/api";
+import { getDevices, sendCommand, getSavedCommands } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +27,11 @@ import {
   Car,
   FileText,
   ChevronDown,
+  MessageSquare,
+  BookmarkCheck,
 } from "lucide-react";
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
-import { Command, Device } from "@/types";
+import { Command, Device, TraccarCommand } from "@/types";
 
 // ─── Constantes de tipos de comando ──────────────────────────────────────────
 const COMMAND_TYPES = [
@@ -41,14 +43,14 @@ const COMMAND_TYPES = [
     dangerous: false,
   },
   {
-    value: "engineStop",
+    value: "engineResume",
     label: "Bloquear Veículo",
     description: "Corta a alimentação do motor remotamente",
     icon: Lock,
     dangerous: true,
   },
   {
-    value: "engineResume",
+    value: "engineStop",
     label: "Desbloquear Veículo",
     description: "Restaura a alimentação do motor",
     icon: Unlock,
@@ -282,6 +284,7 @@ export default function CommandsPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [selectedCommand, setSelectedCommand] = useState<string>("");
   const [customText, setCustomText] = useState("");
+  const [useSms, setUseSms] = useState(false);
   const [confirmDangerous, setConfirmDangerous] = useState(false);
   const [history, setHistory] = useState<Command[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -293,6 +296,13 @@ export default function CommandsPage() {
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: () => getDevices(),
+  });
+
+  // Buscar comandos salvos vinculados ao dispositivo selecionado
+  const { data: savedCommands = [] } = useQuery({
+    queryKey: ["savedCommands", selectedDeviceId],
+    queryFn: () => getSavedCommands(parseInt(selectedDeviceId)),
+    enabled: !!selectedDeviceId,
   });
 
   const selectedDevice = useMemo(
@@ -329,11 +339,13 @@ export default function CommandsPage() {
       deviceId,
       type,
       attributes,
+      textChannel,
     }: {
       deviceId: number;
       type: string;
       attributes?: Record<string, any>;
-    }) => sendCommand(deviceId, type, attributes),
+      textChannel?: boolean;
+    }) => sendCommand(deviceId, type, attributes, textChannel),
     onSuccess: (_data, variables) => {
       setError(null);
       addToHistory(variables.deviceId, variables.type, "sent");
@@ -369,6 +381,18 @@ export default function CommandsPage() {
       deviceId: parseInt(selectedDeviceId),
       type: selectedCommand,
       attributes,
+      textChannel: useSms || undefined,
+    });
+  };
+
+  const handleSendSavedCommand = (saved: TraccarCommand) => {
+    if (!selectedDeviceId) return;
+    setError(null);
+    sendCommandMutation.mutate({
+      deviceId: parseInt(selectedDeviceId),
+      type: saved.type,
+      attributes: saved.attributes || {},
+      textChannel: saved.textChannel || useSms || undefined,
     });
   };
 
@@ -464,6 +488,54 @@ export default function CommandsPage() {
               </div>
             )}
 
+            {/* Comandos salvos (vindos do Traccar) */}
+            {selectedDeviceId && savedCommands.length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-2 block flex items-center gap-1.5">
+                  <BookmarkCheck className="w-4 h-4 text-muted-foreground" />
+                  Comandos Salvos
+                </label>
+                <div className="space-y-2">
+                  {savedCommands.map((saved) => {
+                    const cmdType = COMMAND_TYPES.find((c) => c.value === saved.type);
+                    const Icon = cmdType?.icon || Terminal;
+                    return (
+                      <div
+                        key={saved.id}
+                        className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 transition-colors"
+                      >
+                        <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                          <Icon className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {saved.description || cmdType?.label || saved.type}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {saved.type}{saved.textChannel ? " · SMS" : " · GPRS"}
+                            {saved.attributes?.data ? ` · ${saved.attributes.data}` : ""}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendSavedCommand(saved)}
+                          disabled={sendCommandMutation.isPending}
+                          className="h-8 text-xs shrink-0"
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          Enviar
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="border-t border-border/50 mt-4 pt-2">
+                  <p className="text-[10px] text-muted-foreground">Ou escolha um comando abaixo:</p>
+                </div>
+              </div>
+            )}
+
             {/* Seleção de comando */}
             <div>
               <label className="text-sm font-medium mb-2 block">
@@ -522,6 +594,26 @@ export default function CommandsPage() {
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos binários.
                 </p>
+              </div>
+            )}
+
+            {/* Canal de envio: GPRS ou SMS */}
+            {selectedCommand && (
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/40">
+                <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Enviar via SMS</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Use SMS se o comando GPRS não funcionar (o dispositivo precisa ter chip com SMS habilitado)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUseSms(!useSms)}
+                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${useSms ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-700"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${useSms ? "translate-x-5" : ""}`} />
+                </button>
               </div>
             )}
 

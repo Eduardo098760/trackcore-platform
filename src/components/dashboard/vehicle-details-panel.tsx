@@ -173,6 +173,12 @@ export function VehicleDetailsPanel({
           <Badge className={getDeviceStatusColor(effectiveStatus)}>
             {getDeviceStatusLabel(effectiveStatus)}
           </Badge>
+          {device.attributes?.blocked && (
+            <Badge variant="destructive" className="gap-1 text-[11px] font-semibold">
+              <ShieldCheck className="w-3 h-3" />
+              Bloqueado
+            </Badge>
+          )}
           {lastCommunication && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-[11px] font-medium text-primary">
               <Radio className="w-3 h-3 animate-pulse" />
