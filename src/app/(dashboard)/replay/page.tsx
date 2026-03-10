@@ -422,9 +422,14 @@ export default function RouteReplayPage() {
   }, [vehicleIdFromUrl, devices, selectedDevice]);
 
   // sincroniza speedLimit com o device selecionado (lê do cadastro do veículo)
+  // Apenas ao trocar de veículo — não ao refetch de devices, para não sobrescrever edição manual
+  const prevDeviceRef = useRef<number | null>(null);
   useEffect(() => {
-    const dev = devices.find((d) => d.id === selectedDevice);
-    setSpeedLimit(dev?.speedLimit ?? 0);
+    if (selectedDevice !== prevDeviceRef.current) {
+      prevDeviceRef.current = selectedDevice;
+      const dev = devices.find((d) => d.id === selectedDevice);
+      setSpeedLimit(dev?.speedLimit ?? 0);
+    }
   }, [selectedDevice, devices]);
 
   // snap to roads (OSRM)
@@ -743,7 +748,7 @@ export default function RouteReplayPage() {
           Buscar
         </Button>
 
-        {/* limite de velocidade do device (read-only) */}
+        {/* limite de velocidade editável */}
         {showLimit && selectedDevice && (
           <div
             className={`flex items-center gap-1.5 flex-shrink-0 rounded-md border px-2.5 h-9 ${
@@ -769,20 +774,31 @@ export default function RouteReplayPage() {
             >
               ⚠
             </span>
-            <span
+            <label
               className={`text-xs font-medium whitespace-nowrap ${
-                speedLimit > 0
-                  ? dark
-                    ? "text-red-200"
-                    : "text-red-700"
-                  : dark
-                    ? "text-white/40"
-                    : "text-muted-foreground"
+                dark ? "text-white/40" : "text-muted-foreground"
               }`}
             >
-              {speedLimit > 0
-                ? `Limite: ${speedLimit} km/h`
-                : "Sem limite definido"}
+              Limite:
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={300}
+              value={speedLimit}
+              onChange={(e) => setSpeedLimit(Math.max(0, Number(e.target.value) || 0))}
+              className={`w-12 text-xs font-semibold text-center bg-transparent border-none outline-none tabular-nums ${
+                speedLimit > 0
+                  ? dark ? "text-red-200" : "text-red-700"
+                  : dark ? "text-white/40" : "text-muted-foreground"
+              }`}
+            />
+            <span
+              className={`text-xs font-medium whitespace-nowrap ${
+                dark ? "text-white/40" : "text-muted-foreground"
+              }`}
+            >
+              km/h
             </span>
           </div>
         )}

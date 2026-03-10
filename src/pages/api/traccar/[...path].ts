@@ -114,6 +114,12 @@ export default async function handler(
         : jarCookies;
     }
 
+    // Repassa Accept para que Traccar retorne JSON em vez de Excel nos reports
+    if (req.headers["accept"])
+      headers["accept"] = String(req.headers["accept"]);
+    else
+      headers["accept"] = "application/json";
+
     // Repassa content-type e content-length originais
     if (req.headers["content-type"])
       headers["content-type"] = String(req.headers["content-type"]);

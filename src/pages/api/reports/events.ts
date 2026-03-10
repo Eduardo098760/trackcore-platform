@@ -1,7 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-const TRACCAR_URL = process.env.TRACCAR_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8082';
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -18,29 +16,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'from and to dates are required' });
     }
 
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers.host || 'localhost:3000';
+    const baseUrl = `${proto}://${host}`;
+
     const allEvents = await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {
-          // Buscar eventos do Traccar
+          // Buscar eventos via proxy (preserva sessão multi-tenant)
           const eventsResponse = await fetch(
-            `${TRACCAR_URL}/api/reports/events?deviceId=${deviceId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+            `${baseUrl}/api/traccar/reports/events?deviceId=${deviceId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
             {
               headers: {
-                'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'Cookie': req.headers.cookie || '',
               },
             }
           );
 
           if (!eventsResponse.ok) {
-            console.error(`Failed to fetch events for device ${deviceId}`);
+            console.error(`[Events API] Failed to fetch events for device ${deviceId}: ${eventsResponse.status}`);
             return [];
           }
 
           const events = await eventsResponse.json();
-          return events;
+          return Array.isArray(events) ? events : [];
         } catch (error) {
-          console.error(`Error fetching events for device ${deviceId}:`, error);
+          console.error(`[Events API] Error fetching events for device ${deviceId}:`, error);
           return [];
         }
       })
@@ -51,7 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json(flatEvents);
   } catch (error) {
-    console.error('Error generating event report:', error);
+    console.error('[Events API] Error generating event report:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
 }

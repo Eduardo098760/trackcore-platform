@@ -714,13 +714,13 @@ export default function ReportsPage() {
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 <span className="font-medium text-foreground/70">De:</span>{" "}
-                                {trip.startPosition?.address || "Desconhecido"}
+                                {trip.startPosition?.address || (trip as any).startAddress || "Desconhecido"}
                               </p>
-                              {trip.endPosition?.address &&
-                                trip.endPosition.address !== trip.startPosition?.address && (
+                              {(trip.endPosition?.address || (trip as any).endAddress) &&
+                                (trip.endPosition?.address || (trip as any).endAddress) !== (trip.startPosition?.address || (trip as any).startAddress) && (
                                   <p className="text-xs text-muted-foreground mt-0.5">
                                     <span className="font-medium text-foreground/70">Para:</span>{" "}
-                                    {trip.endPosition.address}
+                                    {trip.endPosition?.address || (trip as any).endAddress}
                                   </p>
                                 )}
                             </div>
