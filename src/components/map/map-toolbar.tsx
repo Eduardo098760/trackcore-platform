@@ -30,7 +30,7 @@ export function MapToolbar({
         type="button"
         onClick={onToggleGeofences}
         title={showGeofences ? "Ocultar cercas" : "Mostrar cercas"}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showGeofences
             ? "bg-orange-500/80 border-orange-400/50 text-white"
             : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
@@ -49,7 +49,7 @@ export function MapToolbar({
             ? "Ocultar alertas de velocidade"
             : "Mostrar alertas de velocidade"
         }
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showSpeedAlerts && speedAlertCount > 0
             ? "bg-amber-500/80 border-amber-400/50 text-white"
             : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
@@ -68,7 +68,7 @@ export function MapToolbar({
             ? "Ocultar placas nos marcadores"
             : "Mostrar placas nos marcadores"
         }
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showVehicleLabels
             ? "bg-sky-500/80 border-sky-400/50 text-white"
             : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"

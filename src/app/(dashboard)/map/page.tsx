@@ -861,11 +861,28 @@ export default function MapPage() {
         selectedDevice={!!selectedDevice}
       />
 
-      {/* Canto superior esquerdo: rota planejada (se ativa) + seletor de estilo */}
+      {/* Botão lista de veículos - só aparece quando fechado */}
+      {!isVehicleListOpen && (
+        <div className="absolute top-3 left-3 z-[1000]">
+          <button
+            type="button"
+            onClick={() => setIsVehicleListOpen(true)}
+            className="flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-2 xl:py-2.5 rounded-xl text-xs xl:text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border bg-black/50 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+            title="Abrir lista de veículos"
+          >
+            <List className="w-4 h-4" />
+            <span>Veículos</span>
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] xl:min-w-[22px] xl:h-[22px] rounded-full bg-white/20 text-[10px] xl:text-[11px] font-bold px-1">
+              {devices.length}
+            </span>
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          </button>
+        </div>
+      )}
+
+      {/* Toolbar superior centralizada */}
       <div
-        className={`absolute top-3 z-[1000] flex flex-col gap-2 transition-all duration-300 ${
-          isVehicleListOpen ? "left-[336px]" : "left-3"
-        }`}
+        className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2 transition-all duration-300"
       >
         {plannedRouteName &&
           plannedRouteGeometry.length >= 2 &&
@@ -889,25 +906,7 @@ export default function MapPage() {
             </Card>
           )}
 
-        <div className="flex items-center gap-1">
-          {/* Toggle lista de veículos */}
-          <button
-            type="button"
-            onClick={() => setIsVehicleListOpen((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border ${
-              isVehicleListOpen
-                ? "bg-blue-600/90 border-blue-400/40 text-white shadow-blue-500/25"
-                : "bg-black/50 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
-            }`}
-            title={isVehicleListOpen ? "Fechar lista" : "Abrir lista de veículos"}
-          >
-            <List className="w-4 h-4" />
-            <span>Veículos</span>
-            <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-white/20 text-[11px] font-bold px-1.5">
-              {devices.length}
-            </span>
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          </button>
+        <div className="flex items-center gap-1 flex-wrap">
           <MapStyleSelector mapStyle={mapStyle} onStyleChange={setMapStyle} />
           <MapToolbar
             showGeofences={showGeofences}

@@ -34,7 +34,7 @@ export function MapStyleSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shadow-lg backdrop-blur-xl border bg-black/50 border-white/10 text-white hover:bg-white/10"
+        className="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-semibold transition-all shadow-lg backdrop-blur-xl border bg-black/50 border-white/10 text-white hover:bg-white/10"
         title="Estilo do mapa"
       >
         <Map className="w-4 h-4" />
