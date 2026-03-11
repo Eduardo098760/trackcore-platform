@@ -123,7 +123,7 @@ export function VehicleDetailsPanel({
   const isIgnitionOn = position.attributes?.ignition;
   const batteryLevel = position.attributes?.batteryLevel ?? 0;
   const satCount = position.attributes?.sat ?? 0;
-  const effectiveStatus = deriveDeviceStatus(device.status, position);
+  const effectiveStatus = deriveDeviceStatus(device.status, position, device.lastUpdate);
   const IconComponent = getVehicleIcon(device.category);
   const statusColor = effectiveStatus === 'moving' ? '#3b82f6' : effectiveStatus === 'online' || effectiveStatus === 'stopped' ? '#10b981' : '#6b7280';
 

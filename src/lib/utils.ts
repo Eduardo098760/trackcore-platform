@@ -76,29 +76,30 @@ export function deriveDeviceStatus(
   const ts = lastUpdate || position?.serverTime || position?.deviceTime || position?.fixTime;
   const ageMin = ts ? (Date.now() - new Date(ts).getTime()) / 60_000 : Infinity;
 
-  // 1) Traccar reportou offline (conexão TCP caiu) → offline imediato
-  if (deviceStatus === 'offline') {
-    if (position?.attributes?.blocked) return 'blocked';
-    return 'offline';
-  }
-
-  // 2) Sem comunicação por mais de 15 min → força offline por tempo
   const OFFLINE_THRESHOLD_MIN = 15;
+
+  // 1) Sem comunicação por mais de 15 min → força offline por tempo
+  //    (independe do que o Traccar diz)
   if (ageMin > OFFLINE_THRESHOLD_MIN) {
     if (position?.attributes?.blocked) return 'blocked';
     return 'offline';
   }
 
-  // Device comunicando normalmente — derivar do estado real
+  // 2) Comunicação recente — derivar do estado real da posição
+  //    Mesmo que Traccar reporte 'offline' (TCP caiu), se temos dados frescos
+  //    confiamos na posição (UDP pode continuar, ou status pode atrasar)
   if (deviceStatus === 'blocked' || position?.attributes?.blocked) return 'blocked';
 
   if (position) {
     if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
     if (position.attributes?.ignition) return 'stopped';
+    // Traccar diz offline mas posição é recente e sem motion/ignition
+    if (deviceStatus === 'offline') return 'stopped';
     return 'online';
   }
 
-  // Sem posição mas comunicou recentemente
+  // Sem posição — respeitar Traccar se diz offline
+  if (deviceStatus === 'offline') return 'offline';
   return deviceStatus === 'moving' ? 'moving' : 'online';
 }
 
