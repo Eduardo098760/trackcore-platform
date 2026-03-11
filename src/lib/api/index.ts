@@ -697,7 +697,7 @@ export async function getDashboardStats(options?: {
     blocked: 0,
   };
   for (const d of filteredDevices) {
-    const s = deriveDeviceStatus(d.status, posMap.get(d.id));
+    const s = deriveDeviceStatus(d.status, posMap.get(d.id), d.lastUpdate);
     if (s === "moving") deviceStats.moving++;
     else if (s === "stopped") deviceStats.stopped++;
     else if (s === "blocked") deviceStats.blocked++;

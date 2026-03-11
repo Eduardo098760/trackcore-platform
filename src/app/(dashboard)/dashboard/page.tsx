@@ -95,6 +95,7 @@ export default function DashboardPage() {
         status: deriveDeviceStatus(
           d.status,
           positionsMap.get(d.id),
+          d.lastUpdate,
         ) as typeof d.status,
       })),
     [filteredDevices, positionsMap],

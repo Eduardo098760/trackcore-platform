@@ -3,15 +3,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Device } from '@/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { deriveDeviceStatus } from '@/lib/utils';
 
 interface DeviceStatusChartProps {
   devices: Device[];
 }
 
 export function DeviceStatusChart({ devices }: DeviceStatusChartProps) {
+  // devices já chegam com status derivado (enrichedDevices do dashboard)
   const statusCounts = devices.reduce((acc, device) => {
-    const s = deriveDeviceStatus(device.status);
+    const s = device.status || 'offline';
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);

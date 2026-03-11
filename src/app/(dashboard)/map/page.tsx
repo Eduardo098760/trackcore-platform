@@ -82,6 +82,108 @@ const LeafletPopup = dynamic(
   { ssr: false },
 );
 
+// ─── MapFollowHandler: segue automaticamente o veículo selecionado (modal aberto) ───
+function MapFollowHandler({
+  positions,
+  selectedDeviceId,
+}: {
+  positions: Position[];
+  selectedDeviceId: number | null;
+}) {
+  const { useMap } = require("react-leaflet");
+  const map = useMap();
+  const prev = useRef<{ lat: number; lng: number } | null>(null);
+  const transitionRunning = useRef(false);
+  const animatedSelectionForId = useRef<number | null>(null);
+
+  // Reset quando veículo é desselecionado
+  useEffect(() => {
+    if (!selectedDeviceId) {
+      animatedSelectionForId.current = null;
+      prev.current = null;
+    }
+  }, [selectedDeviceId]);
+
+  // Centralizar no alerta de velocidade
+  useEffect(() => {
+    if (!map) return;
+    const handler = (e: Event) => {
+      const alert = (e as CustomEvent<SpeedAlert>).detail;
+      if (!alert?.latitude || !alert?.longitude) return;
+      transitionRunning.current = true;
+      try { map.stop?.(); } catch { /* ignore */ }
+      try {
+        map.flyTo([alert.latitude, alert.longitude], 17, { duration: 1.0 });
+      } catch {
+        try { map.setView([alert.latitude, alert.longitude], 17); } catch { /* ignore */ }
+      }
+      window.setTimeout(() => { transitionRunning.current = false; }, 1200);
+    };
+    window.addEventListener("speedAlertFocus", handler);
+    return () => window.removeEventListener("speedAlertFocus", handler);
+  }, [map]);
+
+  // Animação inicial: flyTo zoom 17 quando um novo veículo é selecionado
+  useEffect(() => {
+    if (!map || !selectedDeviceId) return;
+    if (animatedSelectionForId.current === selectedDeviceId) return;
+
+    const pos = positions.find((p) => p.deviceId === selectedDeviceId);
+    if (!pos) return;
+
+    const lat = pos.latitude;
+    const lng = pos.longitude;
+
+    animatedSelectionForId.current = selectedDeviceId;
+    transitionRunning.current = true;
+
+    try { map.stop?.(); } catch { /* ignore */ }
+    try {
+      map.flyTo([lat, lng], 17, { duration: 1.2 });
+    } catch {
+      try { map.setView([lat, lng], 17); } catch { /* ignore */ }
+    }
+
+    const t = window.setTimeout(() => {
+      transitionRunning.current = false;
+      prev.current = { lat, lng };
+    }, 1400);
+
+    return () => {
+      window.clearTimeout(t);
+      transitionRunning.current = false;
+    };
+  }, [map, selectedDeviceId, positions]);
+
+  // Follow contínuo: SEMPRE centraliza no veículo selecionado a cada nova posição
+  useEffect(() => {
+    if (!map || !selectedDeviceId) return;
+    if (transitionRunning.current) return;
+
+    const pos = positions.find((p) => p.deviceId === selectedDeviceId);
+    if (!pos) return;
+
+    const lat = pos.latitude;
+    const lng = pos.longitude;
+
+    // Ignora se não mudou (evita panTo desnecessário)
+    if (
+      prev.current &&
+      Math.abs(prev.current.lat - lat) < 1e-6 &&
+      Math.abs(prev.current.lng - lng) < 1e-6
+    ) return;
+    prev.current = { lat, lng };
+
+    try {
+      map.panTo([lat, lng], { animate: true, duration: 0.8 });
+    } catch {
+      try { map.setView([lat, lng], map.getZoom()); } catch { /* ignore */ }
+    }
+  }, [positions, selectedDeviceId, map]);
+
+  return null;
+}
+
 export default function MapPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -447,25 +549,24 @@ export default function MapPage() {
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
   };
 
-  // Remove outliers GPS (saltos impossíveis >200km/h entre pontos consecutivos)
+  // Remove outliers GPS (teleportações impossíveis — saltos > 10km entre pontos consecutivos)
   const filterOutliers = (coords: [number, number][]) => {
     if (coords.length < 2) return coords;
     const result: [number, number][] = [coords[0]];
     for (let i = 1; i < coords.length; i++) {
       const d = quickDistM(result[result.length - 1], coords[i]);
-      // ~55m/s ≈ 200km/h — intervalo ~1s entre pontos websocket
-      if (d < 55) result.push(coords[i]);
+      if (d < 10000) result.push(coords[i]);
     }
     return result;
   };
 
-  // Divide trilha em segmentos onde há salto > 300m (evita linhas retas artificiais)
+  // Divide trilha em segmentos onde há salto > 5km
   const splitTrailSegments = (coords: [number, number][]) => {
     if (coords.length < 2) return [coords];
     const segments: [number, number][][] = [];
     let current: [number, number][] = [coords[0]];
     for (let i = 1; i < coords.length; i++) {
-      if (quickDistM(current[current.length - 1], coords[i]) > 300) {
+      if (quickDistM(current[current.length - 1], coords[i]) > 5000) {
         if (current.length >= 2) segments.push(current);
         current = [];
       }
@@ -475,152 +576,43 @@ export default function MapPage() {
     return segments;
   };
 
-  // Map follow handler component - centers map on a vehicle when `followVehicle` is true
-  function MapFollowHandler({
-    positions,
-    devices,
-    follow,
-    selectedDeviceId,
-  }: {
-    positions: Position[];
-    devices: Device[];
-    follow: boolean;
-    selectedDeviceId: number | null;
-  }) {
-    // require here to avoid SSR issues; hook must be called unconditionally
-    const { useMap } = require("react-leaflet");
-    const map = useMap();
-    const prev = useRef<{ lat: number; lng: number } | null>(null);
-    const transitionRunning = useRef(false);
-    const animatedSelectionForId = useRef<number | null>(null);
+  // Interpolação Catmull-Rom: suaviza a trilha adicionando pontos entre posições GPS
+  const interpolateSpline = (coords: [number, number][]) => {
+    if (coords.length < 3) return coords;
+    const result: [number, number][] = [];
+    // Quantos pontos intermediários por segmento (baseado na distância)
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p0 = coords[Math.max(i - 1, 0)];
+      const p1 = coords[i];
+      const p2 = coords[i + 1];
+      const p3 = coords[Math.min(i + 2, coords.length - 1)];
 
-    // Centralizar no local exato do excesso de velocidade ao receber speedAlertFocus
-    useEffect(() => {
-      if (!map) return;
-      const handler = (e: Event) => {
-        const alert = (e as CustomEvent<SpeedAlert>).detail;
-        if (!alert?.latitude || !alert?.longitude) return;
-        transitionRunning.current = true;
-        try {
-          map.stop?.();
-        } catch {
-          /* ignore */
-        }
-        try {
-          map.flyTo([alert.latitude, alert.longitude], 17, { duration: 1.0 });
-        } catch {
-          try {
-            map.setView([alert.latitude, alert.longitude], 17);
-          } catch {
-            /* ignore */
-          }
-        }
-        window.setTimeout(() => {
-          transitionRunning.current = false;
-        }, 1200);
-      };
-      window.addEventListener("speedAlertFocus", handler);
-      return () => window.removeEventListener("speedAlertFocus", handler);
-    }, [map]);
+      result.push(p1);
 
-    // Se o usuário mexer no mapa (drag/zoom), desativa o follow para não "brigar".
-    useEffect(() => {
-      if (!map) return;
+      // Número de subdivisões proporcional à distância (mais distante = mais pontos)
+      const dist = quickDistM(p1, p2);
+      // 1 ponto a cada ~30m, mínimo 2, máximo 15
+      const subdivisions = Math.min(15, Math.max(2, Math.round(dist / 30)));
 
-      const disableFollowOnUserInput = () => {
-        if (transitionRunning.current) return;
-        setFollowVehicle(false);
-      };
-
-      map.on("dragstart", disableFollowOnUserInput);
-      map.on("zoomstart", disableFollowOnUserInput);
-      map.on("touchstart", disableFollowOnUserInput);
-
-      return () => {
-        map.off("dragstart", disableFollowOnUserInput);
-        map.off("zoomstart", disableFollowOnUserInput);
-        map.off("touchstart", disableFollowOnUserInput);
-      };
-    }, [map]);
-
-    // Transição de seleção: roda uma única vez por veículo selecionado.
-    useEffect(() => {
-      if (!follow || !map || !selectedDeviceId) return;
-      if (animatedSelectionForId.current === selectedDeviceId) return;
-
-      const pos = positions.find((p) => p.deviceId === selectedDeviceId);
-      if (!pos) return;
-
-      const lat = pos.latitude;
-      const lng = pos.longitude;
-
-      animatedSelectionForId.current = selectedDeviceId;
-      transitionRunning.current = true;
-
-      try {
-        map.stop?.();
-      } catch { /* ignore */ }
-
-      // Animação única: voa direto para o veículo em zoom 17
-      try {
-        map.flyTo([lat, lng], 17, { duration: 1.2 });
-      } catch {
-        try {
-          map.setView([lat, lng], 17);
-        } catch { /* ignore */ }
+      for (let t = 1; t < subdivisions; t++) {
+        const s = t / subdivisions;
+        const s2 = s * s;
+        const s3 = s2 * s;
+        // Catmull-Rom basis
+        const h1 = -0.5 * s3 + s2 - 0.5 * s;
+        const h2 = 1.5 * s3 - 2.5 * s2 + 1;
+        const h3 = -1.5 * s3 + 2.0 * s2 + 0.5 * s;
+        const h4 = 0.5 * s3 - 0.5 * s2;
+        const lat = h1 * p0[0] + h2 * p1[0] + h3 * p2[0] + h4 * p3[0];
+        const lng = h1 * p0[1] + h2 * p1[1] + h3 * p2[1] + h4 * p3[1];
+        result.push([lat, lng]);
       }
+    }
+    result.push(coords[coords.length - 1]);
+    return result;
+  };
 
-      const t = window.setTimeout(() => {
-        transitionRunning.current = false;
-        prev.current = { lat, lng };
-        setFollowVehicle(false);
-      }, 1400);
-
-      return () => {
-        window.clearTimeout(t);
-        transitionRunning.current = false;
-      };
-    }, [follow, map, selectedDeviceId, positions]);
-
-    // Follow contínuo (opcional): apenas quando não há veículo selecionado.
-    useEffect(() => {
-      if (!follow || !map) return;
-      if (selectedDeviceId) return;
-      if (transitionRunning.current) return;
-
-      // choose device to follow: moving device > first device
-      const targetDevice =
-        devices.find((d) => d.status === "moving") || devices[0];
-      if (!targetDevice) return;
-
-      const pos = positions.find((p) => p.deviceId === targetDevice.id);
-      if (!pos) return;
-
-      const lat = pos.latitude;
-      const lng = pos.longitude;
-
-      // avoid tiny updates
-      if (
-        prev.current &&
-        Math.abs(prev.current.lat - lat) < 1e-6 &&
-        Math.abs(prev.current.lng - lng) < 1e-6
-      )
-        return;
-      prev.current = { lat, lng };
-
-      try {
-        map.flyTo([lat, lng], map.getZoom(), { duration: 0.6 });
-      } catch {
-        try {
-          map.setView([lat, lng], map.getZoom());
-        } catch {
-          /* ignore */
-        }
-      }
-    }, [positions, devices, follow, selectedDeviceId, map]);
-
-    return null;
-  }
+  // MapFollowHandler está definido no nível do módulo para manter refs estáveis entre renders
 
   // Debug: log quantos devices e positions estão sendo renderizados
   useEffect(() => {
@@ -1013,8 +1005,6 @@ export default function MapPage() {
 
         <MapFollowHandler
           positions={positions}
-          devices={devices}
-          follow={followVehicle}
           selectedDeviceId={selectedDevice ? selectedDevice.id : null}
         />
 
@@ -1072,10 +1062,13 @@ export default function MapPage() {
           const trailColor = getMarkerColor(deriveDeviceStatus(device.status, pos, device.lastUpdate));
           return (
             <React.Fragment key={`trail-${device.id}`}>
-              {segments.map((seg, si) => (
+              {segments.map((seg, si) => {
+                // Interpola spline para suavizar a trilha entre pontos GPS
+                const smooth = interpolateSpline(seg);
+                return (
                 <React.Fragment key={`seg-${device.id}-${si}`}>
                   <Polyline
-                    positions={seg}
+                    positions={smooth}
                     pathOptions={{
                       color: trailColor,
                       weight: 4,
@@ -1084,13 +1077,14 @@ export default function MapPage() {
                       lineCap: "round",
                       lineJoin: "round",
                     }}
+                    smoothFactor={0}
                   />
 
-                  {/* Setas ao longo do segmento */}
-                  {seg.map((c, i) => {
-                    if (i === 0 || i % 3 !== 0 || i === seg.length - 1)
+                  {/* Setas ao longo do segmento (a cada ~8 pontos interpolados) */}
+                  {smooth.map((c, i) => {
+                    if (i === 0 || i % 8 !== 0 || i === smooth.length - 1)
                       return null;
-                    const prev = seg[i - 1];
+                    const prev = smooth[i - 1];
                     const dx = c[1] - prev[1];
                     const dy = c[0] - prev[0];
                     const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
@@ -1116,7 +1110,8 @@ export default function MapPage() {
                     );
                   })}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -1181,6 +1176,7 @@ export default function MapPage() {
         onDetails={(deviceId) => router.push(`/vehicles/${deviceId}`)}
         onManageGeofences={(device) => setGeofenceDialogDevice(device)}
         onSendCommand={(device) => setCommandDialogDevice(device)}
+        onFollow={() => setFollowVehicle(true)}
         onStreetView={() => setStreetViewActive((v) => !v)}
         streetViewActive={streetViewActive}
       />

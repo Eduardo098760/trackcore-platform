@@ -49,6 +49,7 @@ interface VehicleDetailsPanelProps {
   onStreetView?: () => void;
   onManageGeofences?: (device: Device) => void;
   onSendCommand?: (device: Device) => void;
+  onFollow?: () => void;
   recentDistanceKm?: number;
   recentTrail?: {lat:number; lng:number; ts:number}[];
   streetViewActive?: boolean;
@@ -86,6 +87,7 @@ export function VehicleDetailsPanel({
   onStreetView,
   onManageGeofences,
   onSendCommand,
+  onFollow,
   recentDistanceKm,
   recentTrail,
   streetViewActive,
@@ -332,10 +334,11 @@ export function VehicleDetailsPanel({
         </button>
 
         {/* Ações em grid */}
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
+          <ActionButton icon={Navigation2} label="Seguir" onClick={() => onFollow?.()} color="text-blue-400" />
           <ActionButton icon={History} label="Replay" onClick={() => onReplay(device.id)} color="text-purple-400" />
           <ActionButton icon={Video} label="Vídeo" onClick={() => onVideo(device.id)} color="text-green-400" />
-          <ActionButton icon={Navigation2} label="Street" onClick={() => onStreetView?.()} color="text-cyan-400" active={streetViewActive} />
+          <ActionButton icon={Navigation} label="Street" onClick={() => onStreetView?.()} color="text-cyan-400" active={streetViewActive} />
           <ActionButton icon={Edit} label="Editar" onClick={() => onEdit(device)} color="text-yellow-400" />
         </div>
 

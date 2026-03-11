@@ -20,8 +20,8 @@ interface UseMapWebSocketOptions {
   >;
 }
 
-const TRAIL_WINDOW_MS = 5 * 60 * 1000; // 5 minutos
-const TRAIL_MAX_POINTS = 100;
+const TRAIL_WINDOW_MS = 15 * 60 * 1000; // 15 minutos
+const TRAIL_MAX_POINTS = 500;
 const FLUSH_INTERVAL_MS = 200;
 const POLL_FALLBACK_INTERVAL = 15_000; // Polling apenas quando WS desconectado
 
