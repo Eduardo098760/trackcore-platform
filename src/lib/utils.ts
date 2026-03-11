@@ -62,33 +62,44 @@ export function getDeviceStatusColor(status: string): string {
  * Deriva o status efetivo de um veículo combinando device.status + dados da posição.
  * O Traccar frequentemente retorna status='unknown' — nesse caso usamos a posição
  * para inferir se está em movimento, parado, online ou offline.
+ *
+ * IMPORTANTE: Se a última comunicação (posição) tem mais de 10 min, considera offline
+ * independente do status que o Traccar reporta.
  */
 export function deriveDeviceStatus(
   deviceStatus: string,
-  position?: { fixTime?: string; deviceTime?: string; speed?: number; attributes?: { motion?: boolean; ignition?: boolean; blocked?: boolean } } | null
+  position?: { serverTime?: string; fixTime?: string; deviceTime?: string; speed?: number; attributes?: { motion?: boolean; ignition?: boolean; blocked?: boolean } } | null,
+  lastUpdate?: string | null
 ): string {
-  // Status definitivos do Traccar têm prioridade
-  if (deviceStatus === 'blocked') return 'blocked';
-  if (deviceStatus === 'online' || deviceStatus === 'moving' || deviceStatus === 'stopped' || deviceStatus === 'offline') {
-    // Mesmo com status definitivo, refina com dados da posição se disponível
-    if (position) {
-      if (position.attributes?.blocked) return 'blocked';
-      if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
-      if (deviceStatus === 'online' || deviceStatus === 'moving' || deviceStatus === 'stopped') {
-        return position.attributes?.ignition ? 'stopped' : 'online';
-      }
-    }
-    return deviceStatus;
-  }
-  // Status 'unknown' ou ausente: inferir da posição
-  if (!position) return 'offline';
-  const ts = position.fixTime || position.deviceTime;
+  // lastUpdate do device é a fonte mais confiável (atualizado por qualquer comunicação)
+  // serverTime da posição é quando o Traccar recebeu o último pacote GPS
+  const ts = lastUpdate || position?.serverTime || position?.deviceTime || position?.fixTime;
   const ageMin = ts ? (Date.now() - new Date(ts).getTime()) / 60_000 : Infinity;
-  if (ageMin > 15) return 'offline';
-  if (position.attributes?.blocked) return 'blocked';
-  if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
-  if (position.attributes?.ignition) return 'stopped';
-  return 'online';
+
+  // 1) Traccar reportou offline (conexão TCP caiu) → offline imediato
+  if (deviceStatus === 'offline') {
+    if (position?.attributes?.blocked) return 'blocked';
+    return 'offline';
+  }
+
+  // 2) Sem comunicação por mais de 15 min → força offline por tempo
+  const OFFLINE_THRESHOLD_MIN = 15;
+  if (ageMin > OFFLINE_THRESHOLD_MIN) {
+    if (position?.attributes?.blocked) return 'blocked';
+    return 'offline';
+  }
+
+  // Device comunicando normalmente — derivar do estado real
+  if (deviceStatus === 'blocked' || position?.attributes?.blocked) return 'blocked';
+
+  if (position) {
+    if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
+    if (position.attributes?.ignition) return 'stopped';
+    return 'online';
+  }
+
+  // Sem posição mas comunicou recentemente
+  return deviceStatus === 'moving' ? 'moving' : 'online';
 }
 
 export function getDeviceStatusLabel(status: string): string {

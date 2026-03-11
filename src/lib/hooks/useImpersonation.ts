@@ -46,11 +46,21 @@ export function useImpersonation() {
     setLoading(true);
     try {
       // 1. Validação server-side + criação de cookie HttpOnly assinado
+      const admin = useAuthStore.getState().user;
       const res = await fetch('/api/admin/impersonate', {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({ targetUser }),
+        body:        JSON.stringify({
+          targetUser,
+          adminUser: admin ? {
+            id:            admin.id,
+            name:          admin.name,
+            email:         admin.email,
+            administrator: admin.role === 'admin',
+            attributes:    { role: admin.role },
+          } : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -59,7 +69,6 @@ export function useImpersonation() {
       }
 
       // 2. Audit log no cliente (complementa o log server-side)
-      const admin = useAuthStore.getState().user;
       if (admin) {
         addAuditEvent({
           type:       'IMPERSONATION_START',

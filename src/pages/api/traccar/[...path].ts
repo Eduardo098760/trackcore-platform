@@ -168,15 +168,33 @@ export default async function handler(
         res.setHeader("content-type", contentType);
 
         // Repassa todos os set-cookie para preservar a sessão
+        // Reescreve atributos do cookie para funcionar no domínio do proxy (não do Traccar)
         const setCookieHeaders = upstream.headers.getSetCookie?.() || [];
         if (setCookieHeaders.length > 0) {
+          const host = req.headers.host || "";
+          const isLocalhost = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+          const rewritten = setCookieHeaders.map((raw) => {
+            // Remove Domain e Path do Traccar — incompatíveis com o domínio do proxy
+            let cookie = raw
+              .replace(/;\s*Domain=[^;]*/gi, "")
+              .replace(/;\s*Path=[^;]*/gi, "")
+              .replace(/;\s*Secure\b/gi, "")
+              .replace(/;\s*SameSite=[^;]*/gi, "");
+            // Aplica atributos corretos para o ambiente atual
+            cookie += "; Path=/; SameSite=Lax; HttpOnly";
+            if (!isLocalhost) {
+              cookie += "; Secure";
+            }
+            return cookie;
+          });
           console.log(
             "[traccar-proxy] forwarding",
-            setCookieHeaders.length,
+            rewritten.length,
             "set-cookie(s)",
+            isLocalhost ? "(localhost mode)" : "(production mode)",
           );
-          res.setHeader("set-cookie", setCookieHeaders);
-          cookieJars.set(cookieKey, setCookieHeaders.join("; "));
+          res.setHeader("set-cookie", rewritten);
+          cookieJars.set(cookieKey, rewritten.join("; "));
         }
 
         return res.send(text);

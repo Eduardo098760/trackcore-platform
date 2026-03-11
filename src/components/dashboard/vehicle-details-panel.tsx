@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Device, Position } from '@/types';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useRelativeTime } from '@/lib/hooks/useRelativeTime';
 import {
@@ -344,59 +343,42 @@ export function VehicleDetailsPanel({
         <VehicleNotificationQuick deviceId={device.id} />
 
         {/* Ações secundárias */}
-        <div className="flex gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           {onManageGeofences && (
-            <Button
-              onClick={() => onManageGeofences(device)}
-              variant="ghost"
-              size="sm"
-              className="flex-1 h-9 text-xs text-orange-400 hover:bg-orange-500/10"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-              Cercas
-            </Button>
+            <ActionButton icon={ShieldCheck} label="Cercas" onClick={() => onManageGeofences(device)} color="text-orange-400" />
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1 h-9 text-xs text-cyan-400 hover:bg-cyan-500/10"
-            onClick={() => onSendCommand?.(device)}
-          >
-            <Terminal className="w-3.5 h-3.5 mr-1" />
-            Comandos
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1 h-9 text-xs hover:bg-muted"
-            disabled={!canCall}
+          <ActionButton icon={Terminal} label="Comandos" onClick={() => onSendCommand?.(device)} color="text-cyan-400" />
+          <ActionButton
+            icon={Phone}
+            label="Contato"
             onClick={() => {
               if (!canCall) return;
               window.open(`tel:${contactPhone}`, '_self');
             }}
-            title={canCall ? `Ligar para ${contactPhone}` : 'Sem telefone cadastrado'}
-          >
-            <Phone className="w-3.5 h-3.5 mr-1" />
-            Contato
-          </Button>
+            color="text-blue-400"
+            disabled={!canCall}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function ActionButton({ icon: Icon, label, onClick, color, active }: { icon: React.ElementType; label: string; onClick: () => void; color: string; active?: boolean }) {
+function ActionButton({ icon: Icon, label, onClick, color, active, disabled }: { icon: React.ElementType; label: string; onClick: () => void; color: string; active?: boolean; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-colors ${
-        active
-          ? 'border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-500/30'
-          : 'border-border/50 bg-card/60 hover:bg-muted/80'
+        disabled
+          ? 'border-border/30 bg-card/30 opacity-50 cursor-not-allowed'
+          : active
+            ? 'border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-500/30'
+            : 'border-border/50 bg-card/60 hover:bg-muted/80'
       }`}
     >
-      <Icon className={`w-4 h-4 ${active ? 'text-cyan-400' : color}`} />
-      <span className={`text-[10px] font-medium ${active ? 'text-cyan-400' : 'text-muted-foreground'}`}>{label}</span>
+      <Icon className={`w-4 h-4 ${disabled ? 'text-muted-foreground' : active ? 'text-cyan-400' : color}`} />
+      <span className={`text-[10px] font-medium ${disabled ? 'text-muted-foreground' : active ? 'text-cyan-400' : 'text-muted-foreground'}`}>{label}</span>
     </button>
   );
 }

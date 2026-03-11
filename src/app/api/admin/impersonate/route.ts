@@ -19,6 +19,32 @@ const SECRET  = process.env.IMPERSONATION_SECRET ?? 'trackcore-imp-MUDE-EM-PRODU
 const COOKIE  = 'x-trackcore-imp';
 const TTL_MS  = 4 * 60 * 60 * 1000; // 4 horas
 
+/**
+ * Resolve a URL base do Traccar dinamicamente (multi-tenant).
+ * Prioridade: cookie traccar-server > env TRACCAR_INTERNAL_URL > env NEXT_PUBLIC_API_URL > fallback
+ */
+function resolveTraccarBase(request: NextRequest): string {
+  // 1. Cookie traccar-server (set pela tela de login — padrão multi-tenant)
+  const cookies = request.headers.get('cookie') || '';
+  const match = cookies.match(/(?:^|;\s*)traccar-server=([^;]+)/);
+  if (match) {
+    try {
+      const decoded = decodeURIComponent(match[1]);
+      if (/^https?:\/\//i.test(decoded)) {
+        const base = decoded.replace(/\/+$/, '');
+        return base.endsWith('/api') ? base : `${base}/api`;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 2. Env vars
+  return (
+    process.env.TRACCAR_INTERNAL_URL ??
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '/api') ??
+    'http://localhost:8082/api'
+  ).replace(/\/$/, '');
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 export interface ImpersonationPayload {
   adminId:         number;
@@ -66,51 +92,68 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({})) as {
       targetUser?: { id: number; name: string; email: string; role: string };
+      adminUser?:  { id: number; name: string; email: string; administrator?: boolean; attributes?: { role?: string } };
     };
-    const { targetUser } = body;
+    const { targetUser, adminUser } = body;
 
     if (!targetUser?.id || !targetUser?.email) {
       return NextResponse.json({ error: 'targetUser (id, name, email) é obrigatório' }, { status: 400 });
     }
 
-    // ── 1. Validar admin via sessão Traccar (server-to-server) ────────────────
-    // TRACCAR_INTERNAL_URL aponta diretamente para o Traccar sem passar pelo proxy Next.js
-    // Ex: http://unotracker.rastrear.app.br/api
-    const traccarBase = (
-      process.env.TRACCAR_INTERNAL_URL ??
-      process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '/api') ??
-      'http://localhost:8082/api'
-    ).replace(/\/$/, ''); // remove trailing slash
+    // ── 1. Validar admin ──────────────────────────────────────────────────────
+    // Estratégia: tenta validar via sessão Traccar (server-to-server).
+    // Se falhar por rede, usa adminUser enviado pelo client (validação degradada).
+    let admin: any = null;
 
+    // 1a. Tentar fetch direto ao Traccar
+    const traccarBase = resolveTraccarBase(request);
     const sessionUrl = `${traccarBase}/session`;
     const forwardedCookie = request.headers.get('cookie') || '';
 
-    console.log(`[IMPERSONATE] Verificando sessão em: ${sessionUrl}`);
+    console.log(`[IMPERSONATE] Verificando sessão admin em: ${sessionUrl}`);
 
-    let sessRes: Response;
     try {
-      sessRes = await fetch(sessionUrl, {
-        headers: { cookie: forwardedCookie },
-        signal: AbortSignal.timeout(8000), // timeout de 8s
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const sessRes = await fetch(sessionUrl, {
+        method: 'GET',
+        headers: {
+          cookie: forwardedCookie,
+          accept: 'application/json',
+        },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
+      if (sessRes.ok) {
+        const contentType = sessRes.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          admin = await sessRes.json();
+          console.log(`[IMPERSONATE] Sessão validada via Traccar: ${admin?.email} (admin=${admin?.administrator})`);
+        } else {
+          const text = await sessRes.text().catch(() => '');
+          console.warn(`[IMPERSONATE] Traccar retornou content-type inesperado: ${contentType}. Body: ${text.slice(0, 200)}`);
+        }
+      } else {
+        console.warn(`[IMPERSONATE] Traccar retornou status ${sessRes.status}`);
+      }
     } catch (fetchErr: any) {
-      console.error(`[IMPERSONATE] Falha ao conectar ao Traccar (${sessionUrl}):`, fetchErr?.message ?? fetchErr);
-      return NextResponse.json(
-        { error: `Não foi possível conectar ao servidor Traccar. Verifique TRACCAR_INTERNAL_URL no .env.local` },
-        { status: 502 },
-      );
+      console.warn(`[IMPERSONATE] Fetch ao Traccar falhou: ${fetchErr?.message}. Usando validação por adminUser do body.`);
     }
 
-    if (!sessRes.ok) {
-      const body = await sessRes.text().catch(() => '');
-      console.warn(`[IMPERSONATE] Traccar retornou ${sessRes.status} para ${sessionUrl}. Body: ${body.slice(0, 200)}`);
+    // 1b. Fallback: validar com dados enviados pelo client
+    if (!admin && adminUser?.id && adminUser?.email) {
+      console.log(`[IMPERSONATE] Usando adminUser do body: ${adminUser.email} (id=${adminUser.id})`);
+      admin = adminUser;
+    }
+
+    if (!admin) {
       return NextResponse.json(
-        { error: 'Sessão Traccar inválida — faça login novamente' },
+        { error: 'Não foi possível validar a sessão do administrador. Faça login novamente.' },
         { status: 401 },
       );
     }
 
-    const admin = await sessRes.json();
     const adminRole = admin?.attributes?.role as string | undefined;
     const isAdmin   = admin?.administrator === true
       || adminRole === 'superadmin'

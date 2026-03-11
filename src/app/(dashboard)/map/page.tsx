@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Route, List, X, Navigation2 } from "lucide-react";
 import { getVehicleIconSVG } from "@/lib/vehicle-icons";
-import { bearingDeg } from "@/lib/utils";
+import { bearingDeg, deriveDeviceStatus } from "@/lib/utils";
 import { getPlannedRouteById, getRouteGeometry } from "@/lib/api/routes";
 
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import { VehicleListPanel } from "@/components/map/vehicle-list-panel";
 import { EditVehicleDialog } from "@/components/map/edit-vehicle-dialog";
 import { GeofenceManageDialog } from "@/components/map/geofence-manage-dialog";
 import { SendCommandDialog } from "@/components/map/send-command-dialog";
+import { MarkerClusterGroup } from "@/components/map/marker-cluster-group";
 import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-panel";
 import { useMapState } from "@/lib/hooks/useMapState";
 import { useMapWebSocket } from "@/lib/hooks/useMapWebSocket";
@@ -642,8 +643,9 @@ export default function MapPage() {
   ) => {
     if (!L) return null;
 
-    const color = getMarkerColor(device.status);
-    const isPulsing = device.status === "moving";
+    const effectiveStatus = deriveDeviceStatus(device.status, position, device.lastUpdate);
+    const color = getMarkerColor(effectiveStatus);
+    const isPulsing = effectiveStatus === "moving";
     const course = typeof bearing === "number" ? bearing : position.course || 0;
     const vehicleIcon = getVehicleIconSVG(device.category, "#ffffff", 0);
     const labelText = (device.plate || device.name || "").trim();
@@ -733,14 +735,15 @@ export default function MapPage() {
           ? position.course
           : 0;
     const courseBucket = Math.round(rawCourse / 10) * 10;
+    const effectiveStatus = deriveDeviceStatus(device.status, position, device.lastUpdate);
     const speedBucket =
-      device.status === "moving"
+      effectiveStatus === "moving"
         ? Math.round((position.speed || 0) / 5) * 5
         : Math.round(position.speed || 0);
     const blocked = device.attributes?.blocked ? 1 : 0;
 
     const labelText = (device.plate || device.name || "").trim();
-    const cacheKey = `${device.status}|${blocked}|${device.category}|${courseBucket}|${speedBucket}|${showLabel ? 1 : 0}|${labelText}`;
+    const cacheKey = `${effectiveStatus}|${blocked}|${device.category}|${courseBucket}|${speedBucket}|${showLabel ? 1 : 0}|${labelText}`;
     const cached = iconCacheRef.current.get(device.id);
     if (cached?.key === cacheKey) return cached.icon;
 
@@ -769,7 +772,19 @@ export default function MapPage() {
     [positionsMap],
   );
 
-
+  // Wrapper que obtém a instância do mapa via useMap() e repassa para MarkerClusterGroup
+  function VehicleClusterLayer(props: {
+    devices: Device[];
+    positionsMap: Map<number, Position>;
+    deviceTrails: Map<number, { lat: number; lng: number; ts: number }[]>;
+    showVehicleLabels: boolean;
+    getDeviceIcon: (device: Device, position: Position, bearing?: number, showLabel?: boolean) => any;
+    onDeviceClick: (device: Device) => void;
+  }) {
+    const { useMap } = require("react-leaflet");
+    const map = useMap();
+    return <MarkerClusterGroup {...props} map={map} />;
+  }
 
   // Mostra trilhas para qualquer veículo que tenha dados de trail acumulados
   const devicesForTrails = useMemo(() => {
@@ -1053,7 +1068,8 @@ export default function MapPage() {
           const filtered = filterOutliers(rawCoords);
           const segments = splitTrailSegments(filtered);
           if (segments.length === 0) return null;
-          const trailColor = getMarkerColor(device.status);
+          const pos = positionsMap.get(device.id);
+          const trailColor = getMarkerColor(deriveDeviceStatus(device.status, pos, device.lastUpdate));
           return (
             <React.Fragment key={`trail-${device.id}`}>
               {segments.map((seg, si) => (
@@ -1112,39 +1128,15 @@ export default function MapPage() {
             <SpeedAlertMarker key={alert.id} alert={alert} />
           ))}
 
-        {/* Markers para cada dispositivo */}
-        {devices.map((device) => {
-          const position = positionsMap.get(device.id);
-          if (!position) return null;
-          // compute bearing fallback from recent trail if course not present
-          let bearing: number | undefined = undefined;
-          if (typeof position.course === "number") {
-            bearing = position.course;
-          } else {
-            const trail = deviceTrails.get(device.id) || [];
-            if (trail.length >= 2) {
-              try {
-                const { bearingDeg } = require("@/lib/utils");
-                const a = trail[trail.length - 2];
-                const b = trail[trail.length - 1];
-                bearing = bearingDeg(a.lat, a.lng, b.lat, b.lng);
-              } catch (e) {
-                bearing = undefined;
-              }
-            }
-          }
-
-          return (
-            <Marker
-              key={device.id}
-              position={[position.latitude, position.longitude]}
-              icon={getDeviceIcon(device, position, bearing, showVehicleLabels)}
-              eventHandlers={{
-                click: () => handleDeviceClick(device),
-              }}
-            />
-          );
-        })}
+        {/* Markers para cada dispositivo (com clustering) */}
+        <VehicleClusterLayer
+          devices={devices}
+          positionsMap={positionsMap}
+          deviceTrails={deviceTrails}
+          showVehicleLabels={showVehicleLabels}
+          getDeviceIcon={getDeviceIcon}
+          onDeviceClick={handleDeviceClick}
+        />
       </MapContainer>
 
       {/* Vehicle List Panel — slide-out drawer */}

@@ -9,6 +9,7 @@ import { getDevices } from "@/lib/api";
 import { getRoutePositions } from "@/lib/api/reports";
 import { RoutePosition, Device } from "@/types";
 import type { StopEventData, SpeedViolationData } from "./replay-map";
+import { exportPositionsCSV, exportSummaryReport, exportSummaryPDF } from "./export-helpers";
 
 const ReplayMap = dynamic(() => import("./replay-map"), { ssr: false });
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,9 @@ import {
   BarChart3,
   Navigation,
   ArrowRight,
+  FileSpreadsheet,
+  FileText,
+  FileDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1054,7 +1058,46 @@ export default function RouteReplayPage() {
                   <p className="text-xs text-white/50">
                     {device?.plate || device?.name}
                   </p>
-                  <p className="text-xs text-white/35 mt-0.5">
+                  {/* Botões de exportação */}
+                  <div className="flex gap-1.5 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20 hover:text-blue-200 gap-1"
+                      onClick={() => {
+                        exportPositionsCSV(route, device?.plate || device?.name || 'veiculo', dateFrom, dateTo);
+                        toast.success('CSV de posições exportado!');
+                      }}
+                    >
+                      <FileSpreadsheet className="h-3 w-3" />
+                      CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20 hover:text-red-200 gap-1"
+                      onClick={() => {
+                        exportSummaryPDF(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo);
+                        toast.success('PDF exportado!');
+                      }}
+                    >
+                      <FileDown className="h-3 w-3" />
+                      PDF
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 gap-1"
+                      onClick={() => {
+                        exportSummaryReport(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo);
+                        toast.success('Relatório exportado!');
+                      }}
+                    >
+                      <FileText className="h-3 w-3" />
+                      TXT
+                    </Button>
+                  </div>
+                  <p className="text-xs text-white/35 mt-1.5">
                     {fmtDateTime(route[0].fixTime || route[0].serverTime)}
                     {" → "}
                     {fmtDateTime(

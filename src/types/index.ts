@@ -386,10 +386,13 @@ export interface NotificationLog {
 
 // Report Types
 export type ReportType =
+  | "route"
   | "trips"
   | "stops"
   | "events"
   | "summary"
+  | "chart"
+  | "combined"
   | "fuel"
   | "speed";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import {
   ReportType,
@@ -9,7 +9,6 @@ import {
   TripReport,
   StopReport,
   RoutePosition,
-  SpeedSegment,
 } from "@/types";
 import {
   generateTripReport,
@@ -33,253 +32,302 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   FileText,
   Download,
   Calendar as CalendarIcon,
-  MapPin,
-  Clock,
   Loader2,
   Gauge,
-  AlertTriangle,
   TrendingUp,
-  Timer,
+  Route,
+  BarChart3,
+  Layers,
+  Car,
+  MapPinOff,
+  Activity,
+  FileSpreadsheet,
+  Search,
+  X,
 } from "lucide-react";
-import { format, formatDistanceStrict } from "date-fns";
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  subDays,
+  subWeeks,
+  subMonths,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from "recharts";
 
 // Leaflet (client-only)
-const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), {
-  ssr: false,
-});
-const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
-const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((m) => m.MapContainer),
+  { ssr: false },
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((m) => m.TileLayer),
+  { ssr: false },
+);
+const Polyline = dynamic(
+  () => import("react-leaflet").then((m) => m.Polyline),
+  { ssr: false },
+);
 const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), {
-  ssr: false,
-});
-const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), {
   ssr: false,
 });
 
 let L: any;
 if (typeof window !== "undefined") L = require("leaflet");
 
-export default function ReportsPage() {
-  const queryClient = useQueryClient();
-  const colors = useTenantColors();
-  const [reportType, setReportType] = useState<ReportType>("trips");
-  const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
-  const [dateFrom, setDateFrom] = useState<Date>(new Date(Date.now() - 24 * 60 * 60 * 1000)); // Último dia
-  const [dateTo, setDateTo] = useState<Date>(new Date());
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [reportData, setReportData] = useState<any>(null);
-  const [minSpeed, setMinSpeed] = useState<number>(80);
-  const [isAnalyzingSpeed, setIsAnalyzingSpeed] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-  const [speedResult, setSpeedResult] = useState<{
-    allPositions: RoutePosition[];
-    segments: SpeedSegment[];
-    fullPolyline: [number, number][];
-    deviceName: string;
-  } | null>(null);
+// ────────────────────────────────────────────────────────────────────────────
+// Presets de período (padrão Traccar)
+// ────────────────────────────────────────────────────────────────────────────
+type PeriodPreset =
+  | "today"
+  | "yesterday"
+  | "thisWeek"
+  | "previousWeek"
+  | "thisMonth"
+  | "previousMonth"
+  | "custom";
 
-  const {
-    data: devices = [],
-    isLoading: isLoadingDevices,
-    error: devicesError,
-    refetch: refetchDevices,
-  } = useQuery({
+const PERIOD_LABELS: Record<PeriodPreset, string> = {
+  today: "Hoje",
+  yesterday: "Ontem",
+  thisWeek: "Esta Semana",
+  previousWeek: "Semana Anterior",
+  thisMonth: "Este Mês",
+  previousMonth: "Mês Anterior",
+  custom: "Personalizado",
+};
+
+function getPeriodDates(preset: PeriodPreset): { from: Date; to: Date } {
+  const now = new Date();
+  switch (preset) {
+    case "today":
+      return { from: startOfDay(now), to: endOfDay(now) };
+    case "yesterday": {
+      const y = subDays(now, 1);
+      return { from: startOfDay(y), to: endOfDay(y) };
+    }
+    case "thisWeek":
+      return {
+        from: startOfWeek(now, { weekStartsOn: 1 }),
+        to: endOfWeek(now, { weekStartsOn: 1 }),
+      };
+    case "previousWeek": {
+      const pw = subWeeks(now, 1);
+      return {
+        from: startOfWeek(pw, { weekStartsOn: 1 }),
+        to: endOfWeek(pw, { weekStartsOn: 1 }),
+      };
+    }
+    case "thisMonth":
+      return { from: startOfMonth(now), to: endOfMonth(now) };
+    case "previousMonth": {
+      const pm = subMonths(now, 1);
+      return { from: startOfMonth(pm), to: endOfMonth(pm) };
+    }
+    default:
+      return { from: startOfDay(now), to: endOfDay(now) };
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Tipos de relatório (padrão Traccar)
+// ────────────────────────────────────────────────────────────────────────────
+const REPORT_TYPES: {
+  value: ReportType;
+  label: string;
+  icon: React.ElementType;
+  desc: string;
+}[] = [
+  { value: "route", label: "Rota", icon: Route, desc: "Histórico de posições" },
+  { value: "events", label: "Eventos", icon: Activity, desc: "Eventos do dispositivo" },
+  { value: "trips", label: "Viagens", icon: Car, desc: "Registro de viagens" },
+  { value: "stops", label: "Paradas", icon: MapPinOff, desc: "Paradas registradas" },
+  { value: "summary", label: "Resumo", icon: FileText, desc: "Resumo geral por veículo" },
+  { value: "chart", label: "Gráfico", icon: BarChart3, desc: "Velocidade e altitude" },
+  { value: "combined", label: "Combinado", icon: Layers, desc: "Todos os relatórios" },
+];
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────────
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return "0m";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function formatSpeed(speed: number): string {
+  return `${Math.round(speed)} km/h`;
+}
+
+function formatDistance(meters: number): string {
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
+  return `${Math.round(meters)} m`;
+}
+
+function safeDate(v: unknown): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v as string | number);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function fmtDate(v: unknown, fmt = "dd/MM/yyyy HH:mm:ss"): string {
+  const d = safeDate(v);
+  return d ? format(d, fmt, { locale: ptBR }) : "—";
+}
+
+function fmtShortDate(v: unknown): string {
+  return fmtDate(v, "dd/MM HH:mm");
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Event type labels (Traccar standard)
+// ────────────────────────────────────────────────────────────────────────────
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  commandResult: "Resultado de Comando",
+  deviceOnline: "Dispositivo Online",
+  deviceUnknown: "Dispositivo Desconhecido",
+  deviceOffline: "Dispositivo Offline",
+  deviceInactive: "Dispositivo Inativo",
+  deviceMoving: "Em Movimento",
+  deviceStopped: "Parou",
+  deviceOverspeed: "Excesso de Velocidade",
+  speedLimit: "Limite de Velocidade",
+  geofenceEnter: "Entrou na Geocerca",
+  geofenceExit: "Saiu da Geocerca",
+  alarm: "Alarme",
+  ignitionOn: "Ignição Ligada",
+  ignitionOff: "Ignição Desligada",
+  maintenance: "Manutenção",
+  textMessage: "Mensagem de Texto",
+  driverChanged: "Motorista Alterado",
+  fuelDrop: "Queda de Combustível",
+  fuelIncrease: "Aumento de Combustível",
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ════════════════════════════════════════════════════════════════════════════
+export default function ReportsPage() {
+  const colors = useTenantColors();
+  const [reportType, setReportType] = useState<ReportType>("route");
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("today");
+  const [dateFrom, setDateFrom] = useState<Date>(startOfDay(new Date()));
+  const [dateTo, setDateTo] = useState<Date>(endOfDay(new Date()));
+  const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
+  const [deviceSearch, setDeviceSearch] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Report data
+  const [routeData, setRouteData] = useState<RoutePosition[] | null>(null);
+  const [tripData, setTripData] = useState<TripReport[] | null>(null);
+  const [stopData, setStopData] = useState<StopReport[] | null>(null);
+  const [eventData, setEventData] = useState<any[] | null>(null);
+  const [summaryData, setSummaryData] = useState<any[] | null>(null);
+
+  // Devices
+  const { data: devices = [], isLoading: isLoadingDevices } = useQuery({
     queryKey: ["devices"],
-    queryFn: async () => {
-      console.log("[ReportsPage] Carregando veículos...");
-      const result = await getDevices();
-      console.log("[ReportsPage] Veículos carregados:", result?.length || 0);
-      return result;
-    },
+    queryFn: () => getDevices(),
     retry: 3,
-    retryDelay: 1000,
-    staleTime: 60000, // 1 minuto
-    gcTime: 300000, // 5 minutos
+    staleTime: 60000,
   });
 
-  // Auto-selecionar primeiro veículo quando carregar
+  // Auto-select first device
   useEffect(() => {
     if (devices.length > 0 && selectedDevices.length === 0) {
       setSelectedDevices([devices[0].id]);
-      console.log("[ReportsPage] Auto-selecionado veículo:", devices[0].name);
     }
   }, [devices, selectedDevices.length]);
 
-  const handleRefreshDevices = async () => {
-    try {
-      await refetchDevices();
-      toast.success("Veículos recarregados!");
-    } catch (error) {
-      toast.error("Erro ao recarregar veículos");
+  // Period preset
+  useEffect(() => {
+    if (periodPreset !== "custom") {
+      const { from, to } = getPeriodDates(periodPreset);
+      setDateFrom(from);
+      setDateTo(to);
     }
-  };
+  }, [periodPreset]);
 
-  // ── Análise de Velocidade ──────────────────────────────────────────────────
-  const handleCancelAnalysis = () => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setIsAnalyzingSpeed(false);
-    toast.info("Análise cancelada");
-  };
-
-  const handleAnalyzeSpeed = async () => {
-    if (selectedDevices.length === 0) {
-      toast.error("Selecione um veículo");
-      return;
-    }
-    if (!minSpeed || minSpeed < 1) {
-      toast.error("Informe uma velocidade mínima válida");
-      return;
-    }
-
-    const diffDays = Math.ceil((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays > 7) {
-      toast.warning(
-        `Período de ${diffDays} dias pode demorar bastante. Considere usar no máximo 7 dias.`,
-      );
-    }
-
-    abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
-
-    setIsAnalyzingSpeed(true);
-    setSpeedResult(null);
-
-    // Timeout de 120s no cliente
-    const clientTimeout = setTimeout(() => {
-      abortRef.current?.abort();
-      setIsAnalyzingSpeed(false);
-      toast.error(
-        "Tempo esgotado (120s). Reduza o período ou a quantidade de dias e tente novamente.",
-      );
-    }, 120_000);
-
-    try {
-      const device = devices.find((d) => d.id === selectedDevices[0]);
-      const positions = await getRoutePositions(
-        selectedDevices[0],
-        dateFrom.toISOString(),
-        dateTo.toISOString(),
-        signal,
-      );
-      clearTimeout(clientTimeout);
-
-      if (!positions || positions.length === 0) {
-        toast.warning("Nenhuma posição encontrada no período selecionado");
-        setIsAnalyzingSpeed(false);
-        return;
-      }
-
-      // Rota completa
-      const fullPolyline: [number, number][] = positions.map((p) => [p.latitude, p.longitude]);
-
-      // Filtrar posicoes acima do limite
-      const above = positions.filter((p) => (p.speed ?? 0) >= minSpeed);
-
-      // Agrupar posicoes consecutivas em segmentos (gap > 90s = novo segmento)
-      const GAP_MS = 90_000;
-      const segments: SpeedSegment[] = [];
-      let current: RoutePosition[] = [];
-
-      for (let i = 0; i < above.length; i++) {
-        if (current.length === 0) {
-          current.push(above[i]);
-        } else {
-          const prev = new Date(
-            current[current.length - 1].fixTime || current[current.length - 1].serverTime,
-          ).getTime();
-          const cur = new Date(above[i].fixTime || above[i].serverTime).getTime();
-          if (cur - prev <= GAP_MS) {
-            current.push(above[i]);
-          } else {
-            segments.push(buildSegment(segments.length, current));
-            current = [above[i]];
-          }
-        }
-      }
-      if (current.length > 0) segments.push(buildSegment(segments.length, current));
-
-      if (segments.length === 0) {
-        toast.warning(`Nenhum trecho com velocidade ≥ ${minSpeed} km/h encontrado`);
-      } else {
-        toast.success(
-          `${segments.length} trecho(s) encontrado(s) com velocidade ≥ ${minSpeed} km/h`,
-        );
-      }
-
-      setSpeedResult({
-        allPositions: positions,
-        segments,
-        fullPolyline,
-        deviceName: device?.name || device?.plate || `Veículo #${selectedDevices[0]}`,
-      });
-    } catch (err: any) {
-      clearTimeout(clientTimeout);
-      if (err?.name === "AbortError") return; // cancelado pelo usuário, sem toast
-      const msg = err?.message || "desconhecido";
-      if (msg.includes("Timeout") || msg.includes("504")) {
-        toast.error("Tempo esgotado. Reduza o período selecionado e tente novamente.");
-      } else {
-        toast.error("Erro ao buscar histórico: " + msg);
-      }
-    } finally {
-      clearTimeout(clientTimeout);
-      abortRef.current = null;
-      setIsAnalyzingSpeed(false);
-    }
-  };
-
-  function buildSegment(index: number, positions: RoutePosition[]): SpeedSegment {
-    const speeds = positions.map((p) => p.speed ?? 0);
-    const startTime = positions[0].fixTime || positions[0].serverTime;
-    const endTime =
-      positions[positions.length - 1].fixTime || positions[positions.length - 1].serverTime;
-    const durationSeconds = Math.round(
-      (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000,
+  const filteredDevices = useMemo(() => {
+    if (!deviceSearch.trim()) return devices;
+    const q = deviceSearch.toLowerCase();
+    return devices.filter(
+      (d) =>
+        d.name?.toLowerCase().includes(q) ||
+        d.plate?.toLowerCase().includes(q) ||
+        d.uniqueId?.toLowerCase().includes(q),
     );
-    return {
-      index,
-      startTime,
-      endTime,
-      durationSeconds,
-      maxSpeed: Math.max(...speeds),
-      avgSpeed: Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length),
-      positions,
-      polyline: positions.map((p) => [p.latitude, p.longitude] as [number, number]),
-      startLatLng: [positions[0].latitude, positions[0].longitude],
-      endLatLng: [
-        positions[positions.length - 1].latitude,
-        positions[positions.length - 1].longitude,
-      ],
-    };
-  }
+  }, [devices, deviceSearch]);
 
-  const handleGenerateReport = async () => {
+  const selectedDeviceNames = useMemo(() => {
+    return selectedDevices
+      .map((id) => devices.find((dev) => dev.id === id)?.name || `#${id}`)
+      .join(", ");
+  }, [selectedDevices, devices]);
+
+  const toggleDevice = (id: number) => {
+    setSelectedDevices((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
+    );
+  };
+
+  const clearReports = () => {
+    setRouteData(null);
+    setTripData(null);
+    setStopData(null);
+    setEventData(null);
+    setSummaryData(null);
+  };
+
+  // ── Generate ──
+  const handleGenerate = async () => {
     if (selectedDevices.length === 0) {
       toast.error("Selecione pelo menos um veículo");
       return;
     }
-
-    console.log("[handleGenerateReport] Iniciando geração do relatório...");
-    console.log("[handleGenerateReport] Tipo:", reportType);
-    console.log("[handleGenerateReport] Devices:", selectedDevices);
-    console.log("[handleGenerateReport] Período:", {
-      from: dateFrom.toISOString(),
-      to: dateTo.toISOString(),
-    });
-
     setIsGenerating(true);
-    setReportData(null);
+    clearReports();
 
     const filter: ReportFilter = {
       deviceIds: selectedDevices,
@@ -288,968 +336,1193 @@ export default function ReportsPage() {
       type: reportType,
     };
 
-    console.log("[handleGenerateReport] Filter:", JSON.stringify(filter, null, 2));
-
     try {
-      let data;
-      if (reportType === "trips") {
-        console.log("[handleGenerateReport] Chamando generateTripReport...");
-        data = await generateTripReport(filter);
-        console.log("[handleGenerateReport] Dados recebidos:", data);
-      } else if (reportType === "stops") {
-        console.log("[handleGenerateReport] Chamando generateStopReport...");
-        data = await generateStopReport(filter);
-        console.log("[handleGenerateReport] Dados recebidos:", data);
-      } else if (reportType === "events") {
-        data = await generateEventReport(filter);
-      } else if (reportType === "summary") {
-        data = await generateSummaryReport(filter);
-      }
-      console.log("[handleGenerateReport] Data final:", data);
+      const needsRoute =
+        reportType === "route" ||
+        reportType === "chart" ||
+        reportType === "combined";
+      const needsTrips = reportType === "trips" || reportType === "combined";
+      const needsStops = reportType === "stops" || reportType === "combined";
+      const needsEvents = reportType === "events" || reportType === "combined";
+      const needsSummary =
+        reportType === "summary" || reportType === "combined";
 
-      if (!data || (Array.isArray(data) && data.length === 0)) {
-        toast.warning("Nenhum dado encontrado para o período selecionado");
-        setReportData(null);
-      } else if (Array.isArray(data) && data[0] && data[0].trips && data[0].trips.length === 0) {
-        toast.warning(
-          "Nenhuma viagem encontrada para o período selecionado. Tente um período diferente.",
+      const promises: Promise<void>[] = [];
+
+      if (needsRoute) {
+        abortRef.current = new AbortController();
+        promises.push(
+          getRoutePositions(
+            selectedDevices[0],
+            dateFrom.toISOString(),
+            dateTo.toISOString(),
+            abortRef.current.signal,
+          ).then((p) => setRouteData(p)),
         );
-        setReportData(data); // Ainda mostra o card mas sem viagens
-      } else {
-        setReportData(data);
-        toast.success("Relatório gerado com sucesso!");
       }
-    } catch (error: any) {
-      console.error("[handleGenerateReport] Erro ao gerar relatório:", error);
-      console.error("[handleGenerateReport] Stack:", error.stack);
-      toast.error("Erro ao gerar relatório: " + (error.message || "Erro desconhecido"));
+      if (needsTrips)
+        promises.push(generateTripReport(filter).then((d) => setTripData(d)));
+      if (needsStops)
+        promises.push(generateStopReport(filter).then((d) => setStopData(d)));
+      if (needsEvents)
+        promises.push(
+          generateEventReport(filter).then((d) => setEventData(d)),
+        );
+      if (needsSummary)
+        promises.push(
+          generateSummaryReport(filter).then((d) => setSummaryData(d)),
+        );
+
+      await Promise.all(promises);
+      toast.success("Relatório gerado com sucesso!");
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+      toast.error(
+        "Erro ao gerar relatório: " + (err?.message || "Desconhecido"),
+      );
     } finally {
       setIsGenerating(false);
+      abortRef.current = null;
     }
   };
 
-  const handleExportPDF = async () => {
+  // ── Export ──
+  const handleExport = async (fmt: "pdf" | "excel") => {
+    const mappedType =
+      reportType === "combined"
+        ? "summary"
+        : reportType === "chart"
+          ? "route"
+          : reportType;
     const filter: ReportFilter = {
       deviceIds: selectedDevices,
       from: dateFrom.toISOString(),
       to: dateTo.toISOString(),
-      type: reportType,
+      type: mappedType as ReportType,
     };
-
     try {
-      const blob = await exportReportPDF(reportType, filter);
+      const blob =
+        fmt === "pdf"
+          ? await exportReportPDF(filter.type, filter)
+          : await exportReportExcel(filter.type, filter);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.html`;
+      a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.${fmt === "pdf" ? "pdf" : "xlsx"}`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success("Relatório exportado! Abra o arquivo e use Ctrl+P para salvar como PDF.");
-    } catch (error) {
-      toast.error("Erro ao exportar PDF");
+      toast.success(`${fmt === "pdf" ? "PDF" : "Excel"} exportado!`);
+    } catch {
+      toast.error(`Erro ao exportar ${fmt === "pdf" ? "PDF" : "Excel"}`);
     }
   };
 
-  const handleExportExcel = async () => {
-    const filter: ReportFilter = {
-      deviceIds: selectedDevices,
-      from: dateFrom.toISOString(),
-      to: dateTo.toISOString(),
-      type: reportType,
-    };
+  const hasData =
+    routeData || tripData || stopData || eventData || summaryData;
 
-    try {
-      const blob = await exportReportExcel(reportType, filter);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success("Excel exportado com sucesso!");
-    } catch (error) {
-      toast.error("Erro ao exportar Excel");
-    }
-  };
+  // Chart data (sampled)
+  const chartData = useMemo(() => {
+    if (!routeData || routeData.length === 0) return [];
+    const step = Math.max(1, Math.floor(routeData.length / 500));
+    return routeData
+      .filter((_, i) => i % step === 0)
+      .map((p) => ({
+        time: fmtDate(p.fixTime, "HH:mm"),
+        fullTime: fmtDate(p.fixTime),
+        speed: Math.round(p.speed),
+        altitude: Math.round(p.altitude),
+      }));
+  }, [routeData]);
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
-  };
+  // Route polyline
+  const routePolyline = useMemo((): [number, number][] => {
+    if (!routeData || routeData.length === 0) return [];
+    return routeData.map((p) => [p.latitude, p.longitude]);
+  }, [routeData]);
 
-  const safeParseDate = (v: any): Date | null => {
-    if (v == null) return null;
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-    if (typeof v === "number") {
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v === "string") {
-      const n = Number(v);
-      if (!Number.isNaN(n)) {
-        const d = new Date(n);
-        return isNaN(d.getTime()) ? null : d;
-      }
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  };
-
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Relatórios</h1>
-          <p className="text-sm text-muted-foreground">
-            Gere relatórios detalhados de viagens, paradas e eventos
-          </p>
-        </div>
-        {isLoadingDevices && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando veículos...
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      {/* Header */}
+      <div className="border-b bg-card px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Relatórios</h1>
+            <p className="text-sm text-muted-foreground">
+              Gere e exporte relatórios detalhados no padrão Traccar
+            </p>
           </div>
-        )}
+          {hasData && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("excel")}
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-1" />
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("pdf")}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                PDF
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="flex flex-1 overflow-hidden">
+        {/* ── SIDEBAR ─────────────────────────────────────────────────────── */}
+        <div className="w-80 border-r bg-card flex flex-col overflow-y-auto shrink-0">
+          <div className="p-4 space-y-4">
+            {/* Report Type */}
             <div>
-              <Label>Tipo de Relatório</Label>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Tipo de Relatório
+              </Label>
+              <div className="mt-2 space-y-1">
+                {REPORT_TYPES.map((rt) => {
+                  const Icon = rt.icon;
+                  const active = reportType === rt.value;
+                  return (
+                    <button
+                      key={rt.value}
+                      onClick={() => {
+                        setReportType(rt.value);
+                        clearReports();
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left",
+                        active
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-accent text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">{rt.label}</div>
+                        <div
+                          className={cn(
+                            "text-xs truncate",
+                            active
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {rt.desc}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Period */}
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Período
+              </Label>
               <Select
-                value={reportType}
-                onValueChange={(value: ReportType) => setReportType(value)}
+                value={periodPreset}
+                onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="trips">Viagens</SelectItem>
-                  <SelectItem value="stops">Paradas</SelectItem>
-                  <SelectItem value="events">Eventos</SelectItem>
-                  <SelectItem value="summary">Resumo</SelectItem>
-                  <SelectItem value="speed">Análise de Velocidade</SelectItem>
+                  {Object.entries(PERIOD_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div>
-              <Label>Veículo</Label>
-              <Select
-                value={selectedDevices[0]?.toString() || ""}
-                onValueChange={(value) => setSelectedDevices([parseInt(value)])}
-                disabled={isLoadingDevices || devices.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue>
-                    {isLoadingDevices ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Carregando...
-                      </span>
-                    ) : selectedDevices[0] ? (
-                      devices.find((d) => d.id === selectedDevices[0])?.name
-                    ) : (
-                      "Selecione um veículo"
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {devices.length > 0 ? (
-                    devices.map((device) => (
-                      <SelectItem key={device.id} value={device.id.toString()}>
-                        {device.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      {isLoadingDevices ? "Carregando..." : "Nenhum veículo disponível"}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
-              {devicesError && (
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-xs text-red-500">Erro ao carregar veículos.</p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={handleRefreshDevices}
-                    className="h-auto p-0 text-xs"
-                  >
-                    Tentar novamente
-                  </Button>
+              {periodPreset === "custom" && (
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <Label className="text-xs">De</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={(d) => d && setDateFrom(startOfDay(d))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Até</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                          {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={(d) => d && setDateTo(endOfDay(d))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               )}
             </div>
 
+            {/* Devices */}
             <div>
-              <Label>Data Inicial</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateFrom && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, "PPP", { locale: ptBR }) : "Selecione"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dateFrom}
-                    onSelect={(date) => date && setDateFrom(date)}
-                    initialFocus
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Veículos
+                {selectedDevices.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-[10px]">
+                    {selectedDevices.length}
+                  </Badge>
+                )}
+              </Label>
+              <div className="mt-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar veículo..."
+                    value={deviceSearch}
+                    onChange={(e) => setDeviceSearch(e.target.value)}
+                    className="pl-8 h-9 text-sm"
                   />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
-              <Label>Data Final</Label>
-              <Popover>
-                <PopoverTrigger asChild>
+                  {deviceSearch && (
+                    <button
+                      onClick={() => setDeviceSearch("")}
+                      className="absolute right-2 top-2.5"
+                    >
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
                   <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dateTo && "text-muted-foreground",
-                    )}
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() =>
+                      setSelectedDevices(devices.map((d) => d.id))
+                    }
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, "PPP", { locale: ptBR }) : "Selecione"}
+                    Todos
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dateTo}
-                    onSelect={(date) => date && setDateTo(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setSelectedDevices([])}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+                <ScrollArea className="h-48 mt-1 rounded-md border">
+                  <div className="p-1.5">
+                    {isLoadingDevices ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : filteredDevices.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        Nenhum veículo encontrado
+                      </p>
+                    ) : (
+                      filteredDevices.map((device) => (
+                        <label
+                          key={device.id}
+                          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-accent cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedDevices.includes(device.id)}
+                            onCheckedChange={() => toggleDevice(device.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium truncate">
+                              {device.name}
+                            </div>
+                            {device.plate && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {device.plate}
+                              </div>
+                            )}
+                          </div>
+                          <div
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              device.status === "online"
+                                ? "bg-green-500"
+                                : device.status === "offline"
+                                  ? "bg-gray-400"
+                                  : "bg-yellow-500",
+                            )}
+                          />
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            {reportType === "speed" ? (
+          {/* Generate button */}
+          <div className="p-4 mt-auto border-t">
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleGenerate}
+              disabled={isGenerating || selectedDevices.length === 0}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Gerar Relatório
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── CONTENT ─────────────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {!hasData && !isGenerating ? (
+            <EmptyState message='Selecione o tipo, período e veículos, depois clique em "Gerar Relatório"' />
+          ) : isGenerating ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center space-y-3">
+                <Loader2 className="h-12 w-12 mx-auto animate-spin text-primary" />
+                <p className="text-muted-foreground">Gerando relatório...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Info bar */}
+              <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-4 text-xs text-muted-foreground shrink-0">
+                <span>
+                  <strong>Período:</strong>{" "}
+                  {format(dateFrom, "dd/MM/yyyy HH:mm", { locale: ptBR })} →{" "}
+                  {format(dateTo, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                </span>
+                <span className="truncate">
+                  <strong>Veículos:</strong> {selectedDeviceNames}
+                </span>
+              </div>
+
+              {/* Report content */}
+              {reportType === "combined" ? (
+                <CombinedReport
+                  routeData={routeData}
+                  tripData={tripData}
+                  stopData={stopData}
+                  eventData={eventData}
+                  summaryData={summaryData}
+                  routePolyline={routePolyline}
+                  chartData={chartData}
+                />
+              ) : reportType === "route" ? (
+                <RouteReport data={routeData} polyline={routePolyline} />
+              ) : reportType === "trips" ? (
+                <TripsReport data={tripData} />
+              ) : reportType === "stops" ? (
+                <StopsReport data={stopData} />
+              ) : reportType === "events" ? (
+                <EventsReport data={eventData} />
+              ) : reportType === "summary" ? (
+                <SummaryReport data={summaryData} />
+              ) : reportType === "chart" ? (
+                <ChartReport data={chartData} routeData={routeData} />
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ROUTE REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function RouteReport({
+  data,
+  polyline,
+}: {
+  data: RoutePosition[] | null;
+  polyline: [number, number][];
+}) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhuma posição encontrada no período" />;
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Map */}
+      <div className="h-[300px] shrink-0 border-b">
+        {typeof window !== "undefined" && polyline.length > 0 && (
+          <MapContainer
+            center={polyline[Math.floor(polyline.length / 2)]}
+            zoom={13}
+            style={{ width: "100%", height: "100%" }}
+            scrollWheelZoom
+          >
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+              attribution="&copy; OpenStreetMap &copy; CARTO"
+              subdomains="abcd"
+            />
+            <Polyline
+              positions={polyline}
+              pathOptions={{ color: "#3b82f6", weight: 3, opacity: 0.8 }}
+            />
+            {L && (
               <>
-                <div>
-                  <Label>Velocidade Mínima (km/h)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={300}
-                    value={minSpeed}
-                    onChange={(e) => setMinSpeed(Number(e.target.value))}
-                    className="w-36 mt-1"
-                    placeholder="Ex: 80"
-                  />
-                </div>
-                <Button
-                  onClick={handleAnalyzeSpeed}
-                  disabled={isAnalyzingSpeed || selectedDevices.length === 0}
-                  size="lg"
-                >
-                  {isAnalyzingSpeed ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Buscando posições...
-                    </>
-                  ) : (
-                    <>
-                      <Gauge className="h-4 w-4 mr-2" />
-                      Analisar Trechos
-                    </>
-                  )}
-                </Button>
-                {isAnalyzingSpeed && (
-                  <>
-                    <Button variant="outline" size="lg" onClick={handleCancelAnalysis}>
-                      Cancelar
-                    </Button>
-                    <span className="text-xs text-muted-foreground animate-pulse self-center">
-                      Buscando em janelas de 12h... aguarde
-                    </span>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={handleGenerateReport}
-                  disabled={isGenerating || selectedDevices.length === 0}
-                  size="lg"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Gerando Relatório...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Gerar Relatório
-                    </>
-                  )}
-                </Button>
-                {reportData && (
-                  <>
-                    <Button variant="secondary" onClick={handleExportPDF}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Exportar PDF
-                    </Button>
-                    <Button variant="secondary" onClick={handleExportExcel}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Exportar Excel
-                    </Button>
-                  </>
-                )}
+                <Marker
+                  position={polyline[0]}
+                  icon={L.divIcon({
+                    className: "",
+                    html: '<div style="background:#22c55e;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6],
+                  })}
+                />
+                <Marker
+                  position={polyline[polyline.length - 1]}
+                  icon={L.divIcon({
+                    className: "",
+                    html: '<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6],
+                  })}
+                />
               </>
             )}
+          </MapContainer>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>Horário</TableHead>
+              <TableHead>Latitude</TableHead>
+              <TableHead>Longitude</TableHead>
+              <TableHead>Altitude</TableHead>
+              <TableHead>Velocidade</TableHead>
+              <TableHead>Curso</TableHead>
+              <TableHead>Endereço</TableHead>
+              <TableHead>Válida</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((pos, i) => (
+              <TableRow key={pos.id || i} className="text-xs">
+                <TableCell className="text-muted-foreground font-mono">
+                  {i + 1}
+                </TableCell>
+                <TableCell className="font-medium whitespace-nowrap">
+                  {fmtDate(pos.fixTime)}
+                </TableCell>
+                <TableCell className="font-mono">
+                  {pos.latitude.toFixed(5)}
+                </TableCell>
+                <TableCell className="font-mono">
+                  {pos.longitude.toFixed(5)}
+                </TableCell>
+                <TableCell>{Math.round(pos.altitude)} m</TableCell>
+                <TableCell>
+                  <span
+                    className={cn(
+                      "font-medium",
+                      pos.speed > 100
+                        ? "text-red-500"
+                        : pos.speed > 60
+                          ? "text-yellow-600"
+                          : "text-green-600",
+                    )}
+                  >
+                    {formatSpeed(pos.speed)}
+                  </span>
+                </TableCell>
+                <TableCell>{Math.round(pos.course)}°</TableCell>
+                <TableCell
+                  className="max-w-[200px] truncate"
+                  title={pos.address}
+                >
+                  {pos.address || "—"}
+                </TableCell>
+                <TableCell>
+                  {pos.attributes?.valid !== false ? (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-green-600"
+                    >
+                      Sim
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-red-500"
+                    >
+                      Não
+                    </Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <TableFooter count={data.length} label="posições" />
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TRIPS REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function TripsReport({ data }: { data: TripReport[] | null }) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhuma viagem encontrada no período" />;
+
+  const allTrips = data.flatMap((dr) =>
+    (dr.trips || []).map((trip) => ({ ...trip, deviceName: dr.deviceName })),
+  );
+
+  if (allTrips.length === 0)
+    return (
+      <EmptyState message="Nenhuma viagem registrada no período selecionado" />
+    );
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Veículo</TableHead>
+            <TableHead>Início</TableHead>
+            <TableHead>Endereço Início</TableHead>
+            <TableHead>Fim</TableHead>
+            <TableHead>Endereço Fim</TableHead>
+            <TableHead className="text-right">Distância</TableHead>
+            <TableHead className="text-right">Vel. Média</TableHead>
+            <TableHead className="text-right">Vel. Máxima</TableHead>
+            <TableHead className="text-right">Duração</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {allTrips.map((trip, i) => (
+            <TableRow key={trip.id || i} className="text-xs">
+              <TableCell className="font-medium">{trip.deviceName}</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtDate(trip.startTime)}
+              </TableCell>
+              <TableCell
+                className="max-w-[180px] truncate"
+                title={
+                  trip.startPosition?.address ||
+                  (trip as any).startAddress ||
+                  ""
+                }
+              >
+                {trip.startPosition?.address ||
+                  (trip as any).startAddress ||
+                  "—"}
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtDate(trip.endTime)}
+              </TableCell>
+              <TableCell
+                className="max-w-[180px] truncate"
+                title={
+                  trip.endPosition?.address ||
+                  (trip as any).endAddress ||
+                  ""
+                }
+              >
+                {trip.endPosition?.address ||
+                  (trip as any).endAddress ||
+                  "—"}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                {formatDistance(trip.distance || 0)}
+              </TableCell>
+              <TableCell className="text-right">
+                {formatSpeed(trip.averageSpeed || 0)}
+              </TableCell>
+              <TableCell className="text-right">
+                <span className="text-red-500 font-medium">
+                  {formatSpeed(trip.maxSpeed || 0)}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">
+                {formatDuration(Number(trip.duration) || 0)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <div className="px-4 py-3 text-xs border-t bg-muted/30 flex items-center gap-6">
+        <span>
+          <strong>Total:</strong> {allTrips.length} viagem(ns)
+        </span>
+        <span>
+          <strong>Distância:</strong>{" "}
+          {formatDistance(
+            data.reduce((acc, dr) => acc + (dr.totalDistance || 0), 0),
+          )}
+        </span>
+        <span>
+          <strong>Tempo:</strong>{" "}
+          {formatDuration(
+            data.reduce((acc, dr) => acc + (dr.totalDuration || 0), 0),
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// STOPS REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function StopsReport({ data }: { data: StopReport[] | null }) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhuma parada encontrada no período" />;
+
+  const allStops = data.flatMap((dr) =>
+    (dr.stops || []).map((stop) => ({ ...stop, deviceName: dr.deviceName })),
+  );
+
+  if (allStops.length === 0)
+    return (
+      <EmptyState message="Nenhuma parada registrada no período selecionado" />
+    );
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Veículo</TableHead>
+            <TableHead>Início</TableHead>
+            <TableHead>Endereço</TableHead>
+            <TableHead>Latitude</TableHead>
+            <TableHead>Longitude</TableHead>
+            <TableHead>Fim</TableHead>
+            <TableHead className="text-right">Duração</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {allStops.map((stop, i) => (
+            <TableRow key={stop.id || i} className="text-xs">
+              <TableCell className="font-medium">{stop.deviceName}</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtDate(stop.startTime)}
+              </TableCell>
+              <TableCell
+                className="max-w-[250px] truncate"
+                title={stop.address || ""}
+              >
+                {stop.address || stop.position?.address || "—"}
+              </TableCell>
+              <TableCell className="font-mono">
+                {stop.position?.latitude?.toFixed(5) || "—"}
+              </TableCell>
+              <TableCell className="font-mono">
+                {stop.position?.longitude?.toFixed(5) || "—"}
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtDate(stop.endTime)}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                {formatDuration(stop.duration || 0)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <div className="px-4 py-3 text-xs border-t bg-muted/30 flex items-center gap-6">
+        <span>
+          <strong>Total:</strong> {allStops.length} parada(s)
+        </span>
+        <span>
+          <strong>Tempo parado:</strong>{" "}
+          {formatDuration(
+            data.reduce((acc, dr) => acc + (dr.totalDuration || 0), 0),
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// EVENTS REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function EventsReport({ data }: { data: any[] | null }) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhum evento encontrado no período" />;
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Horário</TableHead>
+            <TableHead>Dispositivo</TableHead>
+            <TableHead>Tipo</TableHead>
+            <TableHead>Geocerca</TableHead>
+            <TableHead>Manutenção</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((event: any, i: number) => (
+            <TableRow key={event.id || i} className="text-xs">
+              <TableCell className="whitespace-nowrap font-medium">
+                {fmtDate(event.serverTime || event.eventTime)}
+              </TableCell>
+              <TableCell>
+                {event.deviceName || `Device #${event.deviceId}`}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px]",
+                    event.type === "deviceOverspeed" || event.type === "alarm"
+                      ? "text-red-500 border-red-200"
+                      : event.type === "deviceOnline" ||
+                          event.type === "deviceMoving"
+                        ? "text-green-600 border-green-200"
+                        : event.type === "deviceOffline" ||
+                            event.type === "deviceStopped"
+                          ? "text-yellow-600 border-yellow-200"
+                          : "",
+                  )}
+                >
+                  {EVENT_TYPE_LABELS[event.type] || event.type}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {event.geofenceName || event.geofenceId || "—"}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {event.maintenanceName || event.maintenanceId || "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <TableFooter count={data.length} label="evento(s)" />
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SUMMARY REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function SummaryReport({ data }: { data: any[] | null }) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhum dado de resumo encontrado" />;
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Veículo</TableHead>
+            <TableHead className="text-right">Distância</TableHead>
+            <TableHead className="text-right">Vel. Média</TableHead>
+            <TableHead className="text-right">Vel. Máxima</TableHead>
+            <TableHead className="text-right">Horas Motor</TableHead>
+            <TableHead className="text-right">Combustível</TableHead>
+            <TableHead>Início</TableHead>
+            <TableHead>Fim</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((item: any, i: number) => (
+            <TableRow key={item.deviceId || i} className="text-xs">
+              <TableCell className="font-medium">
+                {item.deviceName || `Device #${item.deviceId}`}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                {formatDistance(item.distance || 0)}
+              </TableCell>
+              <TableCell className="text-right">
+                {formatSpeed(item.averageSpeed || 0)}
+              </TableCell>
+              <TableCell className="text-right">
+                <span className="text-red-500 font-medium">
+                  {formatSpeed(item.maxSpeed || 0)}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">
+                {((item.engineHours || 0) / 3600000).toFixed(1)}h
+              </TableCell>
+              <TableCell className="text-right">
+                {(item.spentFuel || 0).toFixed(1)} L
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtShortDate(item.startTime)}
+              </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {fmtShortDate(item.endTime)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Summary cards */}
+      <div className="p-4 border-t bg-muted/30">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard
+            label="Distância Total"
+            value={formatDistance(
+              data.reduce((acc, d) => acc + (d.distance || 0), 0),
+            )}
+            color="blue"
+          />
+          <StatCard
+            label="Vel. Máxima"
+            value={formatSpeed(Math.max(...data.map((d) => d.maxSpeed || 0)))}
+            color="red"
+          />
+          <StatCard
+            label="Horas Motor"
+            value={`${(data.reduce((acc, d) => acc + (d.engineHours || 0), 0) / 3600000).toFixed(1)}h`}
+            color="orange"
+          />
+          <StatCard
+            label="Combustível"
+            value={`${data.reduce((acc, d) => acc + (d.spentFuel || 0), 0).toFixed(1)} L`}
+            color="green"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHART REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function ChartReport({
+  data,
+  routeData,
+}: {
+  data: { time: string; fullTime: string; speed: number; altitude: number }[];
+  routeData: RoutePosition[] | null;
+}) {
+  if (!data || data.length === 0)
+    return <EmptyState message="Nenhum dado para gráfico no período" />;
+
+  return (
+    <div className="flex-1 overflow-auto p-4 space-y-4">
+      {/* Speed */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-blue-500" />
+            Velocidade (km/h)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data}>
+                <defs>
+                  <linearGradient
+                    id="speedGrad"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 10 }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 10 }} unit=" km/h" width={70} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`${v} km/h`, "Velocidade"]}
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]?.payload?.fullTime || ""
+                  }
+                />
+                <Area
+                  type="monotone"
+                  dataKey="speed"
+                  stroke="#3b82f6"
+                  fill="url(#speedGrad)"
+                  strokeWidth={1.5}
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {reportData && reportType === "trips" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Relatório de Viagens</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Período: {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })} até{" "}
-              {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {!reportData || (reportData as TripReport[]).length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">Nenhum dado retornado pela API</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Verifique o console para mais detalhes
-                </p>
-              </div>
-            ) : (
-              (reportData as TripReport[]).map((deviceReport) => (
-                <div key={deviceReport.deviceId} className="space-y-4">
-                  <div className="border-b pb-4">
-                    <h3 className="text-lg font-semibold mb-3">{deviceReport.deviceName}</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">Total de Viagens</p>
-                        <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                          {deviceReport.trips?.length ?? 0}
-                        </p>
-                      </div>
-                      <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-1">Distância Total</p>
-                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                          {(deviceReport.totalDistance / 1000).toFixed(1)} km
-                        </p>
-                      </div>
-                      <div
-                        className="p-4 rounded-lg"
-                        style={{
-                          background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.05))`,
-                        }}
-                      >
-                        <p className="text-sm text-muted-foreground mb-1">Velocidade Média</p>
-                        <p
-                          className="text-3xl font-bold"
-                          style={{ color: `hsl(${colors.primary.light})` }}
-                        >
-                          {deviceReport.averageSpeed.toFixed(0)} km/h
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm text-muted-foreground mb-2">
-                      Detalhes das Viagens
-                    </h4>
-                    <div className="mb-2 text-xs text-muted-foreground">
-                      Total de trips neste device: {deviceReport.trips?.length || 0}
-                    </div>
-                    {!deviceReport.trips || deviceReport.trips.length === 0 ? (
-                      <div className="text-center py-8 border rounded-lg bg-yellow-50 dark:bg-yellow-950">
-                        <p className="text-muted-foreground">
-                          ⚠️ Nenhuma viagem registrada no período selecionado
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Tente selecionar um período diferente ou verifique se o veículo teve
-                          movimentação
-                        </p>
-                      </div>
-                    ) : (
-                      deviceReport.trips.map((trip) => (
-                        <div
-                          key={trip.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex items-start gap-4 flex-1">
-                            <div className="mt-1">
-                              <MapPin className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold mb-1">
-                                {(() => {
-                                  const sd = safeParseDate(trip.startTime);
-                                  return sd
-                                    ? format(sd, "dd/MM/yyyy 'às' HH:mm", {
-                                        locale: ptBR,
-                                      })
-                                    : "Data inválida";
-                                })()}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                <span className="font-medium text-foreground/70">De:</span>{" "}
-                                {trip.startPosition?.address || (trip as any).startAddress || "Desconhecido"}
-                              </p>
-                              {(trip.endPosition?.address || (trip as any).endAddress) &&
-                                (trip.endPosition?.address || (trip as any).endAddress) !== (trip.startPosition?.address || (trip as any).startAddress) && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    <span className="font-medium text-foreground/70">Para:</span>{" "}
-                                    {trip.endPosition?.address || (trip as any).endAddress}
-                                  </p>
-                                )}
-                            </div>
-                          </div>
-                          <div className="flex gap-6 text-sm">
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Distância</p>
-                              <p className="font-semibold">
-                                {((trip.distance || 0) / 1000).toFixed(1)} km
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Duração</p>
-                              <p className="font-semibold">
-                                {formatDuration(Number(trip.duration) || 0)}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-muted-foreground mb-1">Vel. Máx.</p>
-                              <p className="font-semibold">
-                                {(Number(trip.maxSpeed) || 0).toFixed(0)} km/h
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {reportData && reportType === "stops" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Relatório de Paradas</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Período: {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })} até{" "}
-              {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {(reportData as StopReport[]).map((deviceReport) => (
-              <div key={deviceReport.deviceId} className="space-y-4">
-                <div className="border-b pb-4">
-                  <h3 className="text-lg font-semibold mb-3">{deviceReport.deviceName}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-1">Total de Paradas</p>
-                      <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                        {deviceReport.totalStops}
-                      </p>
-                    </div>
-                    <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-1">Tempo Total Parado</p>
-                      <p className="text-3xl font-bold text-red-600 dark:text-red-400">
-                        {formatDuration(deviceReport.totalDuration)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm text-muted-foreground mb-2">
-                    Detalhes das Paradas
-                  </h4>
-                  {(deviceReport.stops ?? []).map((stop) => (
-                    <div
-                      key={stop.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className="mt-1">
-                          <Clock className="h-5 w-5 text-red-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold mb-1">
-                            {format(new Date(stop.startTime), "dd/MM/yyyy 'às' HH:mm", {
-                              locale: ptBR,
-                            })}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{stop.address}</p>
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground mb-1">Duração</p>
-                        <p className="font-semibold">{formatDuration(stop.duration)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-      {reportData && reportType === "events" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Relatório de Eventos</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Período: {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })} até{" "}
-              {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
-            </p>
-          </CardHeader>
-          <CardContent>
-            {(reportData as any[]).length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">
-                  Nenhum evento encontrado no período selecionado
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {(reportData as any[]).map((event: any) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+      {/* Altitude */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-green-500" />
+            Altitude (m)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data}>
+                <defs>
+                  <linearGradient
+                    id="altGrad"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
                   >
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="mt-1">
-                        <Clock className="h-5 w-5 text-yellow-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold mb-1">{event.type}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(() => {
-                            const d = safeParseDate(event.serverTime);
-                            return d
-                              ? format(d, "dd/MM/yyyy 'às' HH:mm", {
-                                  locale: ptBR,
-                                })
-                              : "Data inválida";
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      Device #{event.deviceId}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {reportData && reportType === "summary" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Resumo por Veículo</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Período: {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })} até{" "}
-              {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {(reportData as any[]).length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">
-                  Nenhum dado encontrado no período selecionado
-                </p>
-              </div>
-            ) : (
-              (reportData as any[]).map((item: any) => (
-                <div key={item.deviceId} className="border rounded-lg p-4 space-y-3">
-                  <h3 className="text-lg font-semibold">{item.deviceName}</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Distância</p>
-                      <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                        {((item.distance || 0) / 1000).toFixed(1)} km
-                      </p>
-                    </div>
-                    <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Vel. Média</p>
-                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                        {(item.averageSpeed || 0).toFixed(0)} km/h
-                      </p>
-                    </div>
-                    <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Vel. Máxima</p>
-                      <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                        {(item.maxSpeed || 0).toFixed(0)} km/h
-                      </p>
-                    </div>
-                    <div className="bg-orange-50 dark:bg-orange-950 p-3 rounded-lg text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Horas Motor</p>
-                      <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
-                        {(item.engineHours || 0).toFixed(1)} h
-                      </p>
-                    </div>
-                    <div
-                      className="p-3 rounded-lg text-center"
-                      style={{
-                        background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.05))`,
-                      }}
-                    >
-                      <p className="text-xs text-muted-foreground mb-1">Combustível</p>
-                      <p
-                        className="text-xl font-bold"
-                        style={{ color: `hsl(${colors.primary.light})` }}
-                      >
-                        {(item.spentFuel || 0).toFixed(1)} L
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ══ ANÁLISE DE VELOCIDADE ══════════════════════════════════════════════ */}
-      {reportType === "speed" && speedResult && (
-        <div className="space-y-4">
-          {/* Stats cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4 flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Trechos encontrados
-                </div>
-                <p className="text-3xl font-bold">{speedResult.segments.length}</p>
-                <p className="text-xs text-muted-foreground">acima de {minSpeed} km/h</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <Gauge className="w-4 h-4 text-red-500" />
-                  Velocidade máxima
-                </div>
-                <p className="text-3xl font-bold text-red-500">
-                  {speedResult.segments.length > 0
-                    ? Math.max(...speedResult.segments.map((s) => s.maxSpeed)).toFixed(0)
-                    : "—"}{" "}
-                  km/h
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <Timer className="w-4 h-4 text-amber-500" />
-                  Tempo total acima do limite
-                </div>
-                <p className="text-3xl font-bold">
-                  {speedResult.segments.length > 0
-                    ? (() => {
-                        const total = speedResult.segments.reduce(
-                          (a, s) => a + s.durationSeconds,
-                          0,
-                        );
-                        const m = Math.floor(total / 60);
-                        const s = total % 60;
-                        return m > 0 ? `${m}m ${s}s` : `${s}s`;
-                      })()
-                    : "—"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <TrendingUp className="w-4 h-4 text-blue-500" />
-                  Posições no período
-                </div>
-                <p className="text-3xl font-bold">{speedResult.allPositions.length}</p>
-                <p className="text-xs text-muted-foreground">{speedResult.deviceName}</p>
-              </CardContent>
-            </Card>
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 10 }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 10 }} unit=" m" width={60} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => [`${v} m`, "Altitude"]}
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]?.payload?.fullTime || ""
+                  }
+                />
+                <Area
+                  type="monotone"
+                  dataKey="altitude"
+                  stroke="#22c55e"
+                  fill="url(#altGrad)"
+                  strokeWidth={1.5}
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Mapa embutido */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                Mapa de Trechos — {speedResult.deviceName}
-                <Badge variant="outline" className="ml-auto text-xs">
-                  {format(dateFrom, "dd/MM/yyyy", { locale: ptBR })} →{" "}
-                  {format(dateTo, "dd/MM/yyyy", { locale: ptBR })}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="h-[480px] w-full rounded-b-lg overflow-hidden">
-                {typeof window !== "undefined" && speedResult.fullPolyline.length > 0 && (
-                  <MapContainer
-                    center={
-                      speedResult.fullPolyline[Math.floor(speedResult.fullPolyline.length / 2)]
-                    }
-                    zoom={13}
-                    style={{ width: "100%", height: "100%" }}
-                    scrollWheelZoom
-                  >
-                    <TileLayer
-                      url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-                      attribution="&copy; OpenStreetMap &copy; CARTO"
-                      subdomains="abcd"
-                    />
-
-                    {/* Rota completa — cinza discreto */}
-                    <Polyline
-                      positions={speedResult.fullPolyline}
-                      pathOptions={{
-                        color: "#475569",
-                        weight: 2,
-                        opacity: 0.5,
-                      }}
-                    />
-
-                    {/* Segmentos em excesso — vermelho/âmbar destacado */}
-                    {speedResult.segments.map((seg, i) => (
-                      <Polyline
-                        key={i}
-                        positions={seg.polyline}
-                        pathOptions={{
-                          color: "#ef4444",
-                          weight: 5,
-                          opacity: 0.9,
-                          lineCap: "round",
-                          lineJoin: "round",
-                        }}
-                      />
-                    ))}
-
-                    {/* Marcador no início de cada segmento */}
-                    {L &&
-                      speedResult.segments.map((seg, i) => (
-                        <Marker
-                          key={`m-${i}`}
-                          position={seg.startLatLng}
-                          icon={L.divIcon({
-                            className: "",
-                            html: `<div style="
-                            background:rgba(17,24,39,0.95);
-                            border:1.5px solid rgba(255,255,255,0.15);
-                            border-radius:8px;
-                            padding:3px 7px;
-                            font-size:11px;
-                            font-weight:600;
-                            color:#fbbf24;
-                            white-space:nowrap;
-                            box-shadow:0 2px 8px rgba(0,0,0,0.5);
-                          ">${seg.maxSpeed.toFixed(0)} km/h</div>`,
-                            iconSize: [72, 24],
-                            iconAnchor: [36, 12],
-                          })}
-                        >
-                          <Popup>
-                            <div
-                              style={{
-                                fontFamily: "system-ui",
-                                background: "rgba(17,24,39,0.97)",
-                                border: "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 10,
-                                margin: "-14px -20px",
-                                minWidth: 200,
-                                overflow: "hidden",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  borderBottom: "1px solid rgba(255,255,255,0.08)",
-                                  padding: "8px 14px",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 12,
-                                    color: "#fbbf24",
-                                    textTransform: "uppercase",
-                                    letterSpacing: 0.4,
-                                  }}
-                                >
-                                  Trecho #{i + 1}
-                                </span>
-                              </div>
-                              <div
-                                style={{
-                                  padding: "10px 14px 12px",
-                                  fontSize: 12,
-                                  color: "#e2e8f0",
-                                }}
-                              >
-                                <div style={{ marginBottom: 6 }}>
-                                  <span style={{ color: "#64748b" }}>Início:</span>{" "}
-                                  {format(new Date(seg.startTime), "dd/MM/yyyy HH:mm:ss", {
-                                    locale: ptBR,
-                                  })}
-                                </div>
-                                <div style={{ marginBottom: 6 }}>
-                                  <span style={{ color: "#64748b" }}>Fim:</span>{" "}
-                                  {format(new Date(seg.endTime), "HH:mm:ss", {
-                                    locale: ptBR,
-                                  })}
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 12,
-                                    marginBottom: 6,
-                                  }}
-                                >
-                                  <div>
-                                    <span style={{ color: "#64748b" }}>Vel. máx:</span>{" "}
-                                    <strong style={{ color: "#ef4444" }}>
-                                      {seg.maxSpeed.toFixed(0)} km/h
-                                    </strong>
-                                  </div>
-                                  <div>
-                                    <span style={{ color: "#64748b" }}>Média:</span> {seg.avgSpeed}{" "}
-                                    km/h
-                                  </div>
-                                </div>
-                                <div style={{ color: "#64748b" }}>
-                                  Duração:{" "}
-                                  {seg.durationSeconds >= 60
-                                    ? `${Math.floor(seg.durationSeconds / 60)}m ${seg.durationSeconds % 60}s`
-                                    : `${seg.durationSeconds}s`}
-                                </div>
-                              </div>
-                            </div>
-                          </Popup>
-                        </Marker>
-                      ))}
-                  </MapContainer>
-                )}
-                {speedResult.fullPolyline.length === 0 && (
-                  <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                    Nenhuma posição disponível para exibir no mapa
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tabela de segmentos */}
-          {speedResult.segments.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                Nenhum trecho com velocidade ≥ {minSpeed} km/h encontrado no período.
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Trechos com velocidade ≥ {minSpeed} km/h
-                  <Badge variant="destructive" className="ml-auto">
-                    {speedResult.segments.length} ocorrência(s)
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-xs text-muted-foreground">
-                        <th className="text-left p-3">#</th>
-                        <th className="text-left p-3">Data / Hora início</th>
-                        <th className="text-left p-3">Hora fim</th>
-                        <th className="text-right p-3">Duração</th>
-                        <th className="text-right p-3">Vel. máx.</th>
-                        <th className="text-right p-3">Vel. média</th>
-                        <th className="text-right p-3">Excesso</th>
-                        <th className="text-left p-3">Coordenadas (início)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {speedResult.segments.map((seg, i) => (
-                        <tr
-                          key={i}
-                          className="border-b last:border-0 hover:bg-muted/40 transition-colors"
-                        >
-                          <td className="p-3 font-mono text-xs text-muted-foreground">{i + 1}</td>
-                          <td className="p-3 font-medium">
-                            {format(new Date(seg.startTime), "dd/MM/yyyy HH:mm:ss", {
-                              locale: ptBR,
-                            })}
-                          </td>
-                          <td className="p-3 text-muted-foreground">
-                            {format(new Date(seg.endTime), "HH:mm:ss", {
-                              locale: ptBR,
-                            })}
-                          </td>
-                          <td className="p-3 text-right font-mono text-xs">
-                            {seg.durationSeconds >= 60
-                              ? `${Math.floor(seg.durationSeconds / 60)}m ${seg.durationSeconds % 60}s`
-                              : `${seg.durationSeconds}s`}
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="font-bold text-red-500">
-                              {seg.maxSpeed.toFixed(0)}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-1">km/h</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className="font-medium">{seg.avgSpeed}</span>
-                            <span className="text-xs text-muted-foreground ml-1">km/h</span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <Badge variant="destructive" className="text-xs">
-                              +{(seg.maxSpeed - minSpeed).toFixed(0)} km/h
-                            </Badge>
-                          </td>
-                          <td className="p-3 font-mono text-xs text-muted-foreground">
-                            {seg.startLatLng[0].toFixed(5)}, {seg.startLatLng[1].toFixed(5)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      {/* Stats */}
+      {routeData && routeData.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard
+            label="Posições"
+            value={routeData.length.toString()}
+            color="blue"
+          />
+          <StatCard
+            label="Vel. Máxima"
+            value={`${Math.max(...routeData.map((p) => Math.round(p.speed)))} km/h`}
+            color="red"
+          />
+          <StatCard
+            label="Vel. Média"
+            value={`${Math.round(routeData.reduce((a, p) => a + p.speed, 0) / routeData.length)} km/h`}
+            color="green"
+          />
+          <StatCard
+            label="Alt. Máxima"
+            value={`${Math.max(...routeData.map((p) => Math.round(p.altitude)))} m`}
+            color="orange"
+          />
+          <StatCard
+            label="Alt. Mínima"
+            value={`${Math.min(...routeData.map((p) => Math.round(p.altitude)))} m`}
+            color="purple"
+          />
         </div>
       )}
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// COMBINED REPORT
+// ════════════════════════════════════════════════════════════════════════════
+function CombinedReport({
+  routeData,
+  tripData,
+  stopData,
+  eventData,
+  summaryData,
+  routePolyline,
+  chartData,
+}: {
+  routeData: RoutePosition[] | null;
+  tripData: TripReport[] | null;
+  stopData: StopReport[] | null;
+  eventData: any[] | null;
+  summaryData: any[] | null;
+  routePolyline: [number, number][];
+  chartData: any[];
+}) {
+  return (
+    <Tabs
+      defaultValue="summary"
+      className="flex-1 flex flex-col overflow-hidden"
+    >
+      <div className="px-4 pt-2 shrink-0">
+        <TabsList className="grid grid-cols-6 w-full">
+          <TabsTrigger value="summary" className="text-xs">
+            Resumo
+          </TabsTrigger>
+          <TabsTrigger value="route" className="text-xs">
+            Rota
+          </TabsTrigger>
+          <TabsTrigger value="trips" className="text-xs">
+            Viagens
+          </TabsTrigger>
+          <TabsTrigger value="stops" className="text-xs">
+            Paradas
+          </TabsTrigger>
+          <TabsTrigger value="events" className="text-xs">
+            Eventos
+          </TabsTrigger>
+          <TabsTrigger value="chart" className="text-xs">
+            Gráfico
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="summary" className="flex-1 overflow-hidden mt-0">
+        <SummaryReport data={summaryData} />
+      </TabsContent>
+      <TabsContent value="route" className="flex-1 overflow-hidden mt-0">
+        <RouteReport data={routeData} polyline={routePolyline} />
+      </TabsContent>
+      <TabsContent value="trips" className="flex-1 overflow-hidden mt-0">
+        <TripsReport data={tripData} />
+      </TabsContent>
+      <TabsContent value="stops" className="flex-1 overflow-hidden mt-0">
+        <StopsReport data={stopData} />
+      </TabsContent>
+      <TabsContent value="events" className="flex-1 overflow-hidden mt-0">
+        <EventsReport data={eventData} />
+      </TabsContent>
+      <TabsContent value="chart" className="flex-1 overflow-hidden mt-0">
+        <ChartReport data={chartData} routeData={routeData} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SHARED COMPONENTS
+// ════════════════════════════════════════════════════════════════════════════
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <FileText className="h-12 w-12 mx-auto text-muted-foreground/30" />
+        <p className="text-sm text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function TableFooter({ count, label }: { count: number; label: string }) {
+  return (
+    <div className="px-4 py-2 text-xs text-muted-foreground border-t bg-muted/30">
+      Total: {count} {label}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
+  const colors: Record<string, string> = {
+    blue: "text-blue-600",
+    red: "text-red-500",
+    green: "text-green-600",
+    orange: "text-orange-600",
+    purple: "text-purple-600",
+  };
+  return (
+    <Card>
+      <CardContent className="p-3 text-center">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+          {label}
+        </p>
+        <p className={cn("text-lg font-bold", colors[color] || "")}>
+          {value}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

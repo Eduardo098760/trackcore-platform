@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getMarkerColor } from "@/components/map/map-constants";
 import { getVehicleIcon } from "@/lib/vehicle-icons";
+import { deriveDeviceStatus } from "@/lib/utils";
 import {
   Zap,
   ZapOff,
@@ -21,7 +22,7 @@ import {
 } from "lucide-react";
 import { useRelativeTime } from "@/lib/hooks/useRelativeTime";
 
-type StatusFilter = "all" | "moving" | "stopped" | "online" | "offline";
+type StatusFilter = "all" | "moving" | "stopped" | "offline";
 
 interface VehicleListPanelProps {
   devices: Device[];
@@ -36,21 +37,22 @@ const STATUS_FILTERS: { key: StatusFilter; label: string; color: string }[] = [
   { key: "all", label: "Todos", color: "bg-white/10" },
   { key: "moving", label: "Movendo", color: "bg-blue-500" },
   { key: "stopped", label: "Parado", color: "bg-green-500" },
-  { key: "online", label: "Online", color: "bg-emerald-500" },
   { key: "offline", label: "Offline", color: "bg-gray-500" },
 ];
 
-function getStatusCounts(devices: Device[]) {
+function getStatusCounts(devices: Device[], positionsMap: Map<number, Position>) {
   const counts: Record<StatusFilter, number> = {
     all: devices.length,
     moving: 0,
     stopped: 0,
-    online: 0,
     offline: 0,
   };
   devices.forEach((d) => {
-    const s = d.status as StatusFilter;
-    if (s in counts) counts[s]++;
+    const pos = positionsMap.get(d.id);
+    const s = deriveDeviceStatus(d.status, pos, d.lastUpdate);
+    if (s === "moving") counts.moving++;
+    else if (s === "offline") counts.offline++;
+    else counts.stopped++; // online, stopped, blocked → Parado
   });
   return counts;
 }
@@ -119,37 +121,46 @@ export function VehicleListPanel({
     }
   }, [isOpen]);
 
-  const statusCounts = useMemo(() => getStatusCounts(devices), [devices]);
+  // Derive effective status for each device once
+  const devicesWithStatus = useMemo(() => {
+    return devices.map((d) => {
+      const pos = positionsMap.get(d.id);
+      const effective = deriveDeviceStatus(d.status, pos, d.lastUpdate);
+      // Normalize: online/stopped/blocked → "stopped" (Parado)
+      const normalized = effective === "moving" || effective === "offline" ? effective : "stopped";
+      return { device: d, effectiveStatus: normalized as StatusFilter };
+    });
+  }, [devices, positionsMap]);
+
+  const statusCounts = useMemo(() => getStatusCounts(devices, positionsMap), [devices, positionsMap]);
 
   // Filter by local search term
   const searchFiltered = useMemo(() => {
-    if (!localSearch) return devices;
+    if (!localSearch) return devicesWithStatus;
     const term = localSearch.toLowerCase();
-    return devices.filter(
-      (d) =>
+    return devicesWithStatus.filter(
+      ({ device: d }) =>
         d.name?.toLowerCase().includes(term) ||
         d.plate?.toLowerCase().includes(term) ||
         d.uniqueId?.toLowerCase().includes(term),
     );
-  }, [devices, localSearch]);
+  }, [devicesWithStatus, localSearch]);
 
   // Filter by status
   const filteredDevices = useMemo(() => {
     if (statusFilter === "all") return searchFiltered;
-    return searchFiltered.filter((d) => d.status === statusFilter);
+    return searchFiltered.filter(({ effectiveStatus }) => effectiveStatus === statusFilter);
   }, [searchFiltered, statusFilter]);
 
-  // Sort: moving first, then stopped/online, then offline
+  // Sort: moving first, then stopped, then offline
   const sortedDevices = useMemo(() => {
     const order: Record<string, number> = {
       moving: 0,
       stopped: 1,
-      online: 2,
-      offline: 3,
-      blocked: 4,
+      offline: 2,
     };
     return [...filteredDevices].sort(
-      (a, b) => (order[a.status] ?? 5) - (order[b.status] ?? 5),
+      (a, b) => (order[a.effectiveStatus] ?? 3) - (order[b.effectiveStatus] ?? 3),
     );
   }, [filteredDevices]);
 
@@ -278,7 +289,7 @@ export function VehicleListPanel({
               </div>
             )}
 
-            {sortedDevices.map((device) => {
+            {sortedDevices.map(({ device, effectiveStatus }) => {
               const position = positionsMap.get(device.id);
               const isSelected = selectedDeviceId === device.id;
               const isIgnitionOn = position?.attributes?.ignition;
@@ -301,20 +312,19 @@ export function VehicleListPanel({
                       <div
                         className="w-8 h-8 rounded-full flex items-center justify-center border border-white/10"
                         style={{
-                          background: `${getMarkerColor(device.status)}22`,
+                          background: `${getMarkerColor(effectiveStatus)}22`,
                         }}
                       >
                         <IconComponent
                           className="w-4 h-4"
-                          style={{ color: getMarkerColor(device.status) }}
+                          style={{ color: getMarkerColor(effectiveStatus) }}
                         />
                       </div>
                       <div
                         className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-black/80 ${
-                          device.status === "moving"
+                          effectiveStatus === "moving"
                             ? "bg-blue-500 animate-pulse"
-                            : device.status === "online" ||
-                                device.status === "stopped"
+                            : effectiveStatus === "stopped"
                               ? "bg-green-500"
                               : "bg-gray-500"
                         }`}
