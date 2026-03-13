@@ -549,24 +549,24 @@ export default function MapPage() {
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
   };
 
-  // Remove outliers GPS (teleportações impossíveis — saltos > 10km entre pontos consecutivos)
+  // Remove outliers GPS (teleportações impossíveis — saltos > 2km entre pontos consecutivos)
   const filterOutliers = (coords: [number, number][]) => {
     if (coords.length < 2) return coords;
     const result: [number, number][] = [coords[0]];
     for (let i = 1; i < coords.length; i++) {
       const d = quickDistM(result[result.length - 1], coords[i]);
-      if (d < 10000) result.push(coords[i]);
+      if (d < 2000) result.push(coords[i]); // 2km threshold
     }
     return result;
   };
 
-  // Divide trilha em segmentos onde há salto > 5km
+  // Divide trilha em segmentos onde há salto > 500m (evita linhas retas entre gaps GPS)
   const splitTrailSegments = (coords: [number, number][]) => {
     if (coords.length < 2) return [coords];
     const segments: [number, number][][] = [];
     let current: [number, number][] = [coords[0]];
     for (let i = 1; i < coords.length; i++) {
-      if (quickDistM(current[current.length - 1], coords[i]) > 5000) {
+      if (quickDistM(current[current.length - 1], coords[i]) > 500) {
         if (current.length >= 2) segments.push(current);
         current = [];
       }

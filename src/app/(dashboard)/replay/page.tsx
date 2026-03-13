@@ -8,8 +8,9 @@ import L from "leaflet";
 import { getDevices } from "@/lib/api";
 import { getRoutePositions } from "@/lib/api/reports";
 import { RoutePosition, Device } from "@/types";
+import { getVehicleIconSVG } from "@/lib/vehicle-icons";
 import type { StopEventData, SpeedViolationData } from "./replay-map";
-import { exportPositionsCSV, exportSummaryReport, exportSummaryPDF } from "./export-helpers";
+import { exportPositionsCSV, exportSummaryReport, exportSummaryPDF, captureMapImage } from "./export-helpers";
 
 const ReplayMap = dynamic(() => import("./replay-map"), { ssr: false });
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -369,11 +370,33 @@ export default function RouteReplayPage() {
   };
 
   const createVehicleIcon = (pos: any, device: any) => {
+    const course = pos?.course ?? 0;
+    const category = device?.category || 'car';
+    const vehicleIcon = getVehicleIconSVG(category, '#ffffff', 0);
+    const color = '#3b82f6';
     return L.divIcon({
-      className: "",
-      html: `<div style="width:32px;height:32px;background:#3b82f6;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;">🚗</div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      className: 'custom-marker',
+      html: `
+        <div style="position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);">
+            <div style="transform:rotate(${course}deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));">
+              <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2 L16 13 L12 10 L8 13 Z" fill="#ffffff" stroke="${color}" stroke-width="0.5" />
+              </svg>
+            </div>
+          </div>
+          <div style="position:relative;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.4);background:linear-gradient(135deg,${color},${color}dd);box-shadow:0 4px 14px rgba(0,0,0,0.4),0 0 0 1px rgba(0,0,0,0.1);">
+            ${vehicleIcon}
+          </div>
+          <div style="position:absolute;width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+          <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(${course}deg) translateY(-28px);transform-origin:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2 L16 13 L12 10 L8 13 Z" fill="${color}" />
+            </svg>
+          </div>
+        </div>`,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24],
     });
   };
   const searchParams = useSearchParams() ?? new URLSearchParams();
@@ -576,7 +599,7 @@ export default function RouteReplayPage() {
           }
           return prev + 1;
         });
-      }, 100 / playbackSpeed);
+      }, 500 / playbackSpeed);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
@@ -688,7 +711,15 @@ export default function RouteReplayPage() {
           value={selectedDevice?.toString() ?? ""}
           onValueChange={(v) => {
             setSelectedDevice(parseInt(v));
-            resetFilter();
+            // Limpa dados da rota anterior sem anular o veículo selecionado
+            setRoute([]);
+            setSnappedRoute([]);
+            setStops([]);
+            setViolations([]);
+            setSummary(null);
+            setLoadError(null);
+            setIsPlaying(false);
+            setCurrentIndex(0);
           }}
         >
           <SelectTrigger
@@ -1076,8 +1107,10 @@ export default function RouteReplayPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1 h-7 text-xs bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20 hover:text-red-200 gap-1"
-                      onClick={() => {
-                        exportSummaryPDF(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo);
+                      onClick={async () => {
+                        toast.info('Gerando mapa da rota...');
+                        const mapImg = await captureMapImage(route, stops);
+                        await exportSummaryPDF(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo, mapImg);
                         toast.success('PDF exportado!');
                       }}
                     >
@@ -1433,7 +1466,7 @@ export default function RouteReplayPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[0.25, 0.5, 1, 2, 5, 10].map((s) => (
+                        {[0.1, 0.25, 0.5, 1, 2, 5, 10].map((s) => (
                           <SelectItem key={s} value={s.toString()}>
                             {s}x
                           </SelectItem>
@@ -1592,7 +1625,7 @@ export default function RouteReplayPage() {
                 {/* Velocidades rÃ¡pidas + telemetria */}
                 <div className="flex items-center justify-between">
                   <div className="flex gap-1">
-                    {[0.5, 1, 2, 5, 10].map((s) => (
+                    {[0.1, 0.25, 0.5, 1, 2, 5, 10].map((s) => (
                       <Button
                         key={s}
                         variant={playbackSpeed === s ? "default" : "ghost"}

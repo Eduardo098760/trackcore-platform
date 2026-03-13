@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { getDevices, sendCommand, getSavedCommands } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getDevices,
+  sendCommand,
+  getSavedCommands,
+  createSavedCommand,
+  updateSavedCommand,
+  deleteSavedCommand,
+  linkCommandToDevice,
+  unlinkCommandFromDevice,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,9 +38,29 @@ import {
   ChevronDown,
   MessageSquare,
   BookmarkCheck,
+  Plus,
+  Pencil,
+  Settings2,
+  Loader2,
 } from "lucide-react";
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
 import { Command, Device, TraccarCommand } from "@/types";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 // ─── Constantes de tipos de comando ──────────────────────────────────────────
 const COMMAND_TYPES = [
@@ -289,6 +318,16 @@ export default function CommandsPage() {
   const [history, setHistory] = useState<Command[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Template management state
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<TraccarCommand | null>(null);
+  const [tplType, setTplType] = useState("positionSingle");
+  const [tplDescription, setTplDescription] = useState("");
+  const [tplTextChannel, setTplTextChannel] = useState(false);
+  const [tplCustomData, setTplCustomData] = useState("");
+
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
@@ -304,6 +343,78 @@ export default function CommandsPage() {
     queryFn: () => getSavedCommands(parseInt(selectedDeviceId)),
     enabled: !!selectedDeviceId,
   });
+
+  // Todos os templates de comando (para gerenciamento)
+  const { data: allTemplates = [], isLoading: loadingTemplates } = useQuery({
+    queryKey: ["commandTemplates"],
+    queryFn: () => getSavedCommands(),
+  });
+
+  const createTemplateMut = useMutation({
+    mutationFn: (data: Omit<TraccarCommand, "id">) => createSavedCommand(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["commandTemplates"] });
+      queryClient.invalidateQueries({ queryKey: ["savedCommands"] });
+      setShowTemplateDialog(false);
+      toast.success("Template criado!");
+    },
+    onError: () => toast.error("Erro ao criar template"),
+  });
+
+  const updateTemplateMut = useMutation({
+    mutationFn: (data: TraccarCommand) => updateSavedCommand(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["commandTemplates"] });
+      queryClient.invalidateQueries({ queryKey: ["savedCommands"] });
+      setShowTemplateDialog(false);
+      setEditingTemplate(null);
+      toast.success("Template atualizado!");
+    },
+    onError: () => toast.error("Erro ao atualizar template"),
+  });
+
+  const deleteTemplateMut = useMutation({
+    mutationFn: (id: number) => deleteSavedCommand(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["commandTemplates"] });
+      queryClient.invalidateQueries({ queryKey: ["savedCommands"] });
+      toast.success("Template removido!");
+    },
+    onError: () => toast.error("Erro ao remover template"),
+  });
+
+  const openNewTemplate = () => {
+    setEditingTemplate(null);
+    setTplType("positionSingle");
+    setTplDescription("");
+    setTplTextChannel(false);
+    setTplCustomData("");
+    setShowTemplateDialog(true);
+  };
+
+  const openEditTemplate = (tpl: TraccarCommand) => {
+    setEditingTemplate(tpl);
+    setTplType(tpl.type);
+    setTplDescription(tpl.description || "");
+    setTplTextChannel(!!tpl.textChannel);
+    setTplCustomData(tpl.attributes?.data || "");
+    setShowTemplateDialog(true);
+  };
+
+  const handleSaveTemplate = () => {
+    const payload = {
+      deviceId: 0,
+      type: tplType,
+      description: tplDescription || undefined,
+      textChannel: tplTextChannel || undefined,
+      attributes: tplType === "custom" && tplCustomData ? { data: tplCustomData } : {},
+    };
+    if (editingTemplate) {
+      updateTemplateMut.mutate({ ...editingTemplate, ...payload });
+    } else {
+      createTemplateMut.mutate(payload);
+    }
+  };
 
   const selectedDevice = useMemo(
     () => devices.find((d) => d.id.toString() === selectedDeviceId),
@@ -789,6 +900,149 @@ export default function CommandsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ─── Templates de Comandos Salvos ── */}
+      <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-xl flex items-center gap-2">
+            <Settings2 className="w-5 h-5" />
+            Templates de Comandos Salvos
+          </CardTitle>
+          <Button size="sm" onClick={openNewTemplate} className="gap-1">
+            <Plus className="w-4 h-4" /> Novo Template
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loadingTemplates ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : allTemplates.length === 0 ? (
+            <div className="text-center py-8">
+              <BookmarkCheck className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Nenhum template de comando salvo
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Crie templates para reutilizar comandos rapidamente ao enviar para dispositivos
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {allTemplates.map((tpl) => {
+                const cmdType = COMMAND_TYPES.find((c) => c.value === tpl.type);
+                const Icon = cmdType?.icon || Terminal;
+                return (
+                  <div
+                    key={tpl.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 transition-colors"
+                  >
+                    <div className="p-2 rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
+                      <Icon className="w-4 h-4 text-cyan-700 dark:text-cyan-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {tpl.description || cmdType?.label || tpl.type}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {tpl.type}
+                        {tpl.textChannel ? " · SMS" : " · GPRS"}
+                        {tpl.attributes?.data ? ` · ${tpl.attributes.data}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => openEditTemplate(tpl)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                        onClick={() => deleteTemplateMut.mutate(tpl.id)}
+                        disabled={deleteTemplateMut.isPending}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── Dialog: Criar/Editar Template ── */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingTemplate ? "Editar Template" : "Novo Template de Comando"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Descrição</Label>
+              <Input
+                value={tplDescription}
+                onChange={(e) => setTplDescription(e.target.value)}
+                placeholder="Ex: Bloqueio padrão, Posição rápida..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Tipo de Comando</Label>
+              <Select value={tplType} onValueChange={setTplType}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COMMAND_TYPES.map((ct) => (
+                    <SelectItem key={ct.value} value={ct.value}>
+                      {ct.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {tplType === "custom" && (
+              <div>
+                <Label>Texto do comando</Label>
+                <Input
+                  value={tplCustomData}
+                  onChange={(e) => setTplCustomData(e.target.value)}
+                  placeholder="Ex: setdigout 0"
+                  className="mt-1 font-mono text-sm"
+                />
+              </div>
+            )}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div>
+                <Label className="text-sm">Enviar via SMS</Label>
+                <p className="text-xs text-muted-foreground">Canal de envio padrão do template</p>
+              </div>
+              <Switch checked={tplTextChannel} onCheckedChange={setTplTextChannel} />
+            </div>
+            <Button
+              onClick={handleSaveTemplate}
+              disabled={createTemplateMut.isPending || updateTemplateMut.isPending}
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+            >
+              {(createTemplateMut.isPending || updateTemplateMut.isPending) ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <BookmarkCheck className="w-4 h-4 mr-2" />
+              )}
+              {editingTemplate ? "Atualizar" : "Criar Template"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -59,7 +59,7 @@ export function useEventNotifications(enabled: boolean = true) {
 
     if (newEvents.length === 0) return;
 
-    console.log(`📊 ${newEvents.length} novo(s) evento(s) detectado(s)`);
+    console.log(`📊 ${newEvents.length} novo(s) evento(s) detectado(s) via HTTP`);
 
     // Processar eventos um por vez com pequeno delay para evitar empilhamento
     newEvents.forEach((event, index) => {
@@ -78,6 +78,29 @@ export function useEventNotifications(enabled: boolean = true) {
       processedEvents.current = new Set(eventsArray.slice(-200));
     }
   }, [events, devices]);
+
+  // ── WebSocket real-time: processar eventos imediatamente ──
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handler = (e: globalThis.Event) => {
+      const event = (e as CustomEvent).detail as Event;
+      if (!event?.id || processedEvents.current.has(event.id)) return;
+
+      console.log('⚡ Evento recebido via WebSocket:', event.type, event.id);
+      processedEvents.current.add(event.id);
+      processEvent(event, devices);
+
+      // Limitar tamanho do set
+      if (processedEvents.current.size > 200) {
+        const arr = Array.from(processedEvents.current);
+        processedEvents.current = new Set(arr.slice(-200));
+      }
+    };
+
+    window.addEventListener('traccar-ws-event', handler);
+    return () => window.removeEventListener('traccar-ws-event', handler);
+  }, [enabled, devices]);
 
   return { events };
 }
@@ -192,8 +215,8 @@ async function processEvent(event: Event, devices: Device[] = []) {
     driverChanged: false,
     fuelDrop: true,
     fuelIncrease: false,
-    deviceBlocked: true,
-    deviceUnblocked: true,
+    deviceBlocked: false,
+    deviceUnblocked: false,
     media: false,
   };
 

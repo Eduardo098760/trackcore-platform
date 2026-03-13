@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar, MapPin, Clock, Gauge, Route } from "lucide-react";
 import { formatSpeed, formatDistance, formatDuration } from "@/lib/utils";
-import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import { PageHeader } from "@/components/ui/page-header";
 import { Position } from "@/types";
 
 export default function HistoryPage() {
@@ -27,7 +27,6 @@ export default function HistoryPage() {
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const [routeData, setRouteData] = useState<Position[]>([]);
-  const colors = useTenantColors();
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -90,33 +89,11 @@ export default function HistoryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="relative">
-        <div
-          className="absolute inset-0 rounded-3xl blur-3xl"
-          style={{
-            background: `linear-gradient(to right, hsla(${colors.primary.light}, 0.1), hsla(${colors.primary.light}, 0.08))`,
-          }}
-        ></div>
-        <Card className="relative backdrop-blur-xl bg-white/80 dark:bg-gray-950/80 border-white/20 shadow-2xl">
-          <CardHeader>
-            <CardTitle
-              className="text-3xl font-bold flex items-center gap-3"
-              style={{
-                backgroundImage: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              <Route className="w-8 h-8" style={{ color: `hsl(${colors.primary.light})` }} />
-              Histórico de Percurso
-            </CardTitle>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Visualize o trajeto completo dos veículos
-            </p>
-          </CardHeader>
-        </Card>
-      </div>
+      <PageHeader
+        icon={Route}
+        title="Histórico de Percurso"
+        description="Visualize o trajeto completo dos veículos"
+      />
 
       {/* Filters */}
       <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
@@ -165,10 +142,7 @@ export default function HistoryPage() {
           <Button
             onClick={loadRoute}
             disabled={!selectedDeviceId}
-            style={{
-              background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-            }}
-            className="mt-4 hover:shadow-lg transition-shadow text-white"
+            className="mt-4 hover:shadow-lg transition-shadow text-white bg-blue-600 hover:bg-blue-700"
           >
             <Route className="w-4 h-4 mr-2" />
             Buscar Histórico
@@ -222,25 +196,20 @@ export default function HistoryPage() {
           </Card>
 
           <Card
-            className="backdrop-blur-xl border-white/20"
-            style={{
-              background: `linear-gradient(to bottom-right, hsla(${colors.primary.light}, 0.08), hsla(${colors.primary.light}, 0.05))`,
-            }}
+            className="backdrop-blur-xl border-white/20 bg-gradient-to-br from-purple-50/80 to-indigo-50/80 dark:from-purple-950/20 dark:to-indigo-950/20 border-purple-200/50"
           >
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Duração</p>
                   <p
-                    className="text-2xl font-bold mt-1"
-                    style={{ color: `hsl(${colors.primary.light})` }}
+                    className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400"
                   >
                     {formatDuration(stats.duration)}
                   </p>
                 </div>
                 <Clock
-                  className="w-8 h-8"
-                  style={{ color: `hsla(${colors.primary.light}, 0.3)` }}
+                  className="w-8 h-8 text-purple-600/30"
                 />
               </div>
             </CardContent>

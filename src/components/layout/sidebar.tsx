@@ -11,6 +11,7 @@ import {
   Map,
   Car,
   History,
+  Play,
   Bell,
   Users,
   Building2,
@@ -41,6 +42,7 @@ const navigation = [
   { name: "Rotas", href: "/routes", icon: Route, key: "routes" },
   { name: "Veículos", href: "/vehicles", icon: Car, key: "vehicles" },
   { name: "Histórico", href: "/history", icon: History, key: "history" },
+  { name: "Replay", href: "/replay", icon: Play, key: "replay" },
   { name: "Eventos", href: "/events", icon: Bell, key: "events" },
   { name: "Comandos", href: "/commands", icon: Terminal, key: "commands" },
 ];

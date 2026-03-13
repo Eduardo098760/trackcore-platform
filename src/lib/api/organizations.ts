@@ -15,6 +15,7 @@ export async function getOrganizations(): Promise<Organization[]> {
       name: group.name,
       slug: group.attributes?.slug || group.name.toLowerCase().replace(/\s+/g, '-'),
       domain: group.attributes?.domain,
+      parentId: group.groupId || undefined,
       settings: {
         maxDevices: group.attributes?.maxDevices || 50,
         maxUsers: group.attributes?.maxUsers || 10,
@@ -41,6 +42,7 @@ export async function getOrganizationById(id: number): Promise<Organization> {
       name: group.name,
       slug: group.attributes?.slug || group.name.toLowerCase().replace(/\s+/g, '-'),
       domain: group.attributes?.domain,
+      parentId: group.groupId || undefined,
       settings: {
         maxDevices: group.attributes?.maxDevices || 50,
         maxUsers: group.attributes?.maxUsers || 10,
@@ -73,6 +75,7 @@ export async function createOrganization(
   try {
     const group = await api.post<any>('/groups', {
       name: data.name,
+      groupId: data.parentId || 0,
       attributes: {
         slug: data.slug,
         domain: data.domain,
@@ -91,6 +94,7 @@ export async function createOrganization(
       name: group.name,
       slug: data.slug,
       domain: data.domain,
+      parentId: data.parentId,
       settings: data.settings,
       traccarUserId: group.id,
       status: data.status,
@@ -114,7 +118,7 @@ export async function updateOrganization(
     const updatedGroup = await api.put<any>(`/groups/${id}`, {
       id: group.id,
       name: data.name || group.name,
-      groupId: group.groupId,
+      groupId: data.parentId !== undefined ? (data.parentId || 0) : (group.groupId || 0),
       attributes: {
         ...group.attributes,
         slug: data.slug || group.attributes?.slug,

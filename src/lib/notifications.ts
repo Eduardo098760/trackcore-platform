@@ -96,7 +96,9 @@ export class NotificationManager {
   }
 
   /**
-   * Mostra notificação do navegador se habilitado
+   * Mostra notificação do navegador se habilitado.
+   * Prioriza o Service Worker (funciona em segundo plano).
+   * Fallback para Notification API se o SW não estiver disponível.
    */
   private async showBrowserNotification(notification: InAppNotification): Promise<void> {
     const settings = localStorage.getItem('notificationSettings');
@@ -111,24 +113,42 @@ export class NotificationManager {
       return;
     }
 
-    if (Notification.permission === 'granted') {
-      new Notification(notification.title, {
-        body: notification.message,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        tag: notification.id,
-      });
-    } else if (Notification.permission !== 'denied') {
+    if (Notification.permission !== 'granted') {
+      if (Notification.permission === 'denied') return;
       const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        new Notification(notification.title, {
+      if (permission !== 'granted') return;
+    }
+
+    // Tentar via Service Worker (funciona em segundo plano)
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        payload: {
+          title: notification.title,
           body: notification.message,
+          tag: notification.id,
           icon: '/favicon.ico',
           badge: '/favicon.ico',
-          tag: notification.id,
-        });
-      }
+          data: {
+            deviceId: notification.deviceId,
+            deviceName: notification.deviceName,
+            eventType: notification.eventType,
+            latitude: notification.latitude,
+            longitude: notification.longitude,
+            speedAlertId: notification.speedAlertId,
+          },
+        },
+      });
+      return;
     }
+
+    // Fallback: Notification API direta (só funciona com aba ativa)
+    new Notification(notification.title, {
+      body: notification.message,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: notification.id,
+    });
   }
 
   /**

@@ -95,6 +95,7 @@ export default function OrganizationsPage() {
     name: "",
     slug: "",
     domain: "",
+    parentId: 0,
     plan: "professional" as "basic" | "professional" | "enterprise",
     status: "active" as "active" | "suspended" | "trial",
     maxDevices: 50,
@@ -150,6 +151,7 @@ export default function OrganizationsPage() {
       name: "",
       slug: "",
       domain: "",
+      parentId: 0,
       plan: "professional",
       status: "active",
       maxDevices: 50,
@@ -165,6 +167,7 @@ export default function OrganizationsPage() {
       name: org.name,
       slug: org.slug,
       domain: org.domain || "",
+      parentId: org.parentId || 0,
       plan: org.plan,
       status: org.status,
       maxDevices: org.settings.maxDevices,
@@ -177,6 +180,7 @@ export default function OrganizationsPage() {
   const handleSubmit = () => {
     const data = {
       ...formData,
+      parentId: formData.parentId || undefined,
       settings: {
         maxDevices: formData.maxDevices,
         maxUsers: formData.maxUsers,
@@ -261,7 +265,7 @@ export default function OrganizationsPage() {
       />
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -269,6 +273,28 @@ export default function OrganizationsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{organizations.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Raiz</CardTitle>
+            <Building2 className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {organizations.filter((o) => !o.parentId).length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sub-orgs</CardTitle>
+            <Users className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {organizations.filter((o) => !!o.parentId).length}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -387,6 +413,30 @@ export default function OrganizationsPage() {
                       />
                     </div>
                     <div>
+                      <Label>Organização Pai (Reseller)</Label>
+                      <Select
+                        value={String(formData.parentId)}
+                        onValueChange={(v) => setFormData({ ...formData, parentId: parseInt(v) || 0 })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nenhuma (raiz)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Nenhuma (raiz)</SelectItem>
+                          {organizations
+                            .filter((o) => o.id !== editingOrg?.id)
+                            .map((o) => (
+                              <SelectItem key={o.id} value={String(o.id)}>
+                                {o.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Selecione para criar uma sub-organização
+                      </p>
+                    </div>
+                    <div>
                       <Label htmlFor="plan">Plano</Label>
                       <Select
                         value={formData.plan}
@@ -470,6 +520,7 @@ export default function OrganizationsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Organização</TableHead>
+                  <TableHead>Pai</TableHead>
                   <TableHead>Slug/Domínio</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
@@ -481,21 +532,37 @@ export default function OrganizationsPage() {
               <TableBody>
                 {filteredOrgs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhuma organização encontrada
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredOrgs.map((org) => (
+                  filteredOrgs.map((org) => {
+                    const parentOrg = org.parentId
+                      ? organizations.find((o) => o.id === org.parentId)
+                      : null;
+                    return (
                     <TableRow key={org.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          {org.parentId ? (
+                            <span className="text-muted-foreground pl-4">└</span>
+                          ) : null}
                           <Building2 className="w-4 h-4 text-muted-foreground" />
                           <div>
                             <div className="font-medium">{org.name}</div>
                             <div className="text-xs text-muted-foreground">ID: {org.id}</div>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {parentOrg ? (
+                          <Badge variant="outline" className="text-xs">
+                            {parentOrg.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -540,7 +607,8 @@ export default function OrganizationsPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

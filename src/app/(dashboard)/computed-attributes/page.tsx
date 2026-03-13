@@ -1,143 +1,166 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { PageHeader } from '@/components/ui/page-header';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calculator, Plus, Edit, Trash2, Search, Code, AlertCircle } from 'lucide-react';
-import type { ComputedAttribute } from '@/types';
-
-// Mock data
-const mockAttributes: ComputedAttribute[] = [
-  {
-    id: 1,
-    name: 'Consumo Médio',
-    description: 'Calcula o consumo médio em km/l',
-    attribute: 'avgConsumption',
-    expression: 'totalDistance / fuelUsed',
-    type: 'number',
-    enabled: true,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01'
-  },
-  {
-    id: 2,
-    name: 'Custo por KM',
-    description: 'Custo total dividido pela distância percorrida',
-    attribute: 'costPerKm',
-    expression: '(fuelCost + maintenanceCost) / totalDistance',
-    type: 'number',
-    enabled: true,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01'
-  },
-  {
-    id: 3,
-    name: 'Motor em Ralenti',
-    description: 'Detecta se o motor está ligado mas velocidade = 0',
-    attribute: 'isIdling',
-    expression: 'ignition && speed == 0',
-    type: 'boolean',
-    enabled: true,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-01'
-  }
-];
+import { Calculator, Plus, Edit, Trash2, Search, Code, AlertCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  getComputedAttributes,
+  createComputedAttribute,
+  updateComputedAttribute,
+  deleteComputedAttribute,
+  TraccarComputedAttribute,
+} from '@/lib/api/computed-attributes';
 
 const exampleExpressions = [
   { label: 'Consumo (km/l)', value: 'totalDistance / fuelUsed' },
   { label: 'Velocidade > 80', value: 'speed > 80' },
   { label: 'Bateria Baixa', value: 'batteryLevel < 20' },
-  { label: 'Tempo Parado (min)', value: 'stopDuration / 60' }
+  { label: 'Tempo Parado (min)', value: 'stopDuration / 60' },
 ];
 
 export default function ComputedAttributesPage() {
-  const [attributes, setAttributes] = useState<ComputedAttribute[]>(mockAttributes);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingAttribute, setEditingAttribute] = useState<ComputedAttribute | null>(null);
+  const [editingAttribute, setEditingAttribute] = useState<TraccarComputedAttribute | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
     description: '',
     attribute: '',
     expression: '',
     type: 'number' as 'string' | 'number' | 'boolean',
-    enabled: true
   });
 
-  const filteredAttributes = attributes.filter(a => 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  // ─── Queries ───────────────────────────────────────────────────────
+  const { data: attributes = [], isLoading, error } = useQuery({
+    queryKey: ['computed-attributes'],
+    queryFn: getComputedAttributes,
+    staleTime: 30000,
+  });
+
+  // ─── Mutations ─────────────────────────────────────────────────────
+  const createMutation = useMutation({
+    mutationFn: (data: Omit<TraccarComputedAttribute, 'id'>) => createComputedAttribute(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['computed-attributes'] });
+      toast.success('Atributo computado criado com sucesso!');
+      setIsDialogOpen(false);
+    },
+    onError: (err: any) => toast.error(`Erro ao criar atributo: ${err.message}`),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: TraccarComputedAttribute }) => updateComputedAttribute(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['computed-attributes'] });
+      toast.success('Atributo atualizado com sucesso!');
+      setIsDialogOpen(false);
+    },
+    onError: (err: any) => toast.error(`Erro ao atualizar: ${err.message}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteComputedAttribute(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['computed-attributes'] });
+      toast.success('Atributo excluído com sucesso!');
+    },
+    onError: (err: any) => toast.error(`Erro ao excluir: ${err.message}`),
+  });
+
+  // ─── Filtros ───────────────────────────────────────────────────────
+  const filteredAttributes = useMemo(
+    () =>
+      attributes.filter(
+        (a) =>
+          a.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          a.attribute.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [attributes, searchTerm],
   );
 
+  // ─── Handlers ──────────────────────────────────────────────────────
   const handleAdd = () => {
     setEditingAttribute(null);
-    setFormData({
-      name: '',
-      description: '',
-      attribute: '',
-      expression: '',
-      type: 'number',
-      enabled: true
-    });
+    setFormData({ description: '', attribute: '', expression: '', type: 'number' });
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (attr: ComputedAttribute) => {
+  const handleEdit = (attr: TraccarComputedAttribute) => {
     setEditingAttribute(attr);
     setFormData({
-      name: attr.name,
-      description: attr.description || '',
+      description: attr.description,
       attribute: attr.attribute,
       expression: attr.expression,
       type: attr.type,
-      enabled: attr.enabled
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este atributo computado?')) {
-      setAttributes(attributes.filter(a => a.id !== id));
+  const handleDelete = (attr: TraccarComputedAttribute) => {
+    if (confirm(`Excluir o atributo "${attr.description}"?`)) {
+      deleteMutation.mutate(attr.id);
     }
   };
 
   const handleSave = () => {
-    if (editingAttribute) {
-      setAttributes(attributes.map(a => 
-        a.id === editingAttribute.id 
-          ? { ...a, ...formData, updatedAt: new Date().toISOString() }
-          : a
-      ));
-    } else {
-      const newAttribute: ComputedAttribute = {
-        id: Math.max(...attributes.map(a => a.id), 0) + 1,
-        ...formData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setAttributes([...attributes, newAttribute]);
+    if (!formData.description.trim()) {
+      toast.error('Descrição é obrigatória.');
+      return;
     }
-    setIsDialogOpen(false);
+    if (!formData.attribute.trim()) {
+      toast.error('Nome do atributo é obrigatório.');
+      return;
+    }
+    if (!formData.expression.trim()) {
+      toast.error('Expressão é obrigatória.');
+      return;
+    }
+
+    if (editingAttribute) {
+      updateMutation.mutate({
+        id: editingAttribute.id,
+        data: { id: editingAttribute.id, ...formData },
+      });
+    } else {
+      createMutation.mutate(formData);
+    }
   };
 
-  const toggleEnabled = (id: number) => {
-    setAttributes(attributes.map(a => 
-      a.id === id ? { ...a, enabled: !a.enabled } : a
-    ));
-  };
+  const stats = useMemo(
+    () => ({
+      total: attributes.length,
+      numbers: attributes.filter((a) => a.type === 'number').length,
+      booleans: attributes.filter((a) => a.type === 'boolean').length,
+    }),
+    [attributes],
+  );
 
-  const stats = {
-    total: attributes.length,
-    enabled: attributes.filter(a => a.enabled).length,
-    disabled: attributes.filter(a => !a.enabled).length
-  };
+  // ─── Render ────────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Atributos Computados" description="Crie fórmulas customizadas para cálculos em tempo real" icon={Calculator} />
+        <Card>
+          <CardContent className="py-10 text-center space-y-2">
+            <AlertCircle className="h-8 w-8 mx-auto text-red-500" />
+            <p className="text-muted-foreground">Erro ao carregar atributos computados.</p>
+            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['computed-attributes'] })}>
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -161,21 +184,21 @@ export default function ComputedAttributesPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Habilitados</CardTitle>
+            <CardTitle className="text-sm font-medium">Numéricos</CardTitle>
             <Code className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.enabled}</div>
+            <div className="text-2xl font-bold text-green-500">{stats.numbers}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Desabilitados</CardTitle>
-            <Code className="h-4 w-4 text-gray-500" />
+            <CardTitle className="text-sm font-medium">Booleanos</CardTitle>
+            <Code className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-500">{stats.disabled}</div>
+            <div className="text-2xl font-bold text-orange-500">{stats.booleans}</div>
           </CardContent>
         </Card>
       </div>
@@ -207,42 +230,51 @@ export default function ComputedAttributesPage() {
           <CardTitle>Atributos Configurados</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {filteredAttributes.map((attr) => (
-              <div key={attr.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium">{attr.name}</h3>
-                      <Badge variant={attr.enabled ? 'default' : 'secondary'} className={attr.enabled ? 'bg-green-600' : ''}>
-                        {attr.enabled ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {attr.type}
-                      </Badge>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Carregando atributos...</span>
+            </div>
+          ) : attributes.length === 0 ? (
+            <div className="text-center py-10">
+              <Calculator className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">Nenhum atributo computado cadastrado.</p>
+              <Button onClick={handleAdd} variant="outline" className="mt-4">
+                <Plus className="h-4 w-4 mr-2" />
+                Criar primeiro atributo
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredAttributes.map((attr) => (
+                <div key={attr.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-medium">{attr.description}</h3>
+                        <Badge variant="outline" className="text-xs">
+                          {attr.type}
+                        </Badge>
+                      </div>
+                      <div className="bg-muted/50 p-2 rounded font-mono text-xs">
+                        <span className="text-blue-600 dark:text-blue-400">{attr.attribute}</span>
+                        <span className="text-gray-500"> = </span>
+                        <span className="text-green-600 dark:text-green-400">{attr.expression}</span>
+                      </div>
                     </div>
-                    {attr.description && (
-                      <p className="text-sm text-muted-foreground mb-2">{attr.description}</p>
-                    )}
-                    <div className="bg-muted/50 p-2 rounded font-mono text-xs">
-                      <span className="text-blue-600 dark:text-blue-400">{attr.attribute}</span>
-                      <span className="text-gray-500"> = </span>
-                      <span className="text-green-600 dark:text-green-400">{attr.expression}</span>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(attr)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(attr)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Switch checked={attr.enabled} onCheckedChange={() => toggleEnabled(attr.id)} />
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(attr)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(attr.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -256,23 +288,12 @@ export default function ComputedAttributesPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome *</Label>
+              <Label htmlFor="description">Descrição / Nome *</Label>
               <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: Consumo Médio"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Descrição opcional"
-                rows={2}
+                placeholder="Ex: Consumo Médio"
               />
             </div>
 
@@ -330,15 +351,6 @@ export default function ComputedAttributesPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Switch
-                id="enabled"
-                checked={formData.enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-              />
-              <Label htmlFor="enabled">Habilitar imediatamente</Label>
-            </div>
-
             <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5" />
@@ -351,11 +363,14 @@ export default function ComputedAttributesPage() {
             </div>
 
             <div className="flex gap-2 pt-4 border-t">
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
-                disabled={!formData.name || !formData.attribute || !formData.expression}
+                disabled={!formData.description || !formData.attribute || !formData.expression || createMutation.isPending || updateMutation.isPending}
               >
+                {(createMutation.isPending || updateMutation.isPending) && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
                 Salvar
               </Button>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">

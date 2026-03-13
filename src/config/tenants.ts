@@ -42,6 +42,12 @@ export interface TenantConfig {
     primaryForegroundDark: string;
   };
 
+  /** Número de WhatsApp para suporte (com DDI, ex: 5511999999999) */
+  whatsapp?: string;
+
+  /** Mensagem padrão ao abrir o WhatsApp */
+  whatsappMessage?: string;
+
   /** Dados adicionais */
   metadata?: {
     title?: string;
@@ -68,6 +74,8 @@ export const TENANTS_CONFIG: Record<string, TenantConfig> = {
       primaryDark: "221 85% 65%",
       primaryForegroundDark: "0 0% 100%",
     },
+    whatsapp: "5527999173219",
+    whatsappMessage: "Olá! Preciso de suporte na plataforma de rastreamento.",
     metadata: {
       title: "Plataforma de Rastreamento Veicular",
       description: "Sistema completo de rastreamento de frota em tempo real",

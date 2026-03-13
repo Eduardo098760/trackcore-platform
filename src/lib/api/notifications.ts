@@ -1,76 +1,87 @@
-import { Notification, NotificationLog } from '@/types';
+/**
+ * API de Notificações via Traccar real.
+ *
+ * O Traccar gerencia notificações como entidades próprias:
+ *   GET    /notifications          – listar
+ *   POST   /notifications          – criar
+ *   PUT    /notifications/{id}     – atualizar
+ *   DELETE /notifications/{id}     – remover
+ *
+ * Para vincular notificação a um device/group/user usa-se POST /permissions.
+ * Tipos de notificação suportados pelo Traccar: web, mail, sms, firebase, traccar (push).
+ * Tipos de evento: commandResult, deviceOnline, deviceUnknown, deviceOffline, deviceInactive,
+ *   deviceMoving, deviceStopped, deviceOverspeed, ignitionOn, ignitionOff, geofenceEnter,
+ *   geofenceExit, alarm, maintenance, driverChanged, textMessage, media.
+ */
+import { api } from './client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+// ─── Tipos do Traccar ──────────────────────────────────────────
 
-export async function getNotifications(): Promise<Notification[]> {
-  const response = await fetch(`${API_URL}/notifications`, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch notifications');
-  }
-
-  return response.json();
+/** Notificação no formato nativo Traccar */
+export interface TraccarNotification {
+  id: number;
+  type: string;           // tipo de evento: deviceOverspeed, geofenceEnter, etc.
+  always: boolean;        // true = dispara para todos os devices do user
+  notificators: string;   // canais: "web,mail,sms,firebase" (comma-separated)
+  calendarId?: number;    // restrição por calendário
+  commandId?: number;     // comando a executar quando o evento ocorre
+  attributes?: Record<string, any>;
 }
 
-export async function createNotification(notification: Omit<Notification, 'id' | 'createdAt'>): Promise<Notification> {
-  const response = await fetch(`${API_URL}/notifications`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(notification),
-  });
+/** Tipo de notificador suportado pelo Traccar */
+export type TraccarNotificator = 'web' | 'mail' | 'sms' | 'firebase' | 'traccar';
 
-  if (!response.ok) {
-    throw new Error('Failed to create notification');
-  }
+/** Tipo de evento do Traccar */
+export const TRACCAR_EVENT_TYPES = [
+  'commandResult', 'deviceOnline', 'deviceUnknown', 'deviceOffline', 'deviceInactive',
+  'deviceMoving', 'deviceStopped', 'deviceOverspeed', 'ignitionOn', 'ignitionOff',
+  'geofenceEnter', 'geofenceExit', 'alarm', 'maintenance', 'driverChanged',
+  'textMessage', 'media',
+] as const;
 
-  return response.json();
+// ─── CRUD ──────────────────────────────────────────────────────
+
+/** Lista todas as notificações do usuário logado */
+export async function getTraccarNotifications(): Promise<TraccarNotification[]> {
+  return api.get<TraccarNotification[]>('/notifications');
 }
 
-export async function updateNotification(id: number, notification: Partial<Notification>): Promise<Notification> {
-  const response = await fetch(`${API_URL}/notifications/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(notification),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to update notification');
-  }
-
-  return response.json();
+/** Cria uma notificação no Traccar */
+export async function createTraccarNotification(
+  data: Omit<TraccarNotification, 'id'>,
+): Promise<TraccarNotification> {
+  return api.post<TraccarNotification>('/notifications', data);
 }
 
-export async function deleteNotification(id: number): Promise<void> {
-  const response = await fetch(`${API_URL}/notifications/${id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
+/** Atualiza uma notificação existente */
+export async function updateTraccarNotification(
+  id: number,
+  data: Partial<TraccarNotification> & { id: number },
+): Promise<TraccarNotification> {
+  return api.put<TraccarNotification>(`/notifications/${id}`, data);
+}
 
-  if (!response.ok) {
-    throw new Error('Failed to delete notification');
+/** Remove uma notificação */
+export async function deleteTraccarNotification(id: number): Promise<void> {
+  return api.delete<void>(`/notifications/${id}`);
+}
+
+/** Lista os tipos de notificadores disponíveis no servidor Traccar */
+export async function getNotificatorTypes(): Promise<{ type: string; [k: string]: any }[]> {
+  try {
+    return await api.get<{ type: string }[]>('/notifications/types');
+  } catch {
+    // Fallback se o endpoint não existir
+    return [
+      { type: 'web' },
+      { type: 'mail' },
+      { type: 'sms' },
+      { type: 'firebase' },
+    ];
   }
 }
 
-export async function getNotificationLogs(notificationId?: number): Promise<NotificationLog[]> {
-  const url = notificationId 
-    ? `${API_URL}/notifications/${notificationId}/logs`
-    : `${API_URL}/notifications/logs`;
-    
-  const response = await fetch(url, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch notification logs');
-  }
-
-  return response.json();
+/** Envia uma notificação de teste */
+export async function testTraccarNotification(notificationId: number): Promise<void> {
+  await api.post<void>(`/notifications/test/${notificationId}`, {});
 }

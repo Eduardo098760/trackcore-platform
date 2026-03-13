@@ -65,6 +65,9 @@ import {
   FileSpreadsheet,
   Search,
   X,
+  MapPin,
+  Zap,
+  Fuel,
 } from "lucide-react";
 import {
   format,
@@ -182,6 +185,9 @@ const REPORT_TYPES: {
   { value: "summary", label: "Resumo", icon: FileText, desc: "Resumo geral por veículo" },
   { value: "chart", label: "Gráfico", icon: BarChart3, desc: "Velocidade e altitude" },
   { value: "combined", label: "Combinado", icon: Layers, desc: "Todos os relatórios" },
+  { value: "geofence", label: "Geocercas", icon: MapPin, desc: "Entradas e saídas de geocercas" },
+  { value: "ignition", label: "Ignição", icon: Zap, desc: "Ligou/desligou ignição" },
+  { value: "fuel", label: "Combustível", icon: Fuel, desc: "Quedas e abastecimentos" },
 ];
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -343,7 +349,8 @@ export default function ReportsPage() {
         reportType === "combined";
       const needsTrips = reportType === "trips" || reportType === "combined";
       const needsStops = reportType === "stops" || reportType === "combined";
-      const needsEvents = reportType === "events" || reportType === "combined";
+      const needsEvents = reportType === "events" || reportType === "combined" ||
+        reportType === "geofence" || reportType === "ignition" || reportType === "fuel";
       const needsSummary =
         reportType === "summary" || reportType === "combined";
 
@@ -761,6 +768,18 @@ export default function ReportsPage() {
                 <StopsReport data={stopData} />
               ) : reportType === "events" ? (
                 <EventsReport data={eventData} />
+              ) : reportType === "geofence" ? (
+                <EventsReport data={eventData?.filter((e: any) =>
+                  e.type === "geofenceEnter" || e.type === "geofenceExit"
+                ) ?? null} />
+              ) : reportType === "ignition" ? (
+                <EventsReport data={eventData?.filter((e: any) =>
+                  e.type === "ignitionOn" || e.type === "ignitionOff"
+                ) ?? null} />
+              ) : reportType === "fuel" ? (
+                <EventsReport data={eventData?.filter((e: any) =>
+                  e.type === "fuelDrop" || e.type === "fuelIncrease"
+                ) ?? null} />
               ) : reportType === "summary" ? (
                 <SummaryReport data={summaryData} />
               ) : reportType === "chart" ? (

@@ -17,8 +17,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   { key: 'map',                name: 'Mapa',                   href: '/map',                  group: 'main' },
   { key: 'routes',             name: 'Rotas',                  href: '/routes',               group: 'main' },
   { key: 'vehicles',           name: 'Veículos',               href: '/vehicles',             group: 'main' },
-  { key: 'history',            name: 'Histórico',              href: '/history',              group: 'main' },
-  { key: 'events',             name: 'Eventos',                href: '/events',               group: 'main' },
+  { key: 'history',            name: 'Histórico',              href: '/history',              group: 'main' },  { key: 'replay',             name: 'Replay',                 href: '/replay',               group: 'main' },  { key: 'events',             name: 'Eventos',                href: '/events',               group: 'main' },
   { key: 'commands',           name: 'Comandos',               href: '/commands',             group: 'main' },
   // ── VideoTelemetria ──────────────────────────────────────────────
   { key: 'video',              name: 'VideoTelemetria',        href: '/video',                group: 'video' },

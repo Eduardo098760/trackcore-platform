@@ -249,6 +249,31 @@ export async function getSavedCommands(deviceId?: number): Promise<TraccarComman
   return api.get<TraccarCommand[]>("/commands", deviceId ? { deviceId } : undefined);
 }
 
+/** Cria um novo template de comando salvo */
+export async function createSavedCommand(data: Omit<TraccarCommand, "id">): Promise<TraccarCommand> {
+  return api.post<TraccarCommand>("/commands", data);
+}
+
+/** Atualiza um template de comando salvo */
+export async function updateSavedCommand(data: TraccarCommand): Promise<TraccarCommand> {
+  return api.put<TraccarCommand>(`/commands/${data.id}`, data);
+}
+
+/** Remove um template de comando salvo */
+export async function deleteSavedCommand(id: number): Promise<void> {
+  return api.delete(`/commands/${id}`);
+}
+
+/** Vincula um comando salvo a um dispositivo */
+export async function linkCommandToDevice(commandId: number, deviceId: number): Promise<void> {
+  return api.post("/permissions", { commandId, deviceId });
+}
+
+/** Remove vínculo de comando salvo com dispositivo */
+export async function unlinkCommandFromDevice(commandId: number, deviceId: number): Promise<void> {
+  return api.delete("/permissions", { commandId, deviceId }, true);
+}
+
 // Clients API (Traccar não tem "clients", mas podemos usar Groups)
 export async function getClients(): Promise<Client[]> {
   // Quando em impersonação, filtra pelos grupos do usuário alvo (não do admin)

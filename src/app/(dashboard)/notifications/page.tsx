@@ -1,11 +1,28 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDevices } from "@/lib/api";
+import { useAuthStore } from "@/lib/stores/auth";
+import {
+  getTraccarNotifications,
+  createTraccarNotification,
+  updateTraccarNotification,
+  deleteTraccarNotification,
+  testTraccarNotification,
+  TRACCAR_EVENT_TYPES,
+  type TraccarNotification,
+} from "@/lib/api/notifications";
+import {
+  addUserNotification,
+  removeUserNotification,
+  addDeviceNotification,
+  removeDeviceNotification,
+} from "@/lib/api/permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   Bell,
@@ -24,147 +41,92 @@ import {
   MapPin,
   Zap,
   Activity,
-  BatteryLow,
   Wrench,
   Siren,
   Gauge,
   Info,
-  Save,
+  AlertTriangle,
+  FileText,
+  Image,
+  UserCheck,
+  HelpCircle,
+  Send,
+  Loader2,
+  Plus,
+  Trash2,
+  Globe,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-// ─── Tipos ───────────────────────────────────────
+// ─── Catálogo de tipos de evento Traccar ─────────
 
-interface NotificationSettings {
-  inApp: { enabled: boolean; sound: boolean; desktop: boolean };
-  email: { enabled: boolean; address: string; frequency: "instant" | "hourly" | "daily" };
-  sms: { enabled: boolean; phone: string };
-  push: { enabled: boolean };
-  events: Record<string, boolean>;
-  eventDevices: Record<string, number[]>; // vazio = todos; com ids = específicos
+const EVENT_CATALOG: Record<
+  string,
+  { label: string; icon: React.ElementType; iconColor: string }
+> = {
+  deviceOnline:    { label: "Dispositivo Online",       icon: Power,        iconColor: "text-emerald-500" },
+  deviceOffline:   { label: "Dispositivo Offline",      icon: PowerOff,     iconColor: "text-red-500" },
+  deviceUnknown:   { label: "Dispositivo Desconhecido", icon: HelpCircle,   iconColor: "text-slate-400" },
+  deviceInactive:  { label: "Dispositivo Inativo",      icon: Info,         iconColor: "text-slate-400" },
+  deviceMoving:    { label: "Dispositivo em Movimento",  icon: Activity,    iconColor: "text-blue-500" },
+  deviceStopped:   { label: "Dispositivo Parado",       icon: Info,         iconColor: "text-slate-400" },
+  deviceOverspeed: { label: "Excesso de Velocidade",    icon: Gauge,        iconColor: "text-amber-500" },
+  ignitionOn:      { label: "Ignição Ligada",           icon: Zap,          iconColor: "text-emerald-500" },
+  ignitionOff:     { label: "Ignição Desligada",        icon: Zap,          iconColor: "text-slate-400" },
+  geofenceEnter:   { label: "Entrada em Cerca",         icon: MapPin,       iconColor: "text-blue-500" },
+  geofenceExit:    { label: "Saída de Cerca",           icon: MapPin,       iconColor: "text-orange-500" },
+  alarm:           { label: "Alarme / SOS",             icon: Siren,        iconColor: "text-red-500" },
+  maintenance:     { label: "Manutenção",               icon: Wrench,       iconColor: "text-blue-500" },
+  driverChanged:   { label: "Mudança de Motorista",     icon: UserCheck,    iconColor: "text-cyan-500" },
+  commandResult:   { label: "Resultado de Comando",     icon: FileText,     iconColor: "text-indigo-500" },
+  textMessage:     { label: "Mensagem de Texto",        icon: MessageSquare,iconColor: "text-violet-500" },
+  media:           { label: "Mídia Recebida",           icon: Image,        iconColor: "text-pink-500" },
+};
+
+// Canais de notificação Traccar
+const CHANNELS = [
+  { key: "web",      label: "Web",   icon: Globe,         color: "text-blue-500" },
+  { key: "mail",     label: "Email", icon: Mail,          color: "text-emerald-500" },
+  { key: "sms",      label: "SMS",   icon: Smartphone,    color: "text-purple-500" },
+  { key: "firebase", label: "Push",  icon: MessageSquare, color: "text-orange-500" },
+] as const;
+
+// ─── Local client settings ─────────────────────
+
+interface LocalNotifSettings {
+  sound: boolean;
+  desktop: boolean;
 }
 
-// ─── Catálogo de tipos de evento ─────────────────
-
-const EVENT_CATALOG: Record<string, { label: string; icon: React.ElementType; color: string; iconColor: string }> = {
-  speedLimit:    { label: "Excesso de Velocidade",  icon: Gauge,      color: "text-amber-500",    iconColor: "text-amber-500" },
-  geofenceEnter: { label: "Entrada em Cerca",       icon: MapPin,     color: "text-blue-500",     iconColor: "text-blue-500" },
-  geofenceExit:  { label: "Saída de Cerca",         icon: MapPin,     color: "text-orange-500",   iconColor: "text-orange-500" },
-  ignitionOn:    { label: "Ignição Ligada",          icon: Zap,        color: "text-emerald-500",  iconColor: "text-emerald-500" },
-  ignitionOff:   { label: "Ignição Desligada",       icon: Zap,        color: "text-slate-400",    iconColor: "text-slate-400" },
-  deviceOffline: { label: "Dispositivo Offline",     icon: PowerOff,   color: "text-red-500",      iconColor: "text-red-500" },
-  deviceOnline:  { label: "Dispositivo Online",      icon: Power,      color: "text-emerald-500",  iconColor: "text-emerald-500" },
-  deviceMoving:  { label: "Dispositivo em Movimento", icon: Activity,  color: "text-blue-500",     iconColor: "text-blue-500" },
-  deviceStopped: { label: "Dispositivo Parado",      icon: Info,       color: "text-slate-400",    iconColor: "text-slate-400" },
-  lowBattery:    { label: "Bateria Fraca",           icon: BatteryLow, color: "text-amber-500",    iconColor: "text-amber-500" },
-  maintenance:   { label: "Manutenção",              icon: Wrench,     color: "text-blue-500",     iconColor: "text-blue-500" },
-  sos:           { label: "SOS / Emergência",        icon: Siren,      color: "text-red-500",      iconColor: "text-red-500" },
-};
-
-// ─── Storage helpers ─────────────────────────────
-
-const DEFAULT_SETTINGS: NotificationSettings = {
-  inApp: { enabled: true, sound: true, desktop: false },
-  email: { enabled: false, address: "", frequency: "instant" },
-  sms: { enabled: false, phone: "" },
-  push: { enabled: false },
-  events: {},
-  eventDevices: {},
-};
-
-function loadSettings(): NotificationSettings {
+function loadLocalSettings(): LocalNotifSettings {
   try {
-    const stored = localStorage.getItem("notificationSettings");
-    if (!stored) return { ...DEFAULT_SETTINGS };
-    const parsed = JSON.parse(stored);
-    return {
-      ...DEFAULT_SETTINGS,
-      ...parsed,
-      inApp: { ...DEFAULT_SETTINGS.inApp, ...parsed.inApp },
-      email: { ...DEFAULT_SETTINGS.email, ...parsed.email },
-      sms: { ...DEFAULT_SETTINGS.sms, ...parsed.sms },
-      push: { ...DEFAULT_SETTINGS.push, ...parsed.push },
-      events: parsed.events ?? {},
-      eventDevices: parsed.eventDevices ?? {},
-    };
+    const stored = localStorage.getItem("notificationClientSettings");
+    if (!stored) return { sound: true, desktop: false };
+    return JSON.parse(stored);
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { sound: true, desktop: false };
   }
 }
 
-function saveSettings(settings: NotificationSettings) {
-  localStorage.setItem("notificationSettings", JSON.stringify(settings));
-  // Sync rules format for compatibility
-  syncRulesFormat(settings);
-  // Sync vehicle-specific rules to vehicleNotifRulesV2 (bidirectional with vehicle panel)
-  syncToVehicleNotifRules(settings);
+function saveLocalSettings(s: LocalNotifSettings) {
+  localStorage.setItem("notificationClientSettings", JSON.stringify(s));
 }
 
-/**
- * Sincroniza eventDevices da central para vehicleNotifRulesV2,
- * garantindo que regras criadas aqui apareçam no painel do veículo.
- */
-function syncToVehicleNotifRules(settings: NotificationSettings) {
-  try {
-    const stored = localStorage.getItem('vehicleNotifRulesV2');
-    const all: Record<string, Array<{ id: string; eventType: string; sound: boolean; createdAt: string }>> =
-      stored ? JSON.parse(stored) : {};
-
-    for (const [eventType, deviceIds] of Object.entries(settings.eventDevices)) {
-      if (!settings.events[eventType]) continue;
-      for (const deviceId of deviceIds) {
-        const key = String(deviceId);
-        const existing = all[key] || [];
-        const hasRule = existing.some(r => r.eventType === eventType);
-        if (!hasRule) {
-          existing.push({
-            id: `${deviceId}-${eventType}-${Date.now()}`,
-            eventType,
-            sound: settings.inApp?.sound ?? true,
-            createdAt: new Date().toISOString(),
-          });
-          all[key] = existing;
-        }
-      }
-    }
-
-    localStorage.setItem('vehicleNotifRulesV2', JSON.stringify(all));
-  } catch {}
-}
-
-function syncRulesFormat(settings: NotificationSettings) {
-  try {
-    const rules = Object.entries(settings.events)
-      .filter(([, enabled]) => enabled)
-      .map(([eventType]) => ({
-        id: `rule-${eventType}`,
-        eventType,
-        deviceIds: settings.eventDevices[eventType] ?? [],
-        channels: { inApp: settings.inApp.enabled, sound: settings.inApp.sound, desktop: settings.inApp.desktop },
-        enabled: true,
-        createdAt: new Date().toISOString(),
-      }));
-    localStorage.setItem("notificationRules", JSON.stringify(rules));
-  } catch {}
-}
-
-// ─── Dropdown de veículos por evento ─────────────
+// ─── Dropdown de veículos por regra ─────────────
 
 function VehicleSelector({
-  eventKey,
   selectedIds,
   onChangeIds,
   allDevices,
 }: {
-  eventKey: string;
   selectedIds: number[];
   onChangeIds: (ids: number[]) => void;
   allDevices: { id: number; name?: string; plate?: string }[];
@@ -197,11 +159,15 @@ function VehicleSelector({
     );
   };
 
-  const label = selectedIds.length === 0
-    ? "Todos os veículos"
-    : selectedIds.length === 1
-      ? (() => { const d = allDevices.find((x) => x.id === selectedIds[0]); return d?.plate || d?.name || "1 veículo"; })()
-      : `${selectedIds.length} veículos`;
+  const label =
+    selectedIds.length === 0
+      ? "Todos os veículos"
+      : selectedIds.length === 1
+        ? (() => {
+            const d = allDevices.find((x) => x.id === selectedIds[0]);
+            return d?.plate || d?.name || "1 veículo";
+          })()
+        : `${selectedIds.length} veículos`;
 
   return (
     <div ref={ref} className="relative">
@@ -234,16 +200,12 @@ function VehicleSelector({
               {selectedIds.length === 0 ? "Monitorando todos" : `${selectedIds.length} selecionado(s)`}
             </span>
             {selectedIds.length > 0 && (
-              <button
-                onClick={() => onChangeIds([])}
-                className="text-[10px] text-primary hover:underline"
-              >
+              <button onClick={() => onChangeIds([])} className="text-[10px] text-primary hover:underline">
                 Limpar
               </button>
             )}
           </div>
 
-          {/* Tags dos selecionados */}
           {selectedIds.length > 0 && (
             <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-border/30 bg-muted/20">
               {selectedIds.map((id) => {
@@ -300,297 +262,534 @@ function VehicleSelector({
 // ─── Componente principal ────────────────────────
 
 export default function NotificationsPage() {
-  const [settings, setSettings] = useState<NotificationSettings>(loadSettings);
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+
+  // ── Local client settings (som / desktop) ──
+  const [localSettings, setLocalSettings] = useState<LocalNotifSettings>(loadLocalSettings);
+  const updateLocal = useCallback((next: LocalNotifSettings) => {
+    setLocalSettings(next);
+    saveLocalSettings(next);
+  }, []);
+
+  // ── Dialog para nova/editar regra ──
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingNotif, setEditingNotif] = useState<TraccarNotification | null>(null);
+  const [formType, setFormType] = useState("");
+  const [formChannels, setFormChannels] = useState<string[]>(["web"]);
+  const [formAlways, setFormAlways] = useState(true);
+  const [formDeviceIds, setFormDeviceIds] = useState<number[]>([]);
+
+  // ── Queries ──
+  const { data: notifications = [], isLoading } = useQuery({
+    queryKey: ["traccar-notifications"],
+    queryFn: getTraccarNotifications,
+  });
 
   const { data: allDevices = [] } = useQuery({
     queryKey: ["devices"],
-    queryFn: () => getDevices(),
+    queryFn: getDevices,
     staleTime: 60_000,
   });
 
-  const activeEvents = Object.values(settings.events).filter(Boolean).length;
+  // Mapa tipo → notificação
+  const notifByType = useMemo(() => {
+    const map: Record<string, TraccarNotification> = {};
+    for (const n of notifications) map[n.type] = n;
+    return map;
+  }, [notifications]);
 
-  const updateSettings = useCallback((next: NotificationSettings) => {
-    setSettings(next);
-    saveSettings(next);
-  }, []);
+  // Tipos de evento já usados
+  const usedTypes = useMemo(() => new Set(notifications.map((n) => n.type)), [notifications]);
 
-  const updateChannel = <K extends "inApp" | "email" | "sms" | "push">(
-    key: K,
-    value: NotificationSettings[K],
-  ) => {
-    updateSettings({ ...settings, [key]: value });
+  // Tipos disponíveis para criar novas regras
+  const availableTypes = useMemo(
+    () => (TRACCAR_EVENT_TYPES as readonly string[]).filter((t) => !usedTypes.has(t)),
+    [usedTypes],
+  );
+
+  // ── Mutations ──
+  const createMut = useMutation({
+    mutationFn: async (data: Omit<TraccarNotification, "id">) => {
+      const notif = await createTraccarNotification(data);
+      // Vincular ao usuário atual
+      if (user?.id) await addUserNotification(user.id, notif.id);
+      return notif;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
+      toast.success("Regra de notificação criada!");
+      setDialogOpen(false);
+    },
+    onError: () => toast.error("Erro ao criar regra de notificação"),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (data: Partial<TraccarNotification> & { id: number }) =>
+      updateTraccarNotification(data.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
+      toast.success("Regra atualizada!");
+    },
+    onError: () => toast.error("Erro ao atualizar regra"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: deleteTraccarNotification,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
+      toast.success("Regra removida!");
+    },
+    onError: () => toast.error("Erro ao remover regra"),
+  });
+
+  const testMut = useMutation({
+    mutationFn: testTraccarNotification,
+    onSuccess: () => toast.success("Notificação de teste enviada!"),
+    onError: () => toast.error("Erro ao enviar teste"),
+  });
+
+  // ── Handlers ──
+  const openNewDialog = () => {
+    setEditingNotif(null);
+    setFormType(availableTypes[0] || "");
+    setFormChannels(["web"]);
+    setFormAlways(true);
+    setFormDeviceIds([]);
+    setDialogOpen(true);
   };
 
-  const toggleEvent = (eventKey: string) => {
-    const next = { ...settings, events: { ...settings.events, [eventKey]: !settings.events[eventKey] } };
-    updateSettings(next);
+  const openEditDialog = (n: TraccarNotification) => {
+    setEditingNotif(n);
+    setFormType(n.type);
+    setFormChannels(n.notificators ? n.notificators.split(",").filter(Boolean) : ["web"]);
+    setFormAlways(n.always);
+    setFormDeviceIds([]);
+    setDialogOpen(true);
   };
 
-  const setEventDevices = (eventKey: string, ids: number[]) => {
-    const next = {
-      ...settings,
-      eventDevices: { ...settings.eventDevices, [eventKey]: ids },
-    };
-    updateSettings(next);
+  const handleSave = () => {
+    const notificators = formChannels.join(",");
+    if (editingNotif) {
+      updateMut.mutate({
+        id: editingNotif.id,
+        type: editingNotif.type,
+        notificators,
+        always: formAlways,
+      });
+    } else {
+      if (!formType) return;
+      createMut.mutate({
+        type: formType,
+        notificators,
+        always: formAlways,
+      });
+    }
+    setDialogOpen(false);
   };
+
+  const toggleChannel = (notif: TraccarNotification, channel: string) => {
+    const channels = notif.notificators ? notif.notificators.split(",").filter(Boolean) : [];
+    const has = channels.includes(channel);
+    const next = has ? channels.filter((c) => c !== channel) : [...channels, channel];
+    if (next.length === 0) return; // Deve ter pelo menos 1 canal
+    updateMut.mutate({ id: notif.id, type: notif.type, notificators: next.join(","), always: notif.always });
+  };
+
+  const isBusy = createMut.isPending || updateMut.isPending;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Configurações de Notificações"
-        description="Personalize como você recebe alertas e notificações"
-        icon={Bell}
-        stats={[
-          { label: "Eventos ativos", value: activeEvents, variant: "success" },
-          { label: "Total de tipos", value: Object.keys(EVENT_CATALOG).length, variant: "default" },
-        ]}
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title="Configurações de Notificações"
+          description="Gerencie regras de notificação integradas ao servidor Traccar"
+          icon={Bell}
+          stats={[
+            { label: "Regras ativas", value: notifications.length, variant: "success" },
+            { label: "Tipos de evento", value: Object.keys(EVENT_CATALOG).length, variant: "default" },
+          ]}
+        />
 
-      {/* ════════════════════════════════════════════════
-          CANAIS DE ENTREGA — Grid 2x2
-          ════════════════════════════════════════════════ */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* ── Notificações na Plataforma ── */}
+        {/* ════════════════════════════════════════════════
+            CONFIGURAÇÕES LOCAIS DO NAVEGADOR
+            ════════════════════════════════════════════════ */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
               <Bell className="w-4 h-4 text-blue-500" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Notificações na Plataforma</h3>
-              <p className="text-xs text-muted-foreground">Receba notificações diretamente na plataforma em tempo real</p>
+              <h3 className="text-base font-bold">Configurações do Navegador</h3>
+              <p className="text-xs text-muted-foreground">
+                Preferências locais de som e notificações desktop
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3 divide-y divide-border/30">
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <p className="text-sm font-medium">Ativar notificações na plataforma</p>
-                <p className="text-xs text-muted-foreground">Exibir alertas no painel de notificações</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center gap-2">
+                {localSettings.sound ? (
+                  <Volume2 className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-muted-foreground" />
+                )}
+                <div>
+                  <p className="text-sm font-medium">Som de notificação</p>
+                  <p className="text-xs text-muted-foreground">Reproduzir som ao receber alertas</p>
+                </div>
               </div>
               <Switch
-                checked={settings.inApp.enabled}
-                onCheckedChange={(v) => updateChannel("inApp", { ...settings.inApp, enabled: v })}
+                checked={localSettings.sound}
+                onCheckedChange={(v) => updateLocal({ ...localSettings, sound: v })}
               />
             </div>
-            {settings.inApp.enabled && (
-              <>
-                <div className="flex items-center justify-between pt-3">
-                  <div className="flex items-center gap-2">
-                    {settings.inApp.sound ? <Volume2 className="w-4 h-4 text-muted-foreground" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
-                    <div>
-                      <p className="text-sm font-medium">Som de notificação</p>
-                      <p className="text-xs text-muted-foreground">Reproduzir som ao receber notificações</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={settings.inApp.sound}
-                    onCheckedChange={(v) => updateChannel("inApp", { ...settings.inApp, sound: v })}
-                  />
-                </div>
-                <div className="flex items-center justify-between pt-3">
-                  <div>
-                    <p className="text-sm font-medium">Notificações do navegador</p>
-                    <p className="text-xs text-muted-foreground">Exibir notificações desktop do navegador</p>
-                  </div>
-                  <Switch
-                    checked={settings.inApp.desktop}
-                    onCheckedChange={(v) => updateChannel("inApp", { ...settings.inApp, desktop: v })}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── Notificações por Email ── */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <Mail className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold">Notificações por Email</h3>
-              <p className="text-xs text-muted-foreground">Receba alertas importantes no seu email</p>
-            </div>
-          </div>
-
-          <div className="space-y-3 divide-y divide-border/30">
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
               <div>
-                <p className="text-sm font-medium">Ativar notificações por email</p>
-                <p className="text-xs text-muted-foreground">Enviar alertas para o email cadastrado</p>
+                <p className="text-sm font-medium">Notificações desktop</p>
+                <p className="text-xs text-muted-foreground">Exibir alertas do navegador</p>
               </div>
               <Switch
-                checked={settings.email.enabled}
-                onCheckedChange={(v) => updateChannel("email", { ...settings.email, enabled: v })}
+                checked={localSettings.desktop}
+                onCheckedChange={(v) => updateLocal({ ...localSettings, desktop: v })}
               />
             </div>
-            {settings.email.enabled && (
-              <>
-                <div className="pt-3 space-y-2">
-                  <p className="text-sm font-medium">Endereço de Email</p>
-                  <Input
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={settings.email.address}
-                    onChange={(e) => updateChannel("email", { ...settings.email, address: e.target.value })}
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div className="pt-3 space-y-2">
-                  <p className="text-sm font-medium">Frequência de Envio</p>
-                  <Select
-                    value={settings.email.frequency}
-                    onValueChange={(v: "instant" | "hourly" | "daily") => updateChannel("email", { ...settings.email, frequency: v })}
-                  >
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="instant">Instantâneo</SelectItem>
-                      <SelectItem value="hourly">A cada hora</SelectItem>
-                      <SelectItem value="daily">Resumo diário</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    {settings.email.frequency === "instant" && "Enviar email imediatamente ao ocorrer evento"}
-                    {settings.email.frequency === "hourly" && "Resumo agrupado enviado a cada hora"}
-                    {settings.email.frequency === "daily" && "Resumo diário com todos os eventos do dia"}
-                  </p>
-                </div>
-              </>
-            )}
           </div>
         </div>
 
-        {/* ── Notificações por SMS ── */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Smartphone className="w-4 h-4 text-purple-500" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold">Notificações por SMS</h3>
-                <p className="text-xs text-muted-foreground">Receba alertas críticos via mensagem de texto</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-500">Premium</Badge>
-          </div>
-
-          <div className="space-y-3 divide-y divide-border/30">
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <p className="text-sm font-medium">Ativar notificações por SMS</p>
-                <p className="text-xs text-muted-foreground">Enviar SMS para eventos críticos</p>
-              </div>
-              <Switch
-                checked={settings.sms.enabled}
-                onCheckedChange={(v) => updateChannel("sms", { ...settings.sms, enabled: v })}
-              />
-            </div>
-            {settings.sms.enabled && (
-              <div className="pt-3 space-y-2">
-                <p className="text-sm font-medium">Número de Telefone</p>
-                <Input
-                  type="tel"
-                  placeholder="+55 (11) 99999-9999"
-                  value={settings.sms.phone}
-                  onChange={(e) => updateChannel("sms", { ...settings.sms, phone: e.target.value })}
-                  className="h-9 text-sm"
-                />
-                <p className="text-[11px] text-muted-foreground">Custos adicionais podem ser aplicados</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Notificações Push ── */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-orange-500" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold">Notificações Push</h3>
-              <p className="text-xs text-muted-foreground">Receba notificações no seu dispositivo móvel</p>
-            </div>
-          </div>
-
-          <div className="space-y-3 divide-y divide-border/30">
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <p className="text-sm font-medium">Ativar notificações push</p>
-                <p className="text-xs text-muted-foreground">Enviar push para o aplicativo móvel</p>
-              </div>
-              <Switch
-                checked={settings.push.enabled}
-                onCheckedChange={(v) => updateChannel("push", { enabled: v })}
-              />
-            </div>
-            {settings.push.enabled && (
-              <div className="pt-3">
-                <div className="rounded-lg bg-blue-500/5 border border-blue-500/20 px-4 py-3">
-                  <p className="text-xs text-muted-foreground">
-                    Para receber notificações push, instale o aplicativo TrackCore em seu dispositivo móvel e faça login com sua conta.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ════════════════════════════════════════════════
-          TIPOS DE EVENTOS — Grid 2 colunas
-          ════════════════════════════════════════════════ */}
-      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-        <div>
-          <h3 className="text-base font-bold">Tipos de Eventos</h3>
-          <p className="text-xs text-muted-foreground">Selecione quais tipos de eventos devem gerar notificações</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {Object.entries(EVENT_CATALOG).map(([key, { label, icon: Icon, iconColor }]) => {
-            const enabled = !!settings.events[key];
-            const deviceIds = settings.eventDevices[key] ?? [];
-
+        {/* ════════════════════════════════════════════════
+            CANAIS DISPONÍVEIS — Resumo informativo
+            ════════════════════════════════════════════════ */}
+        <div className="grid gap-3 sm:grid-cols-4">
+          {CHANNELS.map(({ key, label, icon: Icon, color }) => {
+            const count = notifications.filter((n) =>
+              n.notificators?.split(",").includes(key),
+            ).length;
             return (
-              <div
-                key={key}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
-                  enabled
-                    ? "border-border bg-card"
-                    : "border-border/30 bg-card"
-                }`}
-              >
-                <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0">
-                  <Icon className={`w-4 h-4 ${iconColor}`} />
+              <div key={key} className="rounded-xl border border-border/50 bg-card p-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0">
+                  <Icon className={`w-4 h-4 ${color}`} />
                 </div>
-
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium">{label}</span>
-                  {enabled && (
-                    <VehicleSelector
-                      eventKey={key}
-                      selectedIds={deviceIds}
-                      onChangeIds={(ids) => setEventDevices(key, ids)}
-                      allDevices={allDevices}
-                    />
-                  )}
+                  <p className="text-sm font-bold">{label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {count} {count === 1 ? "regra" : "regras"}
+                  </p>
                 </div>
-
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={() => toggleEvent(key)}
-                />
+                {count > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Ativo
+                  </Badge>
+                )}
               </div>
             );
           })}
         </div>
+
+        {/* ════════════════════════════════════════════════
+            REGRAS DE NOTIFICAÇÃO — Lista com canais
+            ════════════════════════════════════════════════ */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold">Regras de Notificação (Servidor)</h3>
+              <p className="text-xs text-muted-foreground">
+                Cada regra dispara uma notificação pelo Traccar nos canais selecionados
+              </p>
+            </div>
+            <Button onClick={openNewDialog} size="sm" disabled={availableTypes.length === 0}>
+              <Plus className="w-4 h-4 mr-1" /> Nova Regra
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="text-center py-12 space-y-2">
+              <Bell className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+              <p className="text-sm text-muted-foreground">Nenhuma regra de notificação criada</p>
+              <p className="text-xs text-muted-foreground">
+                Clique em &quot;Nova Regra&quot; para configurar alertas por email, SMS, push e web
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((notif) => {
+                const meta = EVENT_CATALOG[notif.type];
+                const Icon = meta?.icon || AlertTriangle;
+                const iconColor = meta?.iconColor || "text-muted-foreground";
+                const channels = notif.notificators ? notif.notificators.split(",").filter(Boolean) : [];
+
+                return (
+                  <div
+                    key={notif.id}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors"
+                  >
+                    {/* Ícone do evento */}
+                    <div className="w-9 h-9 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0">
+                      <Icon className={`w-4.5 h-4.5 ${iconColor}`} />
+                    </div>
+
+                    {/* Info do evento */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">
+                          {meta?.label || notif.type}
+                        </span>
+                        {notif.always ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            Todos os dispositivos
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Dispositivos específicos
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Checkboxes de canais */}
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {CHANNELS.map(({ key, label, icon: ChIcon, color }) => {
+                          const active = channels.includes(key);
+                          return (
+                            <label key={key} className="flex items-center gap-1 cursor-pointer" title={active ? `Desativar ${label}` : `Ativar ${label}`}>
+                              <Checkbox
+                                checked={active}
+                                onCheckedChange={() => toggleChannel(notif, key)}
+                                className="w-3.5 h-3.5"
+                              />
+                              <ChIcon
+                                className={`w-3 h-3 ${active ? color : "text-muted-foreground/40"}`}
+                              />
+                              <span
+                                className={`text-[10px] ${active ? "text-foreground" : "text-muted-foreground/50"}`}
+                              >
+                                {label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Ações */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Enviar teste"
+                        onClick={() => testMut.mutate(notif.id)}
+                        disabled={testMut.isPending}
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Editar regra"
+                        onClick={() => openEditDialog(notif)}
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        title="Remover regra"
+                        onClick={() => deleteMut.mutate(notif.id)}
+                        disabled={deleteMut.isPending}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ════════════════════════════════════════════════
+            CRIAÇÃO RÁPIDA — Grid de todos os tipos
+            ════════════════════════════════════════════════ */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+          <div>
+            <h3 className="text-base font-bold">Ativação Rápida por Evento</h3>
+            <p className="text-xs text-muted-foreground">
+              Ative ou desative tipos de evento. Ativar cria uma regra web automaticamente.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Object.entries(EVENT_CATALOG).map(([key, { label, icon: Icon, iconColor }]) => {
+              const existing = notifByType[key];
+              const enabled = !!existing;
+
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+                    enabled ? "border-primary/30 bg-primary/5" : "border-border/30 bg-card"
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0">
+                    <Icon className={`w-4 h-4 ${iconColor}`} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium">{label}</span>
+                    {enabled && (
+                      <div className="flex gap-1 mt-0.5">
+                        {existing.notificators
+                          ?.split(",")
+                          .filter(Boolean)
+                          .map((ch) => {
+                            const meta = CHANNELS.find((c) => c.key === ch);
+                            return (
+                              <Badge key={ch} variant="secondary" className="text-[9px] px-1 py-0">
+                                {meta?.label || ch}
+                              </Badge>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={() => {
+                      if (enabled) {
+                        deleteMut.mutate(existing.id);
+                      } else {
+                        createMut.mutate({ type: key, notificators: "web", always: true });
+                      }
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ═══ Dialog Criar/Editar Regra ═══ */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingNotif ? "Editar Regra" : "Nova Regra de Notificação"}</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Tipo de evento */}
+              {!editingNotif && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Tipo de Evento</p>
+                  <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto">
+                    {availableTypes.map((t) => {
+                      const meta = EVENT_CATALOG[t];
+                      const Icon = meta?.icon || AlertTriangle;
+                      return (
+                        <label
+                          key={t}
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-sm ${
+                            formType === t ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="eventType"
+                            value={t}
+                            checked={formType === t}
+                            onChange={() => setFormType(t)}
+                            className="sr-only"
+                          />
+                          <Icon className={`w-4 h-4 ${meta?.iconColor || "text-muted-foreground"}`} />
+                          <span>{meta?.label || t}</span>
+                        </label>
+                      );
+                    })}
+                    {availableTypes.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        Todos os tipos de evento já têm regras
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {editingNotif && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                  {(() => {
+                    const meta = EVENT_CATALOG[editingNotif.type];
+                    const Icon = meta?.icon || AlertTriangle;
+                    return (
+                      <>
+                        <Icon className={`w-5 h-5 ${meta?.iconColor || "text-muted-foreground"}`} />
+                        <span className="text-sm font-medium">{meta?.label || editingNotif.type}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Canais */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Canais de Entrega</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {CHANNELS.map(({ key, label, icon: Icon, color }) => {
+                    const active = formChannels.includes(key);
+                    return (
+                      <label
+                        key={key}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                          active ? "border-primary/30 bg-primary/5" : "border-border/50 hover:bg-muted/30"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={active}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setFormChannels((prev) => [...prev, key]);
+                            } else {
+                              const next = formChannels.filter((c) => c !== key);
+                              if (next.length > 0) setFormChannels(next);
+                            }
+                          }}
+                        />
+                        <Icon className={`w-4 h-4 ${active ? color : "text-muted-foreground/40"}`} />
+                        <span className="text-sm">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Todos os dispositivos */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-sm font-medium">Todos os dispositivos</p>
+                  <p className="text-xs text-muted-foreground">
+                    Dispara para qualquer dispositivo vinculado ao usuário
+                  </p>
+                </div>
+                <Switch checked={formAlways} onCheckedChange={setFormAlways} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={isBusy || (!editingNotif && !formType)}>
+                {isBusy && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                {editingNotif ? "Salvar" : "Criar Regra"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-    </div>
   );
 }

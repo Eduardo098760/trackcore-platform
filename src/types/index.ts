@@ -4,6 +4,7 @@ export interface Organization {
   name: string;
   slug: string; // URL-friendly identifier (subdomain)
   domain?: string; // Custom domain
+  parentId?: number; // ID da organização pai (hierarquia reseller → cliente)
   settings: {
     maxDevices: number;
     maxUsers: number;
@@ -394,7 +395,9 @@ export type ReportType =
   | "chart"
   | "combined"
   | "fuel"
-  | "speed";
+  | "speed"
+  | "geofence"
+  | "ignition";
 
 export interface ReportFilter {
   deviceIds: number[];

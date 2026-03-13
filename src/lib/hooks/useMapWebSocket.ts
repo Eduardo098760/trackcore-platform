@@ -6,7 +6,6 @@ import { Device, Position } from "@/types";
 import { getPositions } from "@/lib/api";
 import { getWebSocketClient } from "@/lib/websocket";
 import { distanceKm } from "@/lib/utils";
-import { toast } from "sonner";
 
 interface UseMapWebSocketOptions {
   onWsConnectionChange: (connected: boolean) => void;
@@ -98,6 +97,10 @@ export function useMapWebSocket({
         positionList.forEach((position) => {
           if (!position.latitude || !position.longitude) return;
 
+          // Filtrar posições inválidas ou com precisão ruim
+          if (position.valid === false) return;
+          if (position.accuracy && position.accuracy > 150) return; // accuracy > 150m = GPS impreciso
+
           const current = trails.get(position.deviceId) || [];
           const newPoint = {
             lat: position.latitude,
@@ -105,7 +108,6 @@ export function useMapWebSocket({
             ts: now, // Usa timestamp local para evitar problemas de parsing
           };
 
-          // Dedup: ignora se moveu menos de 5 metros
           const last = current[current.length - 1];
           if (last) {
             const dist = approxDistanceM(
@@ -114,7 +116,12 @@ export function useMapWebSocket({
               newPoint.lat,
               newPoint.lng,
             );
-            if (dist < 5) return; // menos de 5m = mesma posição
+            // Dedup: ignora se moveu menos de 5 metros
+            if (dist < 5) return;
+
+            // Filtrar teleportações: salto > 2km entre updates consecutivos (~200ms)
+            // é fisicamente impossível para veículos terrestres
+            if (dist > 2000) return;
           }
 
           const merged = [...current, newPoint]
@@ -175,8 +182,8 @@ export function useMapWebSocket({
         });
       } else if (message.type === "events") {
         message.data.forEach(
-          (event: { type: string; attributes: { message?: string } }) => {
-            toast.info(`${event.type}: ${event.attributes.message || ""}`);
+          (event: { id: number; type: string; deviceId: number; serverTime: string; attributes: Record<string, any> }) => {
+            window.dispatchEvent(new CustomEvent('traccar-ws-event', { detail: event }));
           },
         );
       }

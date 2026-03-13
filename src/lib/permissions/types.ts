@@ -15,6 +15,7 @@ export type RouteKey =
   | 'routes'
   | 'vehicles'
   | 'history'
+  | 'replay'
   | 'events'
   | 'commands'
   // VideoTelemetria
@@ -42,7 +43,7 @@ export type RoutePermissions = Record<RouteKey, boolean>;
 
 /** Lista de todas as chaves (útil para iteração) */
 export const ALL_ROUTE_KEYS: RouteKey[] = [
-  'dashboard', 'map', 'routes', 'vehicles', 'history', 'events', 'commands',
+  'dashboard', 'map', 'routes', 'vehicles', 'history', 'replay', 'events', 'commands',
   'video', 'videoAlerts', 'cameras',
   'geofences', 'notifications', 'reports', 'groups', 'calendars', 'computedAttributes', 'obd', 'statistics',
   'clients', 'users', 'audit', 'settings', 'accessControl',

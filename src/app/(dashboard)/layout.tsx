@@ -8,6 +8,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { RouteGuard } from "@/components/layout/route-guard";
 import { useEventNotifications } from "@/lib/hooks/useEventNotifications";
+import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 
 export default function DashboardLayout({
   children,
@@ -166,6 +168,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+      <ServiceWorkerRegistrar />
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
@@ -179,6 +182,7 @@ export default function DashboardLayout({
           <RouteGuard>{children}</RouteGuard>
         </main>
       </div>
+      <WhatsAppButton />
     </div>
   );
 }
