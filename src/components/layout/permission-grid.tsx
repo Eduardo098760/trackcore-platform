@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils';
 
 const GROUP_COLORS: Record<RouteGroup, string> = {
   main:       'text-blue-400/80',
+  monitoring: 'text-cyan-400/80',
+  control:    'text-yellow-400/80',
   video:      'text-purple-400/80',
   advanced:   'text-orange-400/80',
   management: 'text-green-400/80',
@@ -25,7 +27,7 @@ export function PermissionGrid({
   ceiling?: RoutePermissions;
   disabled?: boolean;
 }) {
-  const groups: RouteGroup[] = ['main', 'video', 'advanced', 'management'];
+  const groups: RouteGroup[] = ['main', 'monitoring', 'control', 'video', 'advanced', 'management'];
 
   // todos os grupos começam expandidos
   const [expanded, setExpanded] = useState<Set<RouteGroup>>(

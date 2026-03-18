@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -32,19 +33,39 @@ import {
   Route,
   KeyRound,
   Wrench,
+  ChevronDown,
+  UserCheck,
+  Server,
+  FileCog,
+  MessageSquare,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 
+// ── Principal ──
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, key: "dashboard" },
   { name: "Mapa", href: "/map", icon: Map, key: "map" },
-  { name: "Rotas", href: "/routes", icon: Route, key: "routes" },
   { name: "Veículos", href: "/vehicles", icon: Car, key: "vehicles" },
+  { name: "Motoristas", href: "/drivers", icon: UserCheck, key: "drivers" },
+];
+
+// ── Monitoramento ──
+const monitoring = [
   { name: "Histórico", href: "/history", icon: History, key: "history" },
   { name: "Replay", href: "/replay", icon: Play, key: "replay" },
   { name: "Eventos", href: "/events", icon: Bell, key: "events" },
+  { name: "Relatórios", href: "/reports", icon: FileText, key: "reports" },
+  { name: "Estatísticas", href: "/statistics", icon: BarChart3, key: "statistics" },
+];
+
+// ── Controle ──
+const control = [
   { name: "Comandos", href: "/commands", icon: Terminal, key: "commands" },
+  { name: "Comandos Salvos", href: "/saved-commands", icon: FileCog, key: "savedCommands" },
+  { name: "Cercas Geográficas", href: "/geofences", icon: Shield, key: "geofences" },
+  { name: "Notificações", href: "/notifications", icon: BellRing, key: "notifications" },
+  { name: "Manutenção", href: "/maintenance", icon: Wrench, key: "maintenance" },
 ];
 
 const videoTelemetry = [
@@ -53,29 +74,24 @@ const videoTelemetry = [
   { name: "Câmeras", href: "/cameras", icon: Camera, key: "cameras" },
 ];
 
+// ── Avançado ──
 const advanced = [
-  { name: "Cercas Eletrônicas", href: "/geofences", icon: Shield, key: "geofences" },
-  { name: "Notificações", href: "/notifications", icon: BellRing, key: "notifications" },
-  { name: "Relatórios", href: "/reports", icon: FileText, key: "reports" },
+  { name: "Rotas", href: "/routes", icon: Route, key: "routes" },
   { name: "Grupos", href: "/groups", icon: FolderTree, key: "groups" },
   { name: "Calendários", href: "/calendars", icon: CalendarDays, key: "calendars" },
-  {
-    name: "Atributos Computados",
-    href: "/computed-attributes",
-    icon: Calculator,
-    key: "computedAttributes",
-  },
+  { name: "Atributos Computados", href: "/computed-attributes", icon: Calculator, key: "computedAttributes" },
   { name: "Computador de Bordo", href: "/obd", icon: Gauge, key: "obd" },
-  { name: "Estatísticas", href: "/statistics", icon: BarChart3, key: "statistics" },
-  { name: "Manutenção", href: "/maintenance", icon: Wrench, key: "maintenance" },
 ];
 
+// ── Gerenciamento ──
 const management = [
   { name: "Clientes", href: "/clients", icon: Building2, key: "clients" },
   { name: "Usuários", href: "/users", icon: Users, key: "users" },
-  { name: "Logs de Auditoria", href: "/audit", icon: Shield, key: "audit" },
   { name: "Configurações", href: "/settings", icon: Settings, key: "settings" },
+  { name: "Config. Servidor", href: "/server-config", icon: Server, key: "serverConfig" },
+  { name: "Config. SMS", href: "/sms-config", icon: MessageSquare, key: "smsConfig" },
   { name: "Controle de Acesso", href: "/access-control", icon: KeyRound, key: "accessControl" },
+  { name: "Logs de Auditoria", href: "/audit", icon: Shield, key: "audit" },
 ];
 
 export function Sidebar() {
@@ -83,9 +99,12 @@ export function Sidebar() {
   const { can } = usePermissions();
   const { tenant } = useTenant();
   const colors = useTenantColors();
+  const [videoExpanded, setVideoExpanded] = useState(false);
 
   // Filtra os itens de cada grupo baseado nas permissões do usuário
   const visibleNavigation = navigation.filter((i) => can(i.key as any));
+  const visibleMonitoring = monitoring.filter((i) => can(i.key as any));
+  const visibleControl = control.filter((i) => can(i.key as any));
   const visibleVideo = videoTelemetry.filter((i) => can(i.key as any));
   const visibleAdvanced = advanced.filter((i) => can(i.key as any));
   const visibleManagement = management.filter((i) => can(i.key as any));
@@ -101,8 +120,8 @@ export function Sidebar() {
       "relative flex items-center px-2 group-hover/sidebar:px-3 py-3 text-sm font-medium rounded-lg transition-colors duration-200 group overflow-hidden outline-none",
       "focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-0",
       active
-        ? "bg-white/10 text-white border border-white/10"
-        : "text-gray-300 hover:text-white hover:bg-white/5",
+        ? "bg-sidebar-accent text-sidebar-foreground border border-sidebar-border"
+        : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
     );
 
   const iconClassName = (active: boolean) =>
@@ -115,9 +134,9 @@ export function Sidebar() {
   return (
     // Sidebar recolhida (w-16) e expande (w-64) no hover, ajustando o layout ao redor
     <div className="hidden lg:flex lg:flex-shrink-0">
-      <div className="group/sidebar flex flex-col h-full w-20 hover:w-64 transition-[width] duration-200 ease-out border-r border-white/[0.06] bg-gradient-to-b from-gray-900 via-gray-950 to-black dark:from-gray-950 dark:via-black dark:to-gray-950 backdrop-blur-xl overflow-hidden">
+      <div className="group/sidebar flex flex-col h-full w-20 hover:w-64 transition-[width] duration-200 ease-out border-r border-sidebar-border bg-sidebar backdrop-blur-xl overflow-hidden">
         {/* Logo */}
-        <div className="relative flex items-center justify-center h-14 border-b border-white/[0.06]">
+        <div className="relative flex items-center justify-center h-14 border-b border-sidebar-border">
           {/* Logo fechado (collapsed) */}
           <div className="relative flex items-center justify-center w-full h-full group-hover/sidebar:opacity-0 group-hover/sidebar:scale-95 transition-all duration-200">
             <Image
@@ -143,6 +162,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-4 overflow-y-auto sidebar-scrollbar scrollbar-thin scrollbar-thumb-blue-600/50 scrollbar-track-transparent">
+          {/* Principal */}
           <div className="space-y-1">
             {visibleNavigation.map((item) => {
               const isActive = isActiveRoute(item.href);
@@ -170,7 +190,70 @@ export function Sidebar() {
             })}
           </div>
 
-          {visibleVideo.length > 0 && (
+          {/* Monitoramento */}
+          {visibleMonitoring.length > 0 && (
+            <>
+              <Separator className="my-3 hidden group-hover/sidebar:block opacity-30" />
+              <div className="space-y-1">
+                <p
+                  className="px-3 text-xs font-semibold uppercase tracking-wider mb-2 hidden group-hover/sidebar:block opacity-70"
+                  style={{ color: `hsl(${colors.primary.light})` }}
+                >
+                  Monitoramento
+                </p>
+                {visibleMonitoring.map((item) => {
+                  const isActive = isActiveRoute(item.href);
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      aria-label={item.name}
+                      title={item.name}
+                      className={cn(linkClassName(isActive), "justify-center group-hover/sidebar:justify-start")}
+                    >
+                      <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), "mr-0 group-hover/sidebar:mr-3")} />
+                      <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Controle */}
+          {visibleControl.length > 0 && (
+            <>
+              <Separator className="my-3 hidden group-hover/sidebar:block opacity-30" />
+              <div className="space-y-1">
+                <p
+                  className="px-3 text-xs font-semibold uppercase tracking-wider mb-2 hidden group-hover/sidebar:block opacity-70"
+                  style={{ color: `hsl(${colors.primary.light})` }}
+                >
+                  Controle
+                </p>
+                {visibleControl.map((item) => {
+                  const isActive = isActiveRoute(item.href);
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      aria-label={item.name}
+                      title={item.name}
+                      className={cn(linkClassName(isActive), "justify-center group-hover/sidebar:justify-start")}
+                    >
+                      <item.icon strokeWidth={2.25} className={cn(iconClassName(isActive), "mr-0 group-hover/sidebar:mr-3")} />
+                      <span className="relative z-10 opacity-0 w-0 overflow-hidden group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto transition-all duration-200 whitespace-nowrap">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Avançado */}
+          {visibleAdvanced.length > 0 && (
             <>
               <Separator className="my-4 hidden group-hover/sidebar:block" />
               <div className="space-y-1">
@@ -178,9 +261,9 @@ export function Sidebar() {
                   className="px-3 text-xs font-semibold uppercase tracking-wider mb-2 hidden group-hover/sidebar:block opacity-70"
                   style={{ color: `hsl(${colors.primary.light})` }}
                 >
-                  VideoTelemetria
+                  Recursos Avançados
                 </p>
-                {visibleVideo.map((item) => {
+                {visibleAdvanced.map((item) => {
                   const isActive = isActiveRoute(item.href);
                   return (
                     <Link
@@ -208,17 +291,29 @@ export function Sidebar() {
             </>
           )}
 
-          {visibleAdvanced.length > 0 && (
+          {visibleVideo.length > 0 && (
             <>
               <Separator className="my-4 hidden group-hover/sidebar:block" />
               <div className="space-y-1">
-                <p
-                  className="px-3 text-xs font-semibold uppercase tracking-wider mb-2 hidden group-hover/sidebar:block opacity-70"
+                <button
+                  onClick={() => setVideoExpanded((v) => !v)}
+                  className="w-full px-3 text-xs font-semibold uppercase tracking-wider mb-2 hidden group-hover/sidebar:flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity"
                   style={{ color: `hsl(${colors.primary.light})` }}
                 >
-                  Recursos Avançados
-                </p>
-                {visibleAdvanced.map((item) => {
+                  VideoTelemetria
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 transition-transform duration-200",
+                      videoExpanded && "rotate-180",
+                    )}
+                  />
+                </button>
+                {!videoExpanded && (
+                  <div className="flex justify-center group-hover/sidebar:hidden">
+                    <Video className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                {videoExpanded && visibleVideo.map((item) => {
                   const isActive = isActiveRoute(item.href);
                   return (
                     <Link
@@ -283,10 +378,10 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="relative p-4 border-t border-white/10">
+        <div className="relative p-4 border-t border-sidebar-border">
           <div className="absolute inset-0 bg-gradient-to-t from-blue-600/5 to-transparent"></div>
           <div className="relative flex items-center justify-between">
-            <div className="flex items-center text-xs text-gray-400">
+            <div className="flex items-center text-xs text-muted-foreground">
               <div className="relative">
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
                 <div className="absolute inset-0 bg-green-500 rounded-full blur-md animate-pulse"></div>

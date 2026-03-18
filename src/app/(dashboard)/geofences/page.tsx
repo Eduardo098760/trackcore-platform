@@ -373,7 +373,7 @@ export default function GeofencesPage() {
     <div className="h-full flex flex-col overflow-hidden">
       <PageHeader
         icon={ShieldCheck}
-        title="Cercas Eletronicas"
+        title="Cercas Geográficas"
         description="Gerencie zonas de alerta e controle"
       />
 

@@ -73,6 +73,8 @@ import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { useAuthStore } from "@/lib/stores/auth";
 
 export default function UsersPage() {
@@ -118,8 +120,10 @@ export default function UsersPage() {
     role: "user" as UserRole,
     phone: "",
     password: "",
-    deviceLimit: -1 as number, // -1 = ilimitado
-    userLimit: 0 as number, // 0 = não é gerente
+    deviceLimit: -1 as number,
+    userLimit: 0 as number,
+    disabled: false,
+    expirationTime: "",
   });
 
   const { data: users = [], isLoading } = useQuery({
@@ -270,6 +274,8 @@ export default function UsersPage() {
       password: "",
       deviceLimit: -1,
       userLimit: 0,
+      disabled: false,
+      expirationTime: "",
     });
     setEditingUser(null);
   };
@@ -284,6 +290,8 @@ export default function UsersPage() {
       password: "",
       deviceLimit: user.deviceLimit ?? -1,
       userLimit: user.userLimit ?? 0,
+      disabled: user.disabled ?? false,
+      expirationTime: user.expirationTime ? user.expirationTime.split("T")[0] : "",
     });
     setIsDialogOpen(true);
   };
@@ -307,8 +315,6 @@ export default function UsersPage() {
     if (editingUser) {
       console.log("[UI] Atualizando usuário existente:", editingUser.id);
       const { password, ...updateData } = formData;
-      // Merge do usuário completo (preserva todos os campos do Traccar)
-      // com apenas os campos editados pelo form
       const mergedData = {
         ...editingUser,
         name: updateData.name,
@@ -317,6 +323,8 @@ export default function UsersPage() {
         phone: updateData.phone,
         deviceLimit: updateData.deviceLimit,
         userLimit: updateData.userLimit,
+        disabled: updateData.disabled,
+        expirationTime: updateData.expirationTime ? new Date(updateData.expirationTime).toISOString() : undefined,
         ...(password ? { password } : {}),
       };
       updateMutation.mutate({
@@ -620,133 +628,151 @@ export default function UsersPage() {
                   Novo Usuário
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingUser ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+                  <DialogDescription className="text-xs">
+                    {editingUser ? "Atualize as informações do usuário." : "Preencha os dados para criar um novo usuário."}
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="flex items-center gap-2">
-                      <UserIcon className="w-4 h-4 text-blue-500" />
-                      Nome Completo
-                    </Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Ex: João Silva"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-purple-500" />
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="usuario@email.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-green-500" />
-                      Telefone
-                    </Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role" className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-red-500" />
-                      Função
-                    </Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, role: value as UserRole })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="user">Usuário</SelectItem>
-                        <SelectItem value="readonly">Somente Leitura</SelectItem>
-                        <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Limites Traccar */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="deviceLimit" className="flex items-center gap-2 text-sm">
-                        <Car className="w-4 h-4 text-blue-500" />
-                        Limite de Veículos
-                      </Label>
-                      <Input
-                        id="deviceLimit"
-                        type="number"
-                        min={-1}
-                        value={formData.deviceLimit}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            deviceLimit: parseInt(e.target.value) || -1,
-                          })
-                        }
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        -1 = ilimitado · 0 = sem cadastrar
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="userLimit" className="flex items-center gap-2 text-sm">
-                        <Users className="w-4 h-4 text-purple-500" />
-                        Limite de Usuários
-                      </Label>
-                      <Input
-                        id="userLimit"
-                        type="number"
-                        min={-1}
-                        value={formData.userLimit}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            userLimit: parseInt(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        -1 = ilimitado · 0 = não gerente
-                      </p>
+                <div className="space-y-5">
+                  {/* ── Dados Pessoais ── */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dados Pessoais</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2 space-y-1.5">
+                        <Label htmlFor="name" className="text-xs">Nome Completo *</Label>
+                        <Input
+                          id="name"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Ex: João Silva"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="email" className="text-xs">Email *</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="usuario@email.com"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="phone" className="text-xs">Telefone</Label>
+                        <Input
+                          id="phone"
+                          value={formData.phone}
+                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-orange-500" />
-                      {editingUser ? "Nova Senha (deixe vazio para manter)" : "Senha"}
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="••••••••"
-                    />
+                  <Separator />
+
+                  {/* ── Acesso ── */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acesso</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="role" className="text-xs">Função</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={(value) =>
+                            setFormData({ ...formData, role: value as UserRole })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                            <SelectItem value="manager">Gerente</SelectItem>
+                            <SelectItem value="user">Usuário</SelectItem>
+                            <SelectItem value="readonly">Somente Leitura</SelectItem>
+                            <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="password" className="text-xs">
+                          {editingUser ? "Nova Senha" : "Senha *"}
+                        </Label>
+                        <Input
+                          id="password"
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          placeholder={editingUser ? "Deixe vazio para manter" : "••••••••"}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="expirationTime" className="text-xs">Data de Expiração</Label>
+                      <Input
+                        id="expirationTime"
+                        type="date"
+                        value={formData.expirationTime}
+                        onChange={(e) => setFormData({ ...formData, expirationTime: e.target.value })}
+                      />
+                      <p className="text-[10px] text-muted-foreground">Deixe vazio para conta sem expiração</p>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <Label className="text-xs font-medium">Conta Desativada</Label>
+                        <p className="text-[10px] text-muted-foreground">Impede o login do usuário</p>
+                      </div>
+                      <Switch
+                        checked={formData.disabled}
+                        onCheckedChange={(v) => setFormData({ ...formData, disabled: v })}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* ── Limites ── */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Limites</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="deviceLimit" className="text-xs">Limite de Veículos</Label>
+                        <Input
+                          id="deviceLimit"
+                          type="number"
+                          min={-1}
+                          value={formData.deviceLimit}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              deviceLimit: parseInt(e.target.value) || -1,
+                            })
+                          }
+                        />
+                        <p className="text-[10px] text-muted-foreground">-1 = ilimitado · 0 = sem cadastrar</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="userLimit" className="text-xs">Limite de Usuários</Label>
+                        <Input
+                          id="userLimit"
+                          type="number"
+                          min={-1}
+                          value={formData.userLimit}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              userLimit: parseInt(e.target.value) || 0,
+                            })
+                          }
+                        />
+                        <p className="text-[10px] text-muted-foreground">-1 = ilimitado · 0 = não é gerente</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -844,7 +870,7 @@ export default function UsersPage() {
                       </span>
                     </div>
                     {selectedDeviceIds.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-3">
+                      <p className="text-xs text-muted-foreground text-center py-3">
                         Nenhum veículo selecionado ainda
                       </p>
                     ) : (
@@ -929,7 +955,7 @@ export default function UsersPage() {
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
                                   isSelected
                                     ? "border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/12"
-                                    : "border-white/5 bg-white/[0.02] hover:bg-white/5"
+                                    : "border-border/50 bg-muted/10 hover:bg-accent"
                                 }`}
                               >
                                 <Checkbox
@@ -962,7 +988,7 @@ export default function UsersPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                     <Button
                       onClick={handleSubmitDevices}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -994,7 +1020,7 @@ export default function UsersPage() {
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold">
               {selectedUserIds.size}
             </div>
-            <span className="text-sm text-gray-300">
+            <span className="text-sm text-foreground">
               {selectedUserIds.size} usuário(s) selecionado(s)
             </span>
           </div>
@@ -1011,7 +1037,7 @@ export default function UsersPage() {
               size="sm"
               variant="outline"
               onClick={() => setSelectedUserIds(new Set())}
-              className="border-white/10 text-gray-400 hover:bg-white/5 text-xs h-8"
+              className="border-border text-muted-foreground hover:bg-accent text-xs h-8"
             >
               Limpar seleção
             </Button>
@@ -1037,7 +1063,7 @@ export default function UsersPage() {
                       <Checkbox
                         checked={isAllSelected ? true : isSomeSelected ? "indeterminate" : false}
                         onCheckedChange={() => toggleSelectAll()}
-                        className="border-gray-500"
+                        className="border-border"
                       />
                     </TableHead>
                   )}
@@ -1075,7 +1101,7 @@ export default function UsersPage() {
                               <Checkbox
                                 checked={selectedUserIds.has(user.id)}
                                 onCheckedChange={() => toggleSelectUser(user.id)}
-                                className="border-gray-500"
+                                className="border-border"
                               />
                             )}
                           </TableCell>
@@ -1149,7 +1175,7 @@ export default function UsersPage() {
                             if (!entry) {
                               return (
                                 <TableCell>
-                                  <span className="text-[11px] text-gray-500">Padrão</span>
+                                  <span className="text-[11px] text-muted-foreground">Padrão</span>
                                 </TableCell>
                               );
                             }
@@ -1297,7 +1323,7 @@ export default function UsersPage() {
             </DialogTitle>
             <DialogDescription>
               Você entrará na plataforma{" "}
-              <strong className="text-white">como {loginAsTarget?.name}</strong>. Um banner
+              <strong className="text-foreground">como {loginAsTarget?.name}</strong>. Um banner
               aparecerá no topo para você voltar ao admin a qualquer momento.
             </DialogDescription>
           </DialogHeader>
@@ -1314,8 +1340,8 @@ export default function UsersPage() {
                   .slice(0, 2)}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-white truncate">{loginAsTarget?.name}</p>
-                <p className="text-xs text-gray-400 truncate">{loginAsTarget?.email}</p>
+                <p className="text-sm font-medium text-foreground truncate">{loginAsTarget?.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{loginAsTarget?.email}</p>
               </div>
             </div>
 

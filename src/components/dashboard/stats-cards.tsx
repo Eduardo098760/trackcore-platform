@@ -132,14 +132,14 @@ export function StatsCards({ stats, showPrimary = true, showSecondary = true }: 
     return (
       <Card
         key={index}
-        className={`relative overflow-hidden backdrop-blur-xl bg-white/80 dark:bg-gray-950/80 border-white/20 shadow-lg ${glowClass} hover:shadow-xl transition-all duration-300 group`}
+        className={`relative overflow-hidden backdrop-blur-xl bg-card/80 border-border shadow-lg ${glowClass} hover:shadow-xl transition-all duration-300 group`}
       >
         <div
           className={`absolute top-0 right-0 w-24 h-24 ${!card.dynamic ? `bg-gradient-to-br ${card.gradient}` : ""} opacity-10 blur-2xl group-hover:opacity-20 transition-opacity`}
           style={card.dynamic ? gradientStyle : {}}
         ></div>
         <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4 relative z-10">
-          <CardTitle className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          <CardTitle className="text-xs font-medium text-muted-foreground">
             {card.title}
           </CardTitle>
           {(() => {
@@ -161,12 +161,12 @@ export function StatsCards({ stats, showPrimary = true, showSecondary = true }: 
         </CardHeader>
         <CardContent className="relative z-10 pb-4 px-4 pt-0">
           <div
-            className={`text-2xl font-bold ${!card.dynamic ? `bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent` : "text-white"}`}
+            className={`text-2xl font-bold ${!card.dynamic ? `bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent` : "text-foreground"}`}
             style={card.dynamic ? { color: `hsl(${colors.primary.light})` } : {}}
           >
             {card.value}
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{card.description}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">{card.description}</p>
         </CardContent>
       </Card>
     );

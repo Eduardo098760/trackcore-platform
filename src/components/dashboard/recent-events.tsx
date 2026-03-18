@@ -45,7 +45,7 @@ export function RecentEvents({ events, devices, clients = [] }: RecentEventsProp
                     href={`/map?deviceId=${event.deviceId}`}
                     className="block"
                   >
-                    <div className="flex items-start space-x-3 p-3 rounded-lg border border-border hover:bg-muted/60 dark:hover:bg-gray-900/50 transition-colors cursor-pointer group">
+                    <div className="flex items-start space-x-3 p-3 rounded-lg border border-border hover:bg-muted/60 transition-colors cursor-pointer group">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-medium text-foreground truncate group-hover:text-primary">

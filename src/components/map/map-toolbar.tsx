@@ -33,7 +33,7 @@ export function MapToolbar({
         className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showGeofences
             ? "bg-orange-500/80 border-orange-400/50 text-white"
-            : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
+            : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
         <ShieldCheck className="w-3.5 h-3.5" />
@@ -52,7 +52,7 @@ export function MapToolbar({
         className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showSpeedAlerts && speedAlertCount > 0
             ? "bg-amber-500/80 border-amber-400/50 text-white"
-            : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
+            : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
         <Zap className="w-3.5 h-3.5" />
@@ -71,7 +71,7 @@ export function MapToolbar({
         className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showVehicleLabels
             ? "bg-sky-500/80 border-sky-400/50 text-white"
-            : "bg-black/40 border-white/10 text-gray-400 hover:bg-white/10"
+            : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
         <Tag className="w-3.5 h-3.5" />

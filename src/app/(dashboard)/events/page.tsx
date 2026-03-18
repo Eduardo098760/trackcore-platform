@@ -112,75 +112,96 @@ export default function EventsPage() {
     async (event: Event, device: Device | undefined) => {
       setLoadingMapEventId(event.id);
       try {
-        let latitude: number | undefined;
-        let longitude: number | undefined;
+        let alertLat: number | undefined;
+        let alertLng: number | undefined;
 
+        // 1. Buscar posição do momento do alerta (positionId)
         if (event.positionId) {
           try {
             const pos = await getPositionById(event.positionId);
             if (pos) {
-              latitude = pos.latitude;
-              longitude = pos.longitude;
+              alertLat = pos.latitude;
+              alertLng = pos.longitude;
             }
           } catch {
             /* fallback */
           }
         }
 
-        if (latitude == null) {
+        // 2. Fallback: posição atual do dispositivo
+        if (alertLat == null) {
           try {
             const positions = await getPositions({ deviceId: event.deviceId });
             const pos = positions?.[0];
             if (pos) {
-              latitude = pos.latitude;
-              longitude = pos.longitude;
+              alertLat = pos.latitude;
+              alertLng = pos.longitude;
             }
           } catch {
             /* sem posição */
           }
         }
 
-        // Para eventos de velocidade, criar marcador no mapa
-        const isSpeedEvent = event.type === "speedLimit" || event.type === "deviceOverspeed";
-        if (isSpeedEvent && latitude != null && longitude != null) {
+        // 3. Buscar posição ATUAL do veículo (para mostrar onde está agora)
+        let currentLat: number | undefined;
+        let currentLng: number | undefined;
+        try {
+          const positions = await getPositions({ deviceId: event.deviceId });
+          const pos = positions?.[0];
+          if (pos) {
+            currentLat = pos.latitude;
+            currentLng = pos.longitude;
+          }
+        } catch { /* sem posição atual */ }
+
+        // 4. Salvar marcador do evento no localStorage para o mapa exibir
+        if (alertLat != null && alertLng != null) {
           const rawSpeed = event.attributes?.speed || 0;
           const rawLimit = event.attributes?.speedLimit ?? event.attributes?.limit ?? 0;
-          const alert = {
+          const isSpeedEvent = event.type === "speedLimit" || event.type === "deviceOverspeed";
+
+          const eventMarker = {
             id: `event-${event.id}`,
+            eventType: event.type,
             deviceId: event.deviceId,
-            deviceName:
-              device?.plate || device?.uniqueId || `Veículo #${event.deviceId}`,
+            deviceName: device?.plate || device?.uniqueId || `Veículo #${event.deviceId}`,
             vehicleName: device?.name,
-            speed: rawSpeed > 0 ? Math.round(rawSpeed * 1.852) : 0,
-            speedLimit: device?.speedLimit ?? (rawLimit > 0 ? Math.round(rawLimit * 1.852) : 0),
-            latitude,
-            longitude,
+            speed: isSpeedEvent && rawSpeed > 0 ? Math.round(rawSpeed * 1.852) : undefined,
+            speedLimit: isSpeedEvent ? (device?.speedLimit ?? (rawLimit > 0 ? Math.round(rawLimit * 1.852) : 0)) : undefined,
+            alarm: event.attributes?.alarm,
+            latitude: alertLat,
+            longitude: alertLng,
+            currentLatitude: currentLat,
+            currentLongitude: currentLng,
             timestamp: event.serverTime,
+            label: getEventTypeLabel(event.type),
           };
 
           try {
-            const stored = localStorage.getItem("speedAlerts");
+            // Salvar em eventAlerts (novo sistema unificado)
+            const stored = localStorage.getItem("eventAlerts");
             const alerts = stored ? JSON.parse(stored) : [];
-            const filtered = alerts.filter(
-              (a: { id: string }) => a.id !== alert.id,
-            );
-            filtered.unshift(alert);
-            localStorage.setItem(
-              "speedAlerts",
-              JSON.stringify(filtered.slice(0, 100)),
-            );
-            window.dispatchEvent(
-              new CustomEvent("speedAlertAdded", { detail: alert }),
-            );
-          } catch {
-            /* ignore */
-          }
+            const filtered = alerts.filter((a: { id: string }) => a.id !== eventMarker.id);
+            filtered.unshift(eventMarker);
+            localStorage.setItem("eventAlerts", JSON.stringify(filtered.slice(0, 50)));
+            window.dispatchEvent(new CustomEvent("eventAlertAdded", { detail: eventMarker }));
+
+            // Também manter compatibilidade com speedAlerts antigo
+            if (isSpeedEvent) {
+              const storedSpeed = localStorage.getItem("speedAlerts");
+              const speedAlerts = storedSpeed ? JSON.parse(storedSpeed) : [];
+              const filteredSpeed = speedAlerts.filter((a: { id: string }) => a.id !== eventMarker.id);
+              filteredSpeed.unshift(eventMarker);
+              localStorage.setItem("speedAlerts", JSON.stringify(filteredSpeed.slice(0, 100)));
+              window.dispatchEvent(new CustomEvent("speedAlertAdded", { detail: eventMarker }));
+            }
+          } catch { /* ignore */ }
         }
       } catch {
         /* navega normalmente */
       }
       setLoadingMapEventId(null);
-      router.push(`/map?deviceId=${event.deviceId}`);
+      router.push(`/map?deviceId=${event.deviceId}&eventAlert=true`);
     },
     [router],
   );

@@ -139,7 +139,7 @@ export default function OBDPage() {
           {/* Main Gauges */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {/* RPM */}
-            {obd?.rpm !== null && (
+            {obd != null && obd.rpm != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -179,7 +179,7 @@ export default function OBDPage() {
             </Card>
 
             {/* Fuel Level */}
-            {obd?.fuelLevel !== null && (
+            {obd != null && obd.fuelLevel != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -207,7 +207,7 @@ export default function OBDPage() {
             )}
 
             {/* Coolant Temperature */}
-            {obd?.coolantTemp !== null && (
+            {obd != null && obd.coolantTemp != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -230,7 +230,7 @@ export default function OBDPage() {
 
           {/* Additional Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {obd?.engineLoad !== null && (
+            {obd != null && obd.engineLoad != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Carga do Motor</CardTitle>
@@ -247,7 +247,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.throttlePosition !== null && (
+            {obd != null && obd.throttlePosition != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Posição do Acelerador</CardTitle>
@@ -264,7 +264,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.batteryVoltage !== null && (
+            {obd != null && obd.batteryVoltage != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -281,7 +281,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.engineHours !== null && (
+            {obd != null && obd.engineHours != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -296,7 +296,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.totalDistance !== null && (
+            {obd != null && obd.totalDistance != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Odômetro</CardTitle>
@@ -310,7 +310,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.sat !== null && (
+            {obd != null && obd.sat != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Satélites GPS</CardTitle>
@@ -324,7 +324,7 @@ export default function OBDPage() {
               </Card>
             )}
 
-            {obd?.ignition !== null && (
+            {obd != null && obd.ignition != null && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Ignição</CardTitle>

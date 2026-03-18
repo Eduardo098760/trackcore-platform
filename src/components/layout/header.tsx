@@ -39,13 +39,15 @@ export function Header() {
       '/map': 'Mapa',
       '/routes': 'Rotas',
       '/vehicles': 'Veículos',
+      '/drivers': 'Motoristas',
       '/history': 'Histórico',
       '/events': 'Eventos',
       '/commands': 'Comandos',
+      '/saved-commands': 'Comandos Salvos',
       '/video': 'VideoTelemetria',
       '/video-alerts': 'Alertas de Vídeo',
       '/cameras': 'Câmeras',
-      '/geofences': 'Cercas Eletrônicas',
+      '/geofences': 'Cercas Geográficas',
       '/notifications': 'Notificações',
       '/reports': 'Relatórios',
       '/groups': 'Grupos',
@@ -57,8 +59,8 @@ export function Header() {
       '/users': 'Usuários',
       '/audit': 'Logs de Auditoria',
       '/settings': 'Configurações',
+      '/server-config': 'Configuração do Servidor',
       '/access-control': 'Controle de Acesso',
-      '/drivers': 'Motoristas',
       '/maintenance': 'Manutenção',
       '/organizations': 'Organizações',
       '/shared-access': 'Acesso Compartilhado',
@@ -159,11 +161,11 @@ export function Header() {
         </div>
       )}
 
-    <header className="relative flex items-center justify-between h-14 px-4 bg-gray-950/95 dark:bg-black/95 border-b border-white/[0.06] backdrop-blur-xl">
+    <header className="relative z-[1100] flex items-center justify-between h-14 px-4 bg-card/95 border-b border-border backdrop-blur-xl">
       {/* Left: Page title */}
       <div className="flex items-center gap-3 min-w-0">
         {pageTitle && (
-          <h1 className="text-sm font-semibold text-gray-200 truncate">{pageTitle}</h1>
+          <h1 className="text-sm font-semibold text-foreground truncate">{pageTitle}</h1>
         )}
       </div>
 
@@ -177,10 +179,10 @@ export function Header() {
           variant="ghost"
           size="icon"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="relative h-8 w-8 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+          className="relative h-8 w-8 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
 
@@ -194,9 +196,9 @@ export function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full hover:ring-2 hover:ring-blue-500/30 transition-all ml-1">
-              <Avatar className="h-9 w-9 ring-2 ring-white/10">
+              <Avatar className="h-9 w-9 ring-2 ring-border">
                 <AvatarImage src={user?.avatar} alt={user?.name} />
-                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-cyan-600 text-white text-xs font-bold">
+                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-cyan-600 text-primary-foreground text-xs font-bold">
                   {getUserInitials()}
                 </AvatarFallback>
               </Avatar>

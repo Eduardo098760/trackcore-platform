@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import {
   Select,
   SelectContent,
@@ -702,39 +703,30 @@ export default function RouteReplayPage() {
   // filtros inline
   const filterRow = (dark?: boolean, showLimit = true) => {
     const base = dark
-      ? "h-9 rounded-md border px-2 text-sm bg-white/5 border-white/10 text-white"
+      ? "h-9 rounded-md border px-2 text-sm bg-muted/30 border-border text-foreground"
       : "h-9 rounded-md border px-2 text-sm bg-background";
     return (
       <div className="flex flex-wrap gap-2 items-center">
         {/* vehicle */}
-        <Select
-          value={selectedDevice?.toString() ?? ""}
-          onValueChange={(v) => {
-            setSelectedDevice(parseInt(v));
-            // Limpa dados da rota anterior sem anular o veículo selecionado
-            setRoute([]);
-            setSnappedRoute([]);
-            setStops([]);
-            setViolations([]);
-            setSummary(null);
-            setLoadError(null);
-            setIsPlaying(false);
-            setCurrentIndex(0);
-          }}
-        >
-          <SelectTrigger
-            className={`h-9 w-48 ${dark ? "bg-white/5 border-white/10 text-white" : ""}`}
-          >
-            <SelectValue placeholder="Selecione o veículo" />
-          </SelectTrigger>
-          <SelectContent>
-            {devices.map((d) => (
-              <SelectItem key={d.id} value={d.id.toString()}>
-                {d.plate || d.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="w-56">
+          <VehicleCombobox
+            mode="single"
+            devices={devices}
+            value={selectedDevice}
+            onChange={(id) => {
+              setSelectedDevice(id);
+              setRoute([]);
+              setSnappedRoute([]);
+              setStops([]);
+              setViolations([]);
+              setSummary(null);
+              setLoadError(null);
+              setIsPlaying(false);
+              setCurrentIndex(0);
+            }}
+            placeholder="Selecione o veículo"
+          />
+        </div>
 
         {/* from */}
         <input
@@ -752,7 +744,7 @@ export default function RouteReplayPage() {
         />
 
         <ArrowRight
-          className={`h-4 w-4 flex-shrink-0 ${dark ? "text-white/40" : "text-muted-foreground"}`}
+          className="h-4 w-4 flex-shrink-0 text-muted-foreground"
         />
 
         {/* to */}
@@ -791,9 +783,7 @@ export default function RouteReplayPage() {
                 ? dark
                   ? "bg-red-500/10 border-red-500/30"
                   : "bg-red-50 border-red-200"
-                : dark
-                  ? "bg-white/5 border-white/10"
-                  : "bg-muted border-border"
+                : "bg-muted/30 border-border"
             }`}
           >
             <span
@@ -802,17 +792,13 @@ export default function RouteReplayPage() {
                   ? dark
                     ? "text-red-400"
                     : "text-red-500"
-                  : dark
-                    ? "text-white/30"
-                    : "text-muted-foreground"
+                  : "text-muted-foreground"
               }`}
             >
               ⚠
             </span>
             <label
-              className={`text-xs font-medium whitespace-nowrap ${
-                dark ? "text-white/40" : "text-muted-foreground"
-              }`}
+              className="text-xs font-medium whitespace-nowrap text-muted-foreground"
             >
               Limite:
             </label>
@@ -825,13 +811,11 @@ export default function RouteReplayPage() {
               className={`w-12 text-xs font-semibold text-center bg-transparent border-none outline-none tabular-nums ${
                 speedLimit > 0
                   ? dark ? "text-red-200" : "text-red-700"
-                  : dark ? "text-white/40" : "text-muted-foreground"
+                  : "text-muted-foreground"
               }`}
             />
             <span
-              className={`text-xs font-medium whitespace-nowrap ${
-                dark ? "text-white/40" : "text-muted-foreground"
-              }`}
+              className="text-xs font-medium whitespace-nowrap text-muted-foreground"
             >
               km/h
             </span>
@@ -844,7 +828,7 @@ export default function RouteReplayPage() {
   // â”€â”€â”€ render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!isClient) {
     return (
-      <div className="h-[calc(100vh-7rem)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando...</p>
@@ -854,7 +838,7 @@ export default function RouteReplayPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex flex-col">
+    <div className="h-full flex flex-col p-4">
       <PageHeader
         title="Reprodução de Rotas"
         description="Reveja trajetos históricos com controles de timeline"
@@ -965,18 +949,18 @@ export default function RouteReplayPage() {
                       <p className="font-bold text-orange-600 mb-1">
                         ⏸ Parada #{idx + 1}
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         <span className="font-medium">Início:</span>{" "}
                         {fmtDateTime(stop.startTime)}
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         <span className="font-medium">Fim:</span>{" "}
                         {fmtDateTime(stop.endTime)}
                       </p>
                       <p className="text-orange-700 font-bold mt-1">
                         ⏱ Duração: {fmtDuration(stop.durationSec)}
                       </p>
-                      <p className="text-gray-400 text-xs mt-1">
+                      <p className="text-muted-foreground text-xs mt-1">
                         {stop.latitude.toFixed(6)}, {stop.longitude.toFixed(6)}
                       </p>
                       <p className="text-blue-500 text-xs mt-0.5 cursor-pointer">
@@ -1000,7 +984,7 @@ export default function RouteReplayPage() {
                       <p className="font-bold text-red-600 mb-1">
                         ⚠️ Excesso #{idx + 1}
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         <span className="font-medium">Limite:</span>{" "}
                         {speedLimit} km/h
                       </p>
@@ -1010,15 +994,15 @@ export default function RouteReplayPage() {
                           (+{v.maxSpeed - speedLimit})
                         </span>
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         <span className="font-medium">Início:</span>{" "}
                         {fmtDateTime(v.startTime)}
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-muted-foreground">
                         <span className="font-medium">Fim:</span>{" "}
                         {fmtDateTime(v.endTime)}
                       </p>
-                      <p className="text-gray-500 text-xs mt-1">
+                      <p className="text-muted-foreground text-xs mt-1">
                         {fmtDuration(v.durationSec)} •{" "}
                         {Math.round(v.distanceKm)} km em excesso
                       </p>
@@ -1065,28 +1049,28 @@ export default function RouteReplayPage() {
             {/* â”€â”€ Painel de Resumo (lateral) â”€â”€ */}
             {showSummary && summary && (
               <Card
-                className="absolute top-3 left-3 bottom-24 w-72 z-[1001] flex flex-col overflow-hidden border border-white/15"
+                className="absolute top-3 left-3 bottom-24 w-72 z-[1001] flex flex-col overflow-hidden border border-border/50"
                 style={{
                   backgroundColor: "rgba(8, 8, 20, 0.96)",
                   backdropFilter: "blur(20px)",
                 }}
               >
-                <CardHeader className="py-3 px-4 border-b border-white/10 flex-shrink-0">
+                <CardHeader className="py-3 px-4 border-b border-border flex-shrink-0">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-white text-sm flex items-center gap-2">
+                    <CardTitle className="text-foreground text-sm flex items-center gap-2">
                       <BarChart3 className="h-4 w-4 text-blue-400" />
                       Resumo da Rota
                     </CardTitle>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-white/50 hover:text-white"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowSummary(false)}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-white/50">
+                  <p className="text-xs text-muted-foreground">
                     {device?.plate || device?.name}
                   </p>
                   {/* Botões de exportação */}
@@ -1130,7 +1114,7 @@ export default function RouteReplayPage() {
                       TXT
                     </Button>
                   </div>
-                  <p className="text-xs text-white/35 mt-1.5">
+                  <p className="text-xs text-muted-foreground mt-1.5">
                     {fmtDateTime(route[0].fixTime || route[0].serverTime)}
                     {" → "}
                     {fmtDateTime(
@@ -1154,11 +1138,11 @@ export default function RouteReplayPage() {
 
                     {/* Grid de mÃ©tricas */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                        <div className="flex items-center gap-1 text-xs text-white/40 mb-1">
+                      <div className="bg-muted/30 rounded-lg p-2.5 border border-border">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <Timer className="h-3 w-3" /> Duração total
                         </div>
-                        <div className="text-sm font-semibold text-white tabular-nums">
+                        <div className="text-sm font-semibold text-foreground tabular-nums">
                           {fmtDuration(summary.totalDurationSec)}
                         </div>
                       </div>
@@ -1190,8 +1174,8 @@ export default function RouteReplayPage() {
                         </div>
                       </div>
 
-                      <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                        <div className="flex items-center gap-1 text-xs text-white/40 mb-1">
+                      <div className="bg-muted/30 rounded-lg p-2.5 border border-border">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <Gauge className="h-3 w-3" /> Vel. máxima
                         </div>
                         <div className="text-sm font-semibold text-red-400">
@@ -1199,27 +1183,27 @@ export default function RouteReplayPage() {
                         </div>
                       </div>
 
-                      <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                        <div className="flex items-center gap-1 text-xs text-white/40 mb-1">
+                      <div className="bg-muted/30 rounded-lg p-2.5 border border-border">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <TrendingUp className="h-3 w-3" /> Vel. média
                         </div>
-                        <div className="text-sm font-semibold text-white">
+                        <div className="text-sm font-semibold text-foreground">
                           {summary.avgSpeed} km/h
                         </div>
                       </div>
                     </div>
 
                     {/* Seção de excessos de velocidade — sempre visível */}
-                    <Separator className="bg-white/10" />
+                    <Separator className="bg-border" />
                     {speedLimit <= 0 ? (
-                      <div className="rounded-xl p-3 border border-white/10 bg-white/5">
+                      <div className="rounded-xl p-3 border border-border bg-muted/30">
                         <div className="flex items-center gap-2">
                           <span className="text-base">🚫</span>
                           <div>
-                            <p className="text-xs font-bold text-white/50 uppercase tracking-widest">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                               Limite de Velocidade
                             </p>
-                            <p className="text-xs text-white/30 mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5">
                               Não configurado no cadastro do veículo
                             </p>
                           </div>
@@ -1281,7 +1265,7 @@ export default function RouteReplayPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs text-white/40 uppercase tracking-widest mb-2">
+                          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-2">
                             Trechos de excesso ({violations.length})
                           </p>
                           <div className="space-y-2">
@@ -1315,9 +1299,9 @@ export default function RouteReplayPage() {
                                       {v.maxSpeed} km/h
                                     </Badge>
                                   </div>
-                                  <div className="text-xs text-white/40 tabular-nums">
+                                  <div className="text-xs text-muted-foreground tabular-nums">
                                     {fmtTime(v.startTime)}
-                                    <span className="mx-1 text-white/20">
+                                    <span className="mx-1 text-muted-foreground">
                                       →
                                     </span>
                                     {fmtTime(v.endTime)}
@@ -1337,9 +1321,9 @@ export default function RouteReplayPage() {
                     {/* Lista de paradas */}
                     {stops.length > 0 && (
                       <>
-                        <Separator className="bg-white/10" />
+                        <Separator className="bg-border" />
                         <div>
-                          <p className="text-xs text-white/40 uppercase tracking-widest mb-2">
+                          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-2">
                             Paradas detectadas ({stops.length})
                           </p>
                           <div className="space-y-2">
@@ -1373,14 +1357,14 @@ export default function RouteReplayPage() {
                                       {fmtDuration(stop.durationSec)}
                                     </Badge>
                                   </div>
-                                  <div className="text-xs text-white/40 tabular-nums">
+                                  <div className="text-xs text-muted-foreground tabular-nums">
                                     {fmtTime(stop.startTime)}
-                                    <span className="mx-1 text-white/20">
+                                    <span className="mx-1 text-muted-foreground">
                                       →
                                     </span>
                                     {fmtTime(stop.endTime)}
                                   </div>
-                                  <div className="text-xs text-white/25 mt-0.5">
+                                  <div className="text-xs text-muted-foreground mt-0.5">
                                     {stop.latitude.toFixed(5)},{" "}
                                     {stop.longitude.toFixed(5)}
                                   </div>
@@ -1396,30 +1380,9 @@ export default function RouteReplayPage() {
               </Card>
             )}
 
-            {/* â”€â”€ BotÃ£o abrir resumo (quando fechado) â”€â”€ */}
-            {!showSummary && summary && (
-              <Button
-                className="absolute top-3 left-3 z-[1001] bg-black/70 hover:bg-black/90 text-white border-white/15 gap-2"
-                variant="outline"
-                onClick={() => setShowSummary(true)}
-              >
-                <BarChart3 className="h-4 w-4 text-blue-400" />
-                Resumo
-                <Badge className="bg-blue-600 text-white text-xs">
-                  {Math.round(summary.totalDistanceKm)} km
-                </Badge>
-                {summary.stopsCount > 0 && (
-                  <Badge className="bg-orange-600 text-white text-xs">
-                    {summary.stopsCount} parada
-                    {summary.stopsCount !== 1 ? "s" : ""}
-                  </Badge>
-                )}
-              </Button>
-            )}
-
             {/* â”€â”€ Filtros overlay (topo) â”€â”€ */}
             <Card
-              className={`absolute top-3 z-[1000] border-white/15 transition-all duration-200 ${
+              className={`absolute top-3 z-[1000] border-border/50 transition-all duration-200 ${
                 showSummary ? "left-[19.5rem] right-3" : "left-3 right-3"
               }`}
               style={{
@@ -1428,8 +1391,29 @@ export default function RouteReplayPage() {
               }}
             >
               <CardContent className="p-3 space-y-2">
+                {!showSummary && summary && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      className="bg-popover/80 hover:bg-popover/90 text-foreground border-border/50 gap-2 h-8"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSummary(true)}
+                    >
+                      <BarChart3 className="h-3.5 w-3.5 text-blue-400" />
+                      Resumo
+                      <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0">
+                        {Math.round(summary.totalDistanceKm)} km
+                      </Badge>
+                      {summary.stopsCount > 0 && (
+                        <Badge className="bg-orange-600 text-white text-[10px] px-1.5 py-0">
+                          {summary.stopsCount} parada{summary.stopsCount !== 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                    </Button>
+                  </div>
+                )}
                 {filterRow(true)}
-                <div className="flex gap-3 text-xs text-white/45 flex-wrap">
+                <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> {route.length} pontos
                   </span>
@@ -1462,7 +1446,7 @@ export default function RouteReplayPage() {
                       value={playbackSpeed.toString()}
                       onValueChange={(v) => setPlaybackSpeed(parseFloat(v))}
                     >
-                      <SelectTrigger className="inline-flex h-6 w-16 ml-1 bg-blue-500/20 border-blue-500/30 text-white text-xs px-1">
+                      <SelectTrigger className="inline-flex h-6 w-16 ml-1 bg-blue-500/20 border-blue-500/30 text-foreground text-xs px-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1480,7 +1464,7 @@ export default function RouteReplayPage() {
 
             {/* â”€â”€ Timeline Controls (rodapÃ©) â”€â”€ */}
             <Card
-              className={`absolute bottom-3 z-[1000] border-white/15 transition-all duration-200 ${
+              className={`absolute bottom-3 z-[1000] border-border/50 transition-all duration-200 ${
                 showSummary ? "left-[19.5rem] right-3" : "left-3 right-3"
               }`}
               style={{
@@ -1492,7 +1476,7 @@ export default function RouteReplayPage() {
                 {/* Scrubber visual com zonas de parada */}
                 <div className="relative h-3 cursor-pointer select-none">
                   {/* fundo */}
-                  <div className="absolute inset-0 rounded-full bg-gray-700" />
+                  <div className="absolute inset-0 rounded-full bg-muted" />
                   {/* zonas de parada (laranja) */}
                   {stops.map((stop, idx) => {
                     const l =
@@ -1541,7 +1525,7 @@ export default function RouteReplayPage() {
 
                 {/* Legenda da scrubber */}
                 {(stops.length > 0 || violations.length > 0) && (
-                  <div className="flex gap-3 text-xs text-white/40">
+                  <div className="flex gap-3 text-xs text-muted-foreground">
                     {violations.length > 0 && (
                       <span className="flex items-center gap-1">
                         <span
@@ -1569,7 +1553,7 @@ export default function RouteReplayPage() {
 
                 {/* Botões de controle */}
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-gray-400 tabular-nums">
+                  <div className="text-xs text-muted-foreground tabular-nums">
                     {route[0] &&
                       fmtTime(route[0].fixTime || route[0].serverTime)}
                   </div>
@@ -1577,7 +1561,7 @@ export default function RouteReplayPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 bg-white/5 border-white/10"
+                      className="h-8 w-8 bg-muted/30 border-border"
                       onClick={handleStop}
                       disabled={currentIndex === 0}
                     >
@@ -1586,7 +1570,7 @@ export default function RouteReplayPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 bg-white/5 border-white/10"
+                      className="h-8 w-8 bg-muted/30 border-border"
                       onClick={() => handleSeek(currentIndex - 10)}
                       disabled={currentIndex === 0}
                     >
@@ -1606,14 +1590,14 @@ export default function RouteReplayPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 bg-white/5 border-white/10"
+                      className="h-8 w-8 bg-muted/30 border-border"
                       onClick={() => handleSeek(currentIndex + 10)}
                       disabled={currentIndex >= route.length - 1}
                     >
                       <SkipForward className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="text-xs text-gray-400 tabular-nums">
+                  <div className="text-xs text-muted-foreground tabular-nums">
                     {route[route.length - 1] &&
                       fmtTime(
                         route[route.length - 1].fixTime ||
@@ -1634,14 +1618,14 @@ export default function RouteReplayPage() {
                         className={`h-6 px-2 text-xs ${
                           playbackSpeed === s
                             ? "bg-blue-600"
-                            : "bg-white/5 text-white/55"
+                            : "bg-muted/30 text-muted-foreground"
                         }`}
                       >
                         {s}x
                       </Button>
                     ))}
                   </div>
-                  <div className="flex gap-3 text-xs text-gray-300 tabular-nums">
+                  <div className="flex gap-3 text-xs text-muted-foreground tabular-nums">
                     {currentStop ? (
                       <span className="text-orange-400 font-semibold">
                         ⏸ PARADO há{" "}
@@ -1675,7 +1659,7 @@ export default function RouteReplayPage() {
                     )}
                     <span>
                       📍 {currentIndex + 1}
-                      <span className="text-gray-600">/{route.length}</span>
+                      <span className="text-muted-foreground">/{route.length}</span>
                     </span>
                     <span>
                       🕐 {fmtTime(currentPos.fixTime || currentPos.serverTime)}

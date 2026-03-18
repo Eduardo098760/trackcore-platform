@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { getDevice } from "@/lib/api/devices";
-import { getPositionByDevice } from "@/lib/api";
+import { getPositionByDevice, getEvents } from "@/lib/api";
 import { usePositionAddress } from "@/lib/hooks/usePositionAddress";
 import { useRelativeTime } from "@/lib/hooks/useRelativeTime";
 import {
@@ -12,6 +12,7 @@ import {
   getDeviceStatusLabel,
   deriveDeviceStatus,
   formatDate,
+  getEventTypeLabel,
 } from "@/lib/utils";
 import { getVehicleIcon } from "@/lib/vehicle-icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,8 +45,19 @@ import {
   Palette,
   Calendar,
   Wifi,
+  Server,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  Compass,
+  Signal,
+  Bell,
+  CheckCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Command } from "@/types";
 
 export default function VehicleDetailPage() {
   const params = useParams<{ id: string }>();
@@ -76,6 +88,32 @@ export default function VehicleDetailPage() {
   const { enrichedPosition, isLoadingAddress } = usePositionAddress(position ?? null);
 
   const lastUpdateLabel = useRelativeTime(device?.lastUpdate, position?.serverTime) || "Sem dados";
+
+  // Command history from localStorage
+  const [commandHistory, setCommandHistory] = useState<Command[]>([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("commandHistory");
+      if (stored) {
+        const all: Command[] = JSON.parse(stored);
+        setCommandHistory(all.filter((c) => c.deviceId === deviceId).slice(0, 10));
+      }
+    } catch {}
+  }, [deviceId]);
+
+  // Recent events for this device
+  const { data: recentEvents = [] } = useQuery({
+    queryKey: ["device-events", deviceId],
+    queryFn: () => {
+      const now = new Date();
+      const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return getEvents({ deviceId, from: from.toISOString(), to: now.toISOString() });
+    },
+    enabled: !!deviceId,
+  });
+
+  // Expanded sections state
+  const [showRawAttrs, setShowRawAttrs] = useState(false);
 
   useEffect(() => {
     if (deviceError) {
@@ -405,9 +443,218 @@ export default function VehicleDetailPage() {
                 Ligar
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/commands?deviceId=${device.id}`)}
+            >
+              <Terminal className="w-4 h-4 mr-1" />
+              Enviar Comando
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/events?deviceId=${device.id}`)}
+            >
+              <Bell className="w-4 h-4 mr-1" />
+              Ver Eventos
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Dados do Servidor / Protocolo */}
+      {position && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Server className="w-4 h-4" />
+              Dados do Servidor
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <InfoRow icon={Shield} label="Protocolo" value={position.protocol || "—"} />
+              <InfoRow icon={Clock} label="Hora do Servidor" value={formatDate(position.serverTime)} />
+              <InfoRow icon={Clock} label="Hora do Dispositivo" value={formatDate(position.deviceTime)} />
+              <InfoRow icon={Clock} label="Hora do GPS (Fix)" value={formatDate(position.fixTime)} />
+              <InfoRow icon={Compass} label="Curso" value={`${position.course.toFixed(1)}°`} />
+              <InfoRow icon={Signal} label="Precisão GPS" value={`${position.accuracy.toFixed(0)} m`} />
+              <InfoRow icon={Navigation} label="Altitude" value={`${position.altitude.toFixed(0)} m`} />
+              <InfoRow
+                icon={CheckCircle}
+                label="GPS Válido"
+                value={position.valid ? "Sim" : "Não"}
+              />
+              <InfoRow
+                icon={Wifi}
+                label="Desatualizado"
+                value={position.outdated ? "Sim" : "Não"}
+              />
+              {position.network && (
+                <>
+                  <InfoRow icon={Radio} label="Tipo de Rede" value={position.network.radioType || "—"} />
+                  <InfoRow icon={Radio} label="Cell ID" value={String(position.network.cellId ?? "—")} />
+                  <InfoRow icon={Radio} label="LAC" value={String(position.network.locationAreaCode ?? "—")} />
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Atributos da Posição (dados brutos do rastreador) */}
+      {position && (
+        <Card>
+          <CardHeader className="pb-3">
+            <button
+              className="flex items-center gap-2 w-full text-left"
+              onClick={() => setShowRawAttrs(!showRawAttrs)}
+            >
+              <CardTitle className="text-sm flex items-center gap-2 flex-1">
+                <Activity className="w-4 h-4" />
+                Atributos do Rastreador
+                <Badge variant="secondary" className="text-[10px] ml-1">
+                  {Object.keys(position.attributes).length} campos
+                </Badge>
+              </CardTitle>
+              {showRawAttrs ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
+          </CardHeader>
+          {showRawAttrs && (
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.entries(position.attributes)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([key, value]) => (
+                    <div key={key} className="flex items-start gap-2 py-1.5 px-2 rounded-lg bg-muted/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] text-muted-foreground font-mono">{key}</p>
+                        <p className="text-sm font-medium truncate">
+                          {value === true
+                            ? "✓ Sim"
+                            : value === false
+                              ? "✗ Não"
+                              : typeof value === "number"
+                                ? String(Math.round(value * 100) / 100)
+                                : String(value ?? "—")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Eventos Recentes */}
+      {recentEvents.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Eventos Recentes (7 dias)
+            </CardTitle>
+            <Badge variant="secondary" className="text-[10px]">
+              {recentEvents.length}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {recentEvents.slice(0, 20).map((evt) => (
+                <div
+                  key={evt.id}
+                  className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                    evt.resolved
+                      ? "bg-muted/30 border-border/50 opacity-70"
+                      : "bg-card border-border"
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${
+                    evt.resolved ? "bg-green-500" : "bg-amber-500"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {getEventTypeLabel(evt.type)}
+                      {evt.type === "alarm" && evt.attributes?.alarm && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({evt.attributes.alarm})
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDate(evt.serverTime)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] shrink-0 ${
+                      evt.resolved
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-amber-500/10 text-amber-600"
+                    }`}
+                  >
+                    {evt.resolved ? "Resolvido" : "Ativo"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Histórico de Comandos Enviados */}
+      {commandHistory.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Terminal className="w-4 h-4" />
+              Comandos Enviados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {commandHistory.map((cmd) => (
+                <div
+                  key={cmd.id}
+                  className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border border-border/50"
+                >
+                  <Terminal className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{cmd.type}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDate(cmd.sentTime)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] shrink-0 ${
+                      cmd.status === "sent" || cmd.status === "delivered"
+                        ? "bg-green-500/10 text-green-600"
+                        : cmd.status === "failed"
+                          ? "bg-red-500/10 text-red-600"
+                          : "bg-yellow-500/10 text-yellow-600"
+                    }`}
+                  >
+                    {cmd.status === "sent"
+                      ? "Enviado"
+                      : cmd.status === "delivered"
+                        ? "Entregue"
+                        : cmd.status === "failed"
+                          ? "Falhou"
+                          : "Pendente"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

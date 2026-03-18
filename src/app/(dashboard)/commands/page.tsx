@@ -189,7 +189,7 @@ function VehicleSearch({
             setQuery("");
             setTimeout(() => inputRef.current?.focus(), 50);
           }}
-          className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-white dark:bg-gray-900 hover:border-primary/50 transition-colors text-left"
+          className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors text-left"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Car className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -243,7 +243,7 @@ function VehicleSearch({
             }}
             onFocus={() => setIsOpen(true)}
             placeholder="Buscar por nome, placa ou IMEI..."
-            className="pl-9 pr-9 bg-white dark:bg-gray-900"
+            className="pl-9 pr-9 bg-card"
           />
           {query && (
             <button
@@ -559,7 +559,7 @@ export default function CommandsPage() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Send Command Panel */}
-        <Card className="backdrop-blur-xl bg-gradient-to-br from-white/90 to-gray-50/90 dark:from-gray-950/90 dark:to-gray-900/90 border-white/20">
+        <Card className="backdrop-blur-xl bg-card/90 border-border">
           <CardHeader>
             <CardTitle className="text-xl">Enviar Novo Comando</CardTitle>
           </CardHeader>
@@ -599,20 +599,20 @@ export default function CommandsPage() {
               </div>
             )}
 
-            {/* Comandos salvos (vindos do Traccar) */}
-            {selectedDeviceId && savedCommands.length > 0 && (
+            {/* Templates de comandos salvos */}
+            {selectedDeviceId && allTemplates.length > 0 && (
               <div>
                 <label className="text-sm font-medium mb-2 block flex items-center gap-1.5">
                   <BookmarkCheck className="w-4 h-4 text-muted-foreground" />
-                  Comandos Salvos
+                  Templates Salvos
                 </label>
                 <div className="space-y-2">
-                  {savedCommands.map((saved) => {
-                    const cmdType = COMMAND_TYPES.find((c) => c.value === saved.type);
+                  {allTemplates.map((tpl) => {
+                    const cmdType = COMMAND_TYPES.find((c) => c.value === tpl.type);
                     const Icon = cmdType?.icon || Terminal;
                     return (
                       <div
-                        key={saved.id}
+                        key={tpl.id}
                         className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 transition-colors"
                       >
                         <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30">
@@ -620,23 +620,44 @@ export default function CommandsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            {saved.description || cmdType?.label || saved.type}
+                            {tpl.description || cmdType?.label || tpl.type}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {saved.type}{saved.textChannel ? " · SMS" : " · GPRS"}
-                            {saved.attributes?.data ? ` · ${saved.attributes.data}` : ""}
+                            {tpl.type}{tpl.textChannel ? " · SMS" : " · GPRS"}
+                            {tpl.attributes?.data ? ` · ${tpl.attributes.data}` : ""}
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleSendSavedCommand(saved)}
-                          disabled={sendCommandMutation.isPending}
-                          className="h-8 text-xs shrink-0"
-                        >
-                          <Send className="w-3 h-3 mr-1" />
-                          Enviar
-                        </Button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedCommand(tpl.type);
+                              setUseSms(!!tpl.textChannel);
+                              if (tpl.type === "custom" && tpl.attributes?.data) {
+                                setCustomText(tpl.attributes.data);
+                              }
+                              setConfirmDangerous(false);
+                              setError(null);
+                              sendCommandMutation.reset();
+                              toast.success("Template aplicado ao formulário");
+                            }}
+                            className="h-8 text-xs"
+                          >
+                            <FileText className="w-3 h-3 mr-1" />
+                            Usar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSendSavedCommand(tpl)}
+                            disabled={sendCommandMutation.isPending}
+                            className="h-8 text-xs"
+                          >
+                            <Send className="w-3 h-3 mr-1" />
+                            Enviar
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
@@ -668,7 +689,7 @@ export default function CommandsPage() {
                       className={`p-3 rounded-xl border-2 transition-all text-left ${
                         isSelected
                           ? `bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-transparent shadow-lg scale-[1.02]`
-                          : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
+                          : "border-border hover:border-primary/30"
                       }`}
                     >
                       <Icon
@@ -700,7 +721,7 @@ export default function CommandsPage() {
                   value={customText}
                   onChange={(e) => setCustomText(e.target.value)}
                   placeholder="Ex: setdigout 0"
-                  className="font-mono text-sm bg-white dark:bg-gray-900"
+                  className="font-mono text-sm bg-card"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos binários.
@@ -721,7 +742,7 @@ export default function CommandsPage() {
                 <button
                   type="button"
                   onClick={() => setUseSms(!useSms)}
-                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${useSms ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-700"}`}
+                  className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${useSms ? "bg-blue-600" : "bg-muted"}`}
                 >
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${useSms ? "translate-x-5" : ""}`} />
                 </button>
@@ -797,7 +818,7 @@ export default function CommandsPage() {
         </Card>
 
         {/* Command History (local) */}
-        <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+        <Card className="backdrop-blur-xl bg-card/90 border-border">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl">Histórico de Comandos</CardTitle>
             {history.length > 0 && (
@@ -826,7 +847,7 @@ export default function CommandsPage() {
                 return (
                   <div
                     key={command.id}
-                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-r from-gray-50/50 to-white/50 dark:from-gray-900/50 dark:to-gray-950/50 hover:shadow-md transition-all"
+                    className="p-3 rounded-lg border border-border bg-muted/30 hover:shadow-md transition-all"
                   >
                     <div className="flex items-start space-x-3">
                       <div
@@ -864,7 +885,7 @@ export default function CommandsPage() {
 
               {history.length === 0 && (
                 <div className="text-center py-8">
-                  <Terminal className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                  <Terminal className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                   <p className="text-sm text-muted-foreground">
                     Nenhum comando enviado ainda
                   </p>
@@ -902,7 +923,7 @@ export default function CommandsPage() {
       </Card>
 
       {/* ─── Templates de Comandos Salvos ── */}
-      <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+      <Card className="backdrop-blur-xl bg-card/90 border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-xl flex items-center gap-2">
             <Settings2 className="w-5 h-5" />

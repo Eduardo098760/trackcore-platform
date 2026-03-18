@@ -229,25 +229,16 @@ export const EventCard = React.memo(function EventCard({
                 Resolver
               </Button>
             )}
-            {isSpeedEvent || isGeofenceEvent ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                disabled={isLoadingMap}
-                onClick={() => onViewOnMap(event, device)}
-              >
-                <MapPin className="w-3.5 h-3.5 mr-1" />
-                {isLoadingMap ? "Abrindo..." : "Ver no mapa"}
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="h-8 text-xs" asChild>
-                <Link href={`/map?deviceId=${event.deviceId}`}>
-                  <MapPin className="w-3.5 h-3.5 mr-1" />
-                  Ver no mapa
-                </Link>
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={isLoadingMap}
+              onClick={() => onViewOnMap(event, device)}
+            >
+              <MapPin className="w-3.5 h-3.5 mr-1" />
+              {isLoadingMap ? "Abrindo..." : "Ver no mapa"}
+            </Button>
           </div>
         </div>
       </CardContent>

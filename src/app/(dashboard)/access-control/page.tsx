@@ -99,18 +99,18 @@ function PermissionGrid({
                     key={route.key}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
                       blockedByCeiling
-                        ? 'border-white/5 bg-white/2 opacity-50 cursor-not-allowed'
+                        ? 'border-border/50 bg-muted/20 opacity-50 cursor-not-allowed'
                         : enabled
                         ? 'border-blue-500/20 bg-blue-500/5'
-                        : 'border-white/5 bg-white/[0.02]'
+                        : 'border-border/50 bg-muted/10'
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       {enabled && !blockedByCeiling
                         ? <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                        : <ShieldOff className="w-3.5 h-3.5 text-gray-600 shrink-0" />
+                        : <ShieldOff className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       }
-                      <span className="text-sm text-gray-300">{route.name}</span>
+                      <span className="text-sm text-foreground">{route.name}</span>
                       {blockedByCeiling && (
                         <span className="text-[10px] text-orange-400/70 ml-1">(bloqueado pela empresa)</span>
                       )}
@@ -167,15 +167,15 @@ function CompaniesTab() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Lista de empresas */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Empresas</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Empresas</p>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-14 rounded-lg bg-white/5 animate-pulse" />
+              <div key={i} className="h-14 rounded-lg bg-muted/50 animate-pulse" />
             ))}
           </div>
         ) : orgs.length === 0 ? (
-          <p className="text-sm text-gray-500 py-4 text-center">Nenhuma empresa encontrada</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma empresa encontrada</p>
         ) : (
           orgs.map((org) => {
             const perms = companies[org.id];
@@ -187,19 +187,19 @@ function CompaniesTab() {
                 className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                   selectedId === org.id
                     ? 'border-blue-500/40 bg-blue-500/10'
-                    : 'border-white/5 bg-white/[0.02] hover:bg-white/5'
+                    : 'border-border/50 bg-muted/10 hover:bg-muted/30'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span className="text-sm font-medium text-gray-200 truncate">{org.name}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{org.name}</span>
                   </div>
-                  <span className="text-xs text-gray-500 shrink-0 ml-2">
+                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
                     {count}/{ALL_ROUTE_KEYS.length}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 ml-6 capitalize">{org.plan}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 ml-6 capitalize">{org.plan}</p>
               </button>
             );
           })
@@ -209,17 +209,17 @@ function CompaniesTab() {
       {/* Editor de permissões */}
       <div className="lg:col-span-2">
         {!selected || !draft ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-white/10 rounded-xl">
-            <Building2 className="w-8 h-8 text-gray-600" />
-            <p className="text-sm text-gray-500">Selecione uma empresa para editar suas permissões</p>
+          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-xl">
+            <Building2 className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Selecione uma empresa para editar suas permissões</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Header do editor */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="text-base font-semibold text-gray-100">{selected.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <h3 className="text-base font-semibold text-foreground">{selected.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {countEnabled(draft)} de {ALL_ROUTE_KEYS.length} rotas habilitadas
                 </p>
               </div>
@@ -227,14 +227,14 @@ function CompaniesTab() {
                 <Button
                   size="sm" variant="outline"
                   onClick={() => setDraft(buildAllTrue())}
-                  className="border-white/10 text-gray-300 hover:bg-white/5 text-xs h-7"
+                  className="border-border text-muted-foreground hover:bg-accent text-xs h-7"
                 >
                   Liberar tudo
                 </Button>
                 <Button
                   size="sm" variant="outline"
                   onClick={() => setDraft(buildAllFalse())}
-                  className="border-white/10 text-gray-300 hover:bg-white/5 text-xs h-7"
+                  className="border-border text-muted-foreground hover:bg-accent text-xs h-7"
                 >
                   Bloquear tudo
                 </Button>
@@ -249,7 +249,7 @@ function CompaniesTab() {
               </div>
             </div>
 
-            <div className="border border-white/5 rounded-xl p-4 bg-white/[0.02]">
+            <div className="border border-border/50 rounded-xl p-4 bg-muted/10">
               <PermissionGrid value={draft} onChange={setDraft} />
             </div>
           </div>
@@ -301,15 +301,15 @@ function UsersTab() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Lista de usuários */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Usuários</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Usuários</p>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-14 rounded-lg bg-white/5 animate-pulse" />
+              <div key={i} className="h-14 rounded-lg bg-muted/50 animate-pulse" />
             ))}
           </div>
         ) : allUsers.length === 0 ? (
-          <p className="text-sm text-gray-500 py-4 text-center">Nenhum usuário encontrado</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">Nenhum usuário encontrado</p>
         ) : (
           allUsers.map((u) => {
             const entry   = users[u.id];
@@ -324,16 +324,16 @@ function UsersTab() {
                     ? 'border-purple-500/20 bg-purple-500/5 opacity-70 cursor-not-allowed'
                     : selectedUserId === u.id
                     ? 'border-blue-500/40 bg-blue-500/10'
-                    : 'border-white/5 bg-white/[0.02] hover:bg-white/5'
+                    : 'border-border/50 bg-muted/10 hover:bg-muted/30'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-200 truncate">{u.name}</span>
+                  <span className="text-sm font-medium text-foreground truncate">{u.name}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${ROLE_COLORS[u.role] ?? ROLE_COLORS.client}`}>
                     {ROLE_LABELS[u.role] ?? u.role}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{u.email}</p>
                 {isSuperA && (
                   <p className="text-[10px] text-purple-400/70 mt-0.5">Acesso irrestrito</p>
                 )}
@@ -349,17 +349,17 @@ function UsersTab() {
       {/* Editor */}
       <div className="lg:col-span-2">
         {!selectedUser || !draft ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-white/10 rounded-xl">
-            <Users className="w-8 h-8 text-gray-600" />
-            <p className="text-sm text-gray-500">Selecione um usuário para gerenciar suas permissões</p>
+          <div className="flex flex-col items-center justify-center h-48 gap-3 border border-dashed border-border rounded-xl">
+            <Users className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Selecione um usuário para gerenciar suas permissões</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="text-base font-semibold text-gray-100">{selectedUser.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{selectedUser.email}</p>
+                <h3 className="text-base font-semibold text-foreground">{selectedUser.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{selectedUser.email}</p>
               </div>
               <Button
                 size="sm"
@@ -375,10 +375,10 @@ function UsersTab() {
             <div className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${
               inherit ? 'border-green-500/20 bg-green-500/5' : 'border-blue-500/20 bg-blue-500/5'
             }`}>
-              <Info className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+              <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-200">Herdar permissões da empresa</p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-sm font-medium text-foreground">Herdar permissões da empresa</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {inherit
                     ? 'O usuário usa exatamente as permissões definidas para a empresa.'
                     : 'O usuário tem permissões customizadas. Não pode superar o teto da empresa.'}
@@ -399,7 +399,7 @@ function UsersTab() {
 
             {/* Grade de permissões (desabilitada quando herda) */}
             <div className={inherit ? 'opacity-40 pointer-events-none' : ''}>
-              <div className="border border-white/5 rounded-xl p-4 bg-white/[0.02]">
+              <div className="border border-border/50 rounded-xl p-4 bg-muted/10">
                 <PermissionGrid
                   value={draft}
                   onChange={setDraft}
@@ -436,20 +436,20 @@ export default function AccessControlPage() {
       {/* Info banner */}
       <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
         <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-        <div className="text-sm text-gray-300 space-y-1">
+        <div className="text-sm text-foreground space-y-1">
           <p><strong className="text-amber-300">Hierarquia de permissões:</strong></p>
-          <ol className="list-decimal list-inside space-y-0.5 text-gray-400">
-            <li><strong className="text-gray-300">Super Admin</strong> — acesso irrestrito a tudo</li>
-            <li><strong className="text-gray-300">Empresa</strong> — define o teto máximo de acesso</li>
-            <li><strong className="text-gray-300">Usuário</strong> — herda da empresa ou tem permissões customizadas (nunca supera a empresa)</li>
+          <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+            <li><strong className="text-foreground">Super Admin</strong> — acesso irrestrito a tudo</li>
+            <li><strong className="text-foreground">Empresa</strong> — define o teto máximo de acesso</li>
+            <li><strong className="text-foreground">Usuário</strong> — herda da empresa ou tem permissões customizadas (nunca supera a empresa)</li>
           </ol>
         </div>
       </div>
 
       {/* Tabs */}
-      <Card className="bg-card/50 border-white/10 p-6">
+      <Card className="bg-card/50 border-border p-6">
         {/* Tab switcher */}
-        <div className="flex gap-1 p-1 bg-white/5 rounded-lg w-fit mb-6">
+        <div className="flex gap-1 p-1 bg-muted/50 rounded-lg w-fit mb-6">
           {([ 
             { id: 'companies' as TabId, label: 'Empresas',  icon: Building2 },
             { id: 'users'     as TabId, label: 'Usuários',  icon: Users },
@@ -460,7 +460,7 @@ export default function AccessControlPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === id
                   ? 'bg-blue-600 text-white shadow'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               }`}
             >
               <Icon className="w-4 h-4" />

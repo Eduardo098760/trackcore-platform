@@ -515,7 +515,7 @@ export default function SettingsPage() {
           className="absolute inset-0 rounded-3xl blur-3xl opacity-10"
           style={{ background: colors.inline.primaryLight }}
         ></div>
-        <Card className="relative backdrop-blur-xl bg-white/80 dark:bg-gray-950/80 border-white/20 shadow-2xl">
+        <Card className="relative backdrop-blur-xl bg-card/80 border-border shadow-2xl">
           <CardHeader>
             <CardTitle
               className="text-3xl font-bold flex items-center gap-3"
@@ -524,7 +524,7 @@ export default function SettingsPage() {
               <Settings className="w-8 h-8" style={{ color: `hsl(${colors.primary.light})` }} />
               Configurações
             </CardTitle>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
+            <p className="text-muted-foreground mt-2">
               Personalize sua experiência na plataforma
             </p>
           </CardHeader>
@@ -547,7 +547,7 @@ export default function SettingsPage() {
         <TabsContent value="preferences">
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Profile Section */}
-            <Card className="lg:col-span-1 backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+            <Card className="lg:col-span-1 backdrop-blur-xl bg-card/90 border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="w-5 h-5" />
@@ -566,8 +566,8 @@ export default function SettingsPage() {
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">{user?.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</p>
+                  <h3 className="text-xl font-bold text-foreground">{user?.name}</h3>
+                  <p className="text-sm text-muted-foreground">{user?.email}</p>
                   <div
                     className="mt-2 px-3 py-1 rounded-full text-xs font-semibold text-white"
                     style={{
@@ -602,19 +602,19 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div>
                     <Label>Nome</Label>
-                    <Input defaultValue={user?.name} className="mt-2 bg-white dark:bg-gray-900" />
+                    <Input defaultValue={user?.name} className="mt-2 bg-card" />
                   </div>
                   <div>
                     <Label>Email</Label>
                     <Input
                       defaultValue={user?.email}
-                      className="mt-2 bg-white dark:bg-gray-900"
+                      className="mt-2 bg-card"
                       disabled
                     />
                   </div>
                   <div>
                     <Label>Telefone</Label>
-                    <Input defaultValue={user?.phone} className="mt-2 bg-white dark:bg-gray-900" />
+                    <Input defaultValue={user?.phone} className="mt-2 bg-card" />
                   </div>
                 </div>
 
@@ -630,7 +630,7 @@ export default function SettingsPage() {
             </Card>
 
             {/* Settings Section */}
-            <Card className="lg:col-span-2 backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+            <Card className="lg:col-span-2 backdrop-blur-xl bg-card/90 border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Palette className="w-5 h-5" />
@@ -649,7 +649,7 @@ export default function SettingsPage() {
                     <div>
                       <Label>Tema</Label>
                       <Select value={theme} onValueChange={(value: any) => setTheme(value)}>
-                        <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
+                        <SelectTrigger className="mt-2 bg-card">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -663,7 +663,7 @@ export default function SettingsPage() {
                     <div>
                       <Label>Idioma</Label>
                       <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
+                        <SelectTrigger className="mt-2 bg-card">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -688,7 +688,7 @@ export default function SettingsPage() {
                   <div>
                     <Label>Provedor de Mapas</Label>
                     <Select value={mapProvider} onValueChange={(value: any) => setMapProvider(value)}>
-                      <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
+                      <SelectTrigger className="mt-2 bg-card">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -708,10 +708,10 @@ export default function SettingsPage() {
                     Notificações e Atualização
                   </h3>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-900">
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
                     <div>
                       <Label className="text-base">Atualização Automática</Label>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         Atualizar dados automaticamente
                       </p>
                     </div>
@@ -725,7 +725,7 @@ export default function SettingsPage() {
                         value={refreshInterval.toString()}
                         onValueChange={(value) => setRefreshInterval(parseInt(value))}
                       >
-                        <SelectTrigger className="mt-2 bg-white dark:bg-gray-900">
+                        <SelectTrigger className="mt-2 bg-card">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

@@ -202,8 +202,16 @@ export async function getEvents(params?: {
     );
     const deviceMap = new Map(allDevices.map((d) => [d.id, d]));
 
+    // Mesclar estado de resolução local (localStorage) com dados do Traccar
+    let resolvedIds: number[] = [];
+    try {
+      const stored = typeof window !== "undefined" ? localStorage.getItem("resolvedEvents") : null;
+      if (stored) resolvedIds = JSON.parse(stored);
+    } catch { /* ignore */ }
+
     return events.map((event) => ({
       ...event,
+      resolved: event.resolved || resolvedIds.includes(event.id),
       attributes: {
         ...event.attributes,
         deviceName:
@@ -218,11 +226,40 @@ export async function getEvents(params?: {
 }
 
 export async function markEventAsResolved(eventId: number): Promise<Event> {
-  // Traccar não tem endpoint específico para resolver eventos
-  // Você pode adicionar um atributo customizado
-  return api.put<Event>(`/events/${eventId}`, {
-    attributes: { resolved: true },
-  });
+  // Traccar não suporta PUT em /events — gerenciamos resolução localmente
+  // Salva no localStorage para persistir entre sessões
+  try {
+    const stored = localStorage.getItem("resolvedEvents");
+    const resolved: number[] = stored ? JSON.parse(stored) : [];
+    if (!resolved.includes(eventId)) {
+      resolved.push(eventId);
+      localStorage.setItem("resolvedEvents", JSON.stringify(resolved));
+    }
+  } catch { /* ignore */ }
+
+  // Remover o marcador do mapa (eventAlerts)
+  const alertId = `event-${eventId}`;
+  try {
+    const storedAlerts = localStorage.getItem("eventAlerts");
+    if (storedAlerts) {
+      const alerts = JSON.parse(storedAlerts);
+      const filtered = alerts.filter((a: { id: string }) => a.id !== alertId);
+      localStorage.setItem("eventAlerts", JSON.stringify(filtered));
+    }
+    // Também remover de speedAlerts (caso seja evento de velocidade)
+    const storedSpeed = localStorage.getItem("speedAlerts");
+    if (storedSpeed) {
+      const speedAlerts = JSON.parse(storedSpeed);
+      const filteredSpeed = speedAlerts.filter((a: { id: string }) => a.id !== alertId);
+      localStorage.setItem("speedAlerts", JSON.stringify(filteredSpeed));
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("eventAlertRemoved", { detail: { id: alertId } }));
+      window.dispatchEvent(new CustomEvent("speedAlertRemoved", { detail: { id: alertId } }));
+    }
+  } catch { /* ignore */ }
+
+  return { id: eventId, resolved: true } as Event;
 }
 
 // Commands API (usando Traccar)

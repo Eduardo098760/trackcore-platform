@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import {
@@ -85,6 +85,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
+import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import {
   XAxis,
   YAxis,
@@ -114,6 +115,28 @@ const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), {
 
 let L: any;
 if (typeof window !== "undefined") L = require("leaflet");
+
+/** Auto-fit map bounds to polyline on report load */
+function FitBoundsToPolyline({ polyline }: { polyline: [number, number][] }) {
+  if (typeof window === "undefined") return null;
+  const { useMap } = require("react-leaflet");
+  const map = useMap();
+  const fitted = useRef(false);
+
+  useEffect(() => {
+    if (fitted.current || !map || polyline.length < 2) return;
+    fitted.current = true;
+    const bounds = L.latLngBounds(polyline);
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+  }, [map, polyline]);
+
+  // Reset when polyline changes (new report)
+  useEffect(() => {
+    fitted.current = false;
+  }, [polyline.length]);
+
+  return null;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Presets de período (padrão Traccar)
@@ -260,7 +283,6 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState<Date>(startOfDay(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfDay(new Date()));
   const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
-  const [deviceSearch, setDeviceSearch] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -279,13 +301,6 @@ export default function ReportsPage() {
     staleTime: 60000,
   });
 
-  // Auto-select first device
-  useEffect(() => {
-    if (devices.length > 0 && selectedDevices.length === 0) {
-      setSelectedDevices([devices[0].id]);
-    }
-  }, [devices, selectedDevices.length]);
-
   // Period preset
   useEffect(() => {
     if (periodPreset !== "custom") {
@@ -295,28 +310,11 @@ export default function ReportsPage() {
     }
   }, [periodPreset]);
 
-  const filteredDevices = useMemo(() => {
-    if (!deviceSearch.trim()) return devices;
-    const q = deviceSearch.toLowerCase();
-    return devices.filter(
-      (d) =>
-        d.name?.toLowerCase().includes(q) ||
-        d.plate?.toLowerCase().includes(q) ||
-        d.uniqueId?.toLowerCase().includes(q),
-    );
-  }, [devices, deviceSearch]);
-
   const selectedDeviceNames = useMemo(() => {
     return selectedDevices
       .map((id) => devices.find((dev) => dev.id === id)?.name || `#${id}`)
       .join(", ");
   }, [selectedDevices, devices]);
-
-  const toggleDevice = (id: number) => {
-    setSelectedDevices((prev) =>
-      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
-    );
-  };
 
   const clearReports = () => {
     setRouteData(null);
@@ -327,11 +325,9 @@ export default function ReportsPage() {
   };
 
   // ── Generate ──
-  const handleGenerate = async () => {
-    if (selectedDevices.length === 0) {
-      toast.error("Selecione pelo menos um veículo");
-      return;
-    }
+  const handleGenerate = useCallback(async (type?: ReportType) => {
+    const currentType = type ?? reportType;
+    if (selectedDevices.length === 0) return;
     setIsGenerating(true);
     clearReports();
 
@@ -339,20 +335,20 @@ export default function ReportsPage() {
       deviceIds: selectedDevices,
       from: dateFrom.toISOString(),
       to: dateTo.toISOString(),
-      type: reportType,
+      type: currentType,
     };
 
     try {
       const needsRoute =
-        reportType === "route" ||
-        reportType === "chart" ||
-        reportType === "combined";
-      const needsTrips = reportType === "trips" || reportType === "combined";
-      const needsStops = reportType === "stops" || reportType === "combined";
-      const needsEvents = reportType === "events" || reportType === "combined" ||
-        reportType === "geofence" || reportType === "ignition" || reportType === "fuel";
+        currentType === "route" ||
+        currentType === "chart" ||
+        currentType === "combined";
+      const needsTrips = currentType === "trips" || currentType === "combined";
+      const needsStops = currentType === "stops" || currentType === "combined";
+      const needsEvents = currentType === "events" || currentType === "combined" ||
+        currentType === "geofence" || currentType === "ignition" || currentType === "fuel";
       const needsSummary =
-        reportType === "summary" || reportType === "combined";
+        currentType === "summary" || currentType === "combined";
 
       const promises: Promise<void>[] = [];
 
@@ -391,16 +387,25 @@ export default function ReportsPage() {
       setIsGenerating(false);
       abortRef.current = null;
     }
-  };
+  }, [reportType, selectedDevices, dateFrom, dateTo]);
+
+  // Auto-submit when type, period, or devices change
+  const autoSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (selectedDevices.length === 0) return;
+    if (autoSubmitTimer.current) clearTimeout(autoSubmitTimer.current);
+    autoSubmitTimer.current = setTimeout(() => {
+      handleGenerate();
+    }, 400);
+    return () => { if (autoSubmitTimer.current) clearTimeout(autoSubmitTimer.current); };
+  }, [reportType, periodPreset, dateFrom, dateTo, selectedDevices, handleGenerate]);
 
   // ── Export ──
   const handleExport = async (fmt: "pdf" | "excel") => {
     const mappedType =
-      reportType === "combined"
-        ? "summary"
-        : reportType === "chart"
-          ? "route"
-          : reportType;
+      reportType === "chart"
+        ? "route"
+        : reportType;
     const filter: ReportFilter = {
       deviceIds: selectedDevices,
       from: dateFrom.toISOString(),
@@ -408,17 +413,24 @@ export default function ReportsPage() {
       type: mappedType as ReportType,
     };
     try {
-      const blob =
-        fmt === "pdf"
-          ? await exportReportPDF(filter.type, filter)
-          : await exportReportExcel(filter.type, filter);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.${fmt === "pdf" ? "pdf" : "xlsx"}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success(`${fmt === "pdf" ? "PDF" : "Excel"} exportado!`);
+      if (fmt === "pdf") {
+        // PDF endpoint returns HTML — open in new tab for print/save
+        const blob = await exportReportPDF(filter.type, filter);
+        const url = window.URL.createObjectURL(
+          new Blob([blob], { type: "text/html" }),
+        );
+        window.open(url, "_blank");
+        toast.success("Relatório aberto — use Ctrl+P para salvar como PDF");
+      } else {
+        const blob = await exportReportExcel(filter.type, filter);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success("Excel exportado!");
+      }
     } catch {
       toast.error(`Erro ao exportar ${fmt === "pdf" ? "PDF" : "Excel"}`);
     }
@@ -486,14 +498,14 @@ export default function ReportsPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── SIDEBAR ─────────────────────────────────────────────────────── */}
-        <div className="w-80 border-r bg-card flex flex-col overflow-y-auto shrink-0">
+        <div className="w-72 border-r bg-card flex flex-col overflow-y-auto shrink-0">
           <div className="p-4 space-y-4">
-            {/* Report Type */}
+            {/* Report Type — grid compacto */}
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Tipo de Relatório
               </Label>
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 grid grid-cols-2 gap-1">
                 {REPORT_TYPES.map((rt) => {
                   const Icon = rt.icon;
                   const active = reportType === rt.value;
@@ -504,27 +516,16 @@ export default function ReportsPage() {
                         setReportType(rt.value);
                         clearReports();
                       }}
+                      title={rt.desc}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left",
+                        "flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors text-left",
                         active
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-primary text-primary-foreground font-semibold"
                           : "hover:bg-accent text-foreground",
                       )}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{rt.label}</div>
-                        <div
-                          className={cn(
-                            "text-xs truncate",
-                            active
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {rt.desc}
-                        </div>
-                      </div>
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{rt.label}</span>
                     </button>
                   );
                 })}
@@ -604,105 +605,7 @@ export default function ReportsPage() {
               )}
             </div>
 
-            {/* Devices */}
-            <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Veículos
-                {selectedDevices.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 text-[10px]">
-                    {selectedDevices.length}
-                  </Badge>
-                )}
-              </Label>
-              <div className="mt-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar veículo..."
-                    value={deviceSearch}
-                    onChange={(e) => setDeviceSearch(e.target.value)}
-                    className="pl-8 h-9 text-sm"
-                  />
-                  {deviceSearch && (
-                    <button
-                      onClick={() => setDeviceSearch("")}
-                      className="absolute right-2 top-2.5"
-                    >
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] px-2"
-                    onClick={() =>
-                      setSelectedDevices(devices.map((d) => d.id))
-                    }
-                  >
-                    Todos
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] px-2"
-                    onClick={() => setSelectedDevices([])}
-                  >
-                    Limpar
-                  </Button>
-                </div>
-                <ScrollArea className="h-48 mt-1 rounded-md border">
-                  <div className="p-1.5">
-                    {isLoadingDevices ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </div>
-                    ) : filteredDevices.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">
-                        Nenhum veículo encontrado
-                      </p>
-                    ) : (
-                      filteredDevices.map((device) => (
-                        <label
-                          key={device.id}
-                          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-accent cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={selectedDevices.includes(device.id)}
-                            onCheckedChange={() => toggleDevice(device.id)}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-medium truncate">
-                              {device.name}
-                            </div>
-                            {device.plate && (
-                              <div className="text-[10px] text-muted-foreground">
-                                {device.plate}
-                              </div>
-                            )}
-                          </div>
-                          <div
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full shrink-0",
-                              device.status === "online"
-                                ? "bg-green-500"
-                                : device.status === "offline"
-                                  ? "bg-gray-400"
-                                  : "bg-yellow-500",
-                            )}
-                          />
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </div>
-          </div>
-
-          {/* Generate button */}
-          <div className="p-4 mt-auto border-t">
+            {/* Generate button — always visible */}
             <Button
               className="w-full"
               size="lg"
@@ -721,6 +624,26 @@ export default function ReportsPage() {
                 </>
               )}
             </Button>
+
+            {/* Devices */}
+            <div className="flex-1 flex flex-col min-h-0">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Veículos
+                {selectedDevices.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-[10px]">
+                    {selectedDevices.length}
+                  </Badge>
+                )}
+              </Label>
+              <VehicleCombobox
+                mode="multi"
+                devices={devices}
+                value={selectedDevices}
+                onChange={setSelectedDevices}
+                placeholder="Selecionar veículos..."
+                disabled={isLoadingDevices}
+              />
+            </div>
           </div>
         </div>
 
@@ -736,7 +659,7 @@ export default function ReportsPage() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-auto flex flex-col">
               {/* Info bar */}
               <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-4 text-xs text-muted-foreground shrink-0">
                 <span>
@@ -822,6 +745,7 @@ function RouteReport({
               attribution="&copy; OpenStreetMap &copy; CARTO"
               subdomains="abcd"
             />
+            <FitBoundsToPolyline polyline={polyline} />
             <Polyline
               positions={polyline}
               pathOptions={{ color: "#3b82f6", weight: 3, opacity: 0.8 }}
@@ -1449,7 +1373,7 @@ function CombinedReport({
       defaultValue="summary"
       className="flex-1 flex flex-col overflow-hidden"
     >
-      <div className="px-4 pt-2 shrink-0">
+      <div className="px-4 pt-2 shrink-0 border-b">
         <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="summary" className="text-xs">
             Resumo
@@ -1472,22 +1396,22 @@ function CombinedReport({
         </TabsList>
       </div>
 
-      <TabsContent value="summary" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="summary" className="flex-1 overflow-auto mt-0">
         <SummaryReport data={summaryData} />
       </TabsContent>
-      <TabsContent value="route" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="route" className="flex-1 overflow-auto mt-0">
         <RouteReport data={routeData} polyline={routePolyline} />
       </TabsContent>
-      <TabsContent value="trips" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="trips" className="flex-1 overflow-auto mt-0">
         <TripsReport data={tripData} />
       </TabsContent>
-      <TabsContent value="stops" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="stops" className="flex-1 overflow-auto mt-0">
         <StopsReport data={stopData} />
       </TabsContent>
-      <TabsContent value="events" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="events" className="flex-1 overflow-auto mt-0">
         <EventsReport data={eventData} />
       </TabsContent>
-      <TabsContent value="chart" className="flex-1 overflow-hidden mt-0">
+      <TabsContent value="chart" className="flex-1 overflow-auto mt-0">
         <ChartReport data={chartData} routeData={routeData} />
       </TabsContent>
     </Tabs>

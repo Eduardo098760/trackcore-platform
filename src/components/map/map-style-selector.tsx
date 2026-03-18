@@ -34,7 +34,7 @@ export function MapStyleSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-semibold transition-all shadow-lg backdrop-blur-xl border bg-black/50 border-white/10 text-white hover:bg-white/10"
+        className="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-semibold transition-all shadow-lg backdrop-blur-xl border bg-popover/80 border-border text-popover-foreground hover:bg-accent"
         title="Estilo do mapa"
       >
         <Map className="w-4 h-4" />
@@ -43,11 +43,11 @@ export function MapStyleSelector({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 min-w-[180px] rounded-lg border border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl z-[9999] py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute right-0 top-full mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover backdrop-blur-xl shadow-2xl z-[9999] py-1 animate-in fade-in slide-in-from-top-1 duration-150">
           {STYLE_GROUPS.map((group, gi) => (
             <div key={group.label}>
-              {gi > 0 && <div className="my-1 border-t border-white/10" />}
-              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              {gi > 0 && <div className="my-1 border-t border-border" />}
+              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {group.label}
               </div>
               {group.styles.map((style) => (
@@ -61,7 +61,7 @@ export function MapStyleSelector({
                   className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
                     mapStyle === style
                       ? "bg-primary/20 text-primary font-semibold"
-                      : "text-gray-300 hover:bg-white/10"
+                      : "text-muted-foreground hover:bg-accent"
                   }`}
                 >
                   <Check

@@ -133,13 +133,20 @@ export default function ReplayMap({
           eventHandlers={{ click: () => onSeek(stop.index) }}
         >
           <Popup>
-            <div className="text-sm">
-              <p className="font-bold text-orange-600 mb-1">⏸ Parada #{idx + 1}</p>
-              <p className="text-gray-600"><span className="font-medium">Início:</span> {fmtDateTime(stop.startTime)}</p>
-              <p className="text-gray-600"><span className="font-medium">Fim:</span> {fmtDateTime(stop.endTime)}</p>
-              <p className="text-orange-700 font-bold mt-1">⏱ Duração: {fmtDuration(stop.durationSec)}</p>
-              <p className="text-gray-400 text-xs mt-1">{stop.latitude.toFixed(6)}, {stop.longitude.toFixed(6)}</p>
-              <p className="text-blue-500 text-xs mt-0.5 cursor-pointer">Clique para ir a este ponto ↗</p>
+            <div className="text-sm min-w-[200px] bg-card text-foreground rounded-lg p-3 -m-[13px] shadow-xl border border-border">
+              <p className="font-bold text-orange-400 text-base mb-2 flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold">⏸</span>
+                Parada #{idx + 1}
+              </p>
+              <div className="space-y-1.5 text-[13px]">
+                <p className="text-foreground"><span className="text-muted-foreground">Início:</span> {fmtDateTime(stop.startTime)}</p>
+                <p className="text-foreground"><span className="text-muted-foreground">Fim:</span> {fmtDateTime(stop.endTime)}</p>
+              </div>
+              <div className="mt-2 pt-2 border-t border-border">
+                <p className="text-orange-300 font-semibold flex items-center gap-1">⏱ Duração: {fmtDuration(stop.durationSec)}</p>
+              </div>
+              <p className="text-muted-foreground text-[11px] mt-2 font-mono">{stop.latitude.toFixed(6)}, {stop.longitude.toFixed(6)}</p>
+              <p className="text-blue-400 text-xs mt-1.5 cursor-pointer hover:text-blue-300 transition-colors">Clique para ir a este ponto ↗</p>
             </div>
           </Popup>
         </Marker>
@@ -158,14 +165,21 @@ export default function ReplayMap({
           eventHandlers={{ click: () => onSeek(v.index) }}
         >
           <Popup>
-            <div className="text-sm min-w-[180px]">
-              <p className="font-bold text-red-600 mb-1">⚠️ Excesso #{idx + 1}</p>
-              <p className="text-gray-600"><span className="font-medium">Limite:</span> {speedLimit} km/h</p>
-              <p className="text-red-700 font-bold">Pico: {v.maxSpeed} km/h <span className="text-red-500">(+{v.maxSpeed - speedLimit})</span></p>
-              <p className="text-gray-600"><span className="font-medium">Início:</span> {fmtDateTime(v.startTime)}</p>
-              <p className="text-gray-600"><span className="font-medium">Fim:</span> {fmtDateTime(v.endTime)}</p>
-              <p className="text-gray-500 text-xs mt-1">{fmtDuration(v.durationSec)} • {Math.round(v.distanceKm)} km em excesso</p>
-              <p className="text-blue-500 text-xs mt-0.5 cursor-pointer">Clique para ir ↗</p>
+            <div className="text-sm min-w-[200px] bg-card text-foreground rounded-lg p-3 -m-[13px] shadow-xl border border-border">
+              <p className="font-bold text-red-400 text-base mb-2 flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/20 text-red-400 text-xs font-bold">⚠️</span>
+                Excesso #{idx + 1}
+              </p>
+              <div className="space-y-1.5 text-[13px]">
+                <p className="text-foreground"><span className="text-muted-foreground">Limite:</span> {speedLimit} km/h</p>
+                <p className="text-red-300 font-bold">Pico: {v.maxSpeed} km/h <span className="text-red-500/80">(+{v.maxSpeed - speedLimit})</span></p>
+                <p className="text-foreground"><span className="text-muted-foreground">Início:</span> {fmtDateTime(v.startTime)}</p>
+                <p className="text-foreground"><span className="text-muted-foreground">Fim:</span> {fmtDateTime(v.endTime)}</p>
+              </div>
+              <div className="mt-2 pt-2 border-t border-border">
+                <p className="text-muted-foreground text-xs">{fmtDuration(v.durationSec)} • {Math.round(v.distanceKm)} km em excesso</p>
+              </div>
+              <p className="text-blue-400 text-xs mt-1.5 cursor-pointer hover:text-blue-300 transition-colors">Clique para ir ↗</p>
             </div>
           </Popup>
         </Marker>

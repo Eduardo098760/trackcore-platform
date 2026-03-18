@@ -138,11 +138,14 @@ export interface Position {
     ignition?: boolean;
     blocked?: boolean;
     batteryLevel?: number;
+    battery?: number;
+    power?: number;
     distance?: number;
     totalDistance?: number;
     motion?: boolean;
     sat?: number; // satellites
     odometer?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -197,6 +200,23 @@ export interface SpeedAlert {
   latitude: number;
   longitude: number;
   timestamp: string;
+}
+
+export interface EventAlert {
+  id: string;
+  eventType: string;
+  deviceId: number;
+  deviceName: string;
+  vehicleName?: string;
+  speed?: number;
+  speedLimit?: number;
+  alarm?: string;
+  latitude: number;
+  longitude: number;
+  currentLatitude?: number;
+  currentLongitude?: number;
+  timestamp: string;
+  label: string;
 }
 
 // Command Types (devem corresponder exatamente ao enum do Traccar)

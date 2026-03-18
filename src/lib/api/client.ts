@@ -82,18 +82,6 @@ class ApiClient {
    * Trata erros de API
    */
   private handleError(error: any): never {
-    console.error('[API Client] ========== ERRO CAPTURADO ==========');
-    console.error('[API Client] Erro original:', error);
-    console.error('[API Client] Tipo do erro:', typeof error);
-    console.error('[API Client] Keys do erro:', Object.keys(error));
-    
-    // Log completo de todas as propriedades do erro
-    if (typeof error === 'object') {
-      Object.keys(error).forEach(key => {
-        console.error(`[API Client] error.${key}:`, error[key]);
-      });
-    }
-    
     const apiError: ApiError = {
       message: error.message || error.statusText || 'Erro desconhecido',
       status: error.status,
@@ -101,9 +89,19 @@ class ApiClient {
       details: error.details || error,
     };
 
-    // Log do erro formatado
-    console.error('[API Client] Erro formatado:', JSON.stringify(apiError, null, 2));
-    console.error('[API Client] =========================================');
+    // Sessão expirada: redirecionar ao login automaticamente
+    if (typeof window !== 'undefined' && (error.status === 401 || error.status === 403)) {
+      console.warn('[API Client] Sessão expirada (HTTP', error.status, ') — redirecionando ao login');
+      // Limpar auth storage para evitar loop
+      try {
+        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('auth_token');
+      } catch {}
+      // Redirecionar ao login (evita múltiplos redirects)
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+    }
 
     throw apiError;
   }

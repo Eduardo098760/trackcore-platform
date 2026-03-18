@@ -12,41 +12,54 @@ export type RouteKey =
   // Navegação principal
   | 'dashboard'
   | 'map'
-  | 'routes'
   | 'vehicles'
+  | 'drivers'
+  // Monitoramento
   | 'history'
   | 'replay'
   | 'events'
+  | 'reports'
+  | 'statistics'
+  // Controle
   | 'commands'
+  | 'savedCommands'
+  | 'geofences'
+  | 'notifications'
+  | 'maintenance'
   // VideoTelemetria
   | 'video'
   | 'videoAlerts'
   | 'cameras'
-  // Recursos Avançados
-  | 'geofences'
-  | 'notifications'
-  | 'reports'
+  // Avançado
+  | 'routes'
   | 'groups'
   | 'calendars'
   | 'computedAttributes'
   | 'obd'
-  | 'statistics'
   // Gerenciamento
   | 'clients'
   | 'users'
-  | 'audit'
   | 'settings'
-  | 'accessControl';
+  | 'serverConfig'
+  | 'smsConfig'
+  | 'accessControl'
+  | 'audit'
+  | 'organizations'
+  | 'notificationTemplates'
+  | 'sharedAccess';
 
 /** Mapa de permissões: chave → liberado/bloqueado */
 export type RoutePermissions = Record<RouteKey, boolean>;
 
 /** Lista de todas as chaves (útil para iteração) */
 export const ALL_ROUTE_KEYS: RouteKey[] = [
-  'dashboard', 'map', 'routes', 'vehicles', 'history', 'replay', 'events', 'commands',
+  'dashboard', 'map', 'vehicles', 'drivers',
+  'history', 'replay', 'events', 'reports', 'statistics',
+  'commands', 'savedCommands', 'geofences', 'notifications', 'maintenance',
   'video', 'videoAlerts', 'cameras',
-  'geofences', 'notifications', 'reports', 'groups', 'calendars', 'computedAttributes', 'obd', 'statistics',
-  'clients', 'users', 'audit', 'settings', 'accessControl',
+  'routes', 'groups', 'calendars', 'computedAttributes', 'obd',
+  'clients', 'users', 'settings', 'serverConfig', 'smsConfig', 'accessControl', 'audit',
+  'organizations', 'notificationTemplates', 'sharedAccess',
 ];
 
 /** Record salvo no store por empresa */

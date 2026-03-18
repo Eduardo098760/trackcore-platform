@@ -13,7 +13,7 @@ export const EVENT_CATEGORIES: {
     ],
   },
   {
-    label: "Cercas Eletrônicas",
+    label: "Cercas Geográficas",
     types: [
       { value: "geofenceEnter", label: "Entrada em cerca" },
       { value: "geofenceExit", label: "Saída de cerca" },

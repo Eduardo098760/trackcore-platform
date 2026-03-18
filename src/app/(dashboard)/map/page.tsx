@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { getDevices, getPositions, getDeviceRoute } from "@/lib/api";
 import { updateDevice } from "@/lib/api/devices";
-import { Device, Position, SpeedAlert } from "@/types";
+import { Device, Position, SpeedAlert, EventAlert } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Route, List, X, Navigation2 } from "lucide-react";
@@ -26,6 +26,7 @@ import type { Geofence } from "@/types";
 
 // Map components
 import { SpeedAlertMarker } from "@/components/map/speed-alert-marker";
+import { EventAlertMarker } from "@/components/map/event-alert-marker";
 import { MapStatusHeader } from "@/components/map/map-status-header";
 import { MapStyleSelector } from "@/components/map/map-style-selector";
 import { MapToolbar } from "@/components/map/map-toolbar";
@@ -82,6 +83,45 @@ const LeafletPopup = dynamic(
   { ssr: false },
 );
 
+// ─── FitAllDevices: ao abrir o mapa, ajusta o zoom para exibir todos os dispositivos ───
+function FitAllDevices({
+  positions,
+  selectedDeviceId,
+  hasDeviceIdInUrl,
+}: {
+  positions: Position[];
+  selectedDeviceId: number | null;
+  hasDeviceIdInUrl: boolean;
+}) {
+  const { useMap } = require("react-leaflet");
+  const map = useMap();
+  const hasFitted = useRef(false);
+
+  useEffect(() => {
+    // Só faz fit uma vez, na abertura, e apenas se não há veículo selecionado nem deviceId na URL
+    if (hasFitted.current || selectedDeviceId || hasDeviceIdInUrl || !map || positions.length === 0) return;
+
+    const validPositions = positions.filter(
+      (p) => p.latitude && p.longitude && Math.abs(p.latitude) > 0.01
+    );
+    if (validPositions.length === 0) return;
+
+    hasFitted.current = true;
+
+    if (validPositions.length === 1) {
+      map.setView([validPositions[0].latitude, validPositions[0].longitude], 14);
+    } else {
+      const L = require("leaflet");
+      const bounds = L.latLngBounds(
+        validPositions.map((p: Position) => [p.latitude, p.longitude])
+      );
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+  }, [positions, selectedDeviceId, hasDeviceIdInUrl, map]);
+
+  return null;
+}
+
 // ─── MapFollowHandler: segue automaticamente o veículo selecionado (modal aberto) ───
 function MapFollowHandler({
   positions,
@@ -121,6 +161,25 @@ function MapFollowHandler({
     };
     window.addEventListener("speedAlertFocus", handler);
     return () => window.removeEventListener("speedAlertFocus", handler);
+  }, [map]);
+
+  // Centralizar mapa quando um eventAlert é focado
+  useEffect(() => {
+    if (!map) return;
+    const handler = (e: Event) => {
+      const alert = (e as CustomEvent<EventAlert>).detail;
+      if (!alert?.latitude || !alert?.longitude) return;
+      transitionRunning.current = true;
+      try { map.stop?.(); } catch { /* ignore */ }
+      try {
+        map.flyTo([alert.latitude, alert.longitude], 17, { duration: 1.0 });
+      } catch {
+        try { map.setView([alert.latitude, alert.longitude], 17); } catch { /* ignore */ }
+      }
+      window.setTimeout(() => { transitionRunning.current = false; }, 1200);
+    };
+    window.addEventListener("eventAlertFocus", handler);
+    return () => window.removeEventListener("eventAlertFocus", handler);
   }, [map]);
 
   // Animação inicial: flyTo zoom 17 quando um novo veículo é selecionado
@@ -225,6 +284,8 @@ export default function MapPage() {
     toggleVehicleLabels,
     speedAlerts,
     setSpeedAlerts,
+    eventAlerts,
+    setEventAlerts,
     mapStyle,
     setMapStyle,
     plannedRouteGeometry,
@@ -307,6 +368,23 @@ export default function MapPage() {
     () => speedAlerts.filter((a) => userDeviceIds.has(a.deviceId)),
     [speedAlerts, userDeviceIds],
   );
+
+  // Event alerts filtrados pela conta (excluindo os que já são speedAlerts para evitar duplicação)
+  // Também exclui eventos já resolvidos (armazenados em localStorage)
+  const visibleEventAlerts = useMemo(() => {
+    let resolvedIds: number[] = [];
+    try {
+      const stored = typeof window !== "undefined" ? localStorage.getItem("resolvedEvents") : null;
+      if (stored) resolvedIds = JSON.parse(stored);
+    } catch { /* ignore */ }
+
+    return eventAlerts.filter((a) =>
+      userDeviceIds.has(a.deviceId) &&
+      a.eventType !== "speedLimit" &&
+      a.eventType !== "deviceOverspeed" &&
+      !resolvedIds.includes(Number(a.id.replace("event-", "")))
+    );
+  }, [eventAlerts, userDeviceIds]);
 
   const { data: positions = [] } = useQuery({
     queryKey: ["positions"],
@@ -430,6 +508,36 @@ export default function MapPage() {
     const t = window.setTimeout(tryFocus, 400);
     return () => window.clearTimeout(t);
   }, [searchParams, speedAlerts]);
+
+  // Centralizar no evento quando eventAlert=true está na URL
+  const hasAppliedEventAlert = useRef(false);
+  useEffect(() => {
+    const isEventAlert = searchParams?.get("eventAlert") === "true";
+    const deviceId = searchParams?.get("deviceId");
+    if (!isEventAlert || !deviceId || hasAppliedEventAlert.current) return;
+
+    const tryFocus = () => {
+      try {
+        const stored = localStorage.getItem("eventAlerts");
+        const alerts: EventAlert[] = stored ? JSON.parse(stored) : [];
+        const found = alerts.find((a) => a.deviceId === Number(deviceId));
+        if (found) {
+          setEventAlerts((prev) => {
+            if (prev.some((a) => a.id === found.id)) return prev;
+            return [found, ...prev];
+          });
+          // Centralizar o mapa na posição do alerta
+          window.dispatchEvent(
+            new CustomEvent("eventAlertFocus", { detail: found }),
+          );
+          hasAppliedEventAlert.current = true;
+        }
+      } catch { /* ignore */ }
+    };
+
+    const t = window.setTimeout(tryFocus, 500);
+    return () => window.clearTimeout(t);
+  }, [searchParams, eventAlerts]);
 
   const tileLayerProps = useMemo(() => {
     const layer = TILE_LAYERS[mapStyle];
@@ -850,10 +958,10 @@ export default function MapPage() {
 
   if (!isClient) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="h-full flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Carregando mapa...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando mapa...</p>
         </div>
       </div>
     );
@@ -874,12 +982,12 @@ export default function MapPage() {
           <button
             type="button"
             onClick={() => setIsVehicleListOpen(true)}
-            className="flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-2 xl:py-2.5 rounded-xl text-xs xl:text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border bg-black/50 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+            className="flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-2 xl:py-2.5 rounded-xl text-xs xl:text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border bg-popover/80 border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             title="Abrir lista de veículos"
           >
             <List className="w-4 h-4" />
             <span>Veículos</span>
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] xl:min-w-[22px] xl:h-[22px] rounded-full bg-white/20 text-[10px] xl:text-[11px] font-bold px-1">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] xl:min-w-[22px] xl:h-[22px] rounded-full bg-muted text-[10px] xl:text-[11px] font-bold px-1">
               {devices.length}
             </span>
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -896,13 +1004,13 @@ export default function MapPage() {
           showPlannedRouteLabel && (
             <Card className="backdrop-blur-xl bg-violet-900/80 border-violet-500/30 shadow-lg px-3 py-2 flex items-center gap-2 w-fit">
               <Route className="w-4 h-4 text-violet-300 shrink-0" />
-              <span className="text-sm text-white truncate max-w-[180px]">
+              <span className="text-sm text-foreground truncate max-w-[180px]">
                 Rota: {plannedRouteName}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-white/80 hover:text-white shrink-0"
+                className="h-6 w-6 text-foreground/80 hover:text-foreground shrink-0"
                 onClick={() => {
                   router.push("/map");
                   setShowPlannedRouteLabel(false);
@@ -952,7 +1060,10 @@ export default function MapPage() {
 
         <MapResizeInvalidator />
 
-        {/* ── Cercas Eletrônicas ── */}
+        {/* Auto-fit todos os dispositivos ao abrir o mapa */}
+        <FitAllDevices positions={positions} selectedDeviceId={selectedDevice?.id || null} hasDeviceIdInUrl={!!searchParams?.get("deviceId")} />
+
+        {/* ── Cercas Geográficas ── */}
         {showGeofences &&
           allGeofences.map((geofence) => {
             const parsed = parseWKT(geofence.area);
@@ -1123,6 +1234,12 @@ export default function MapPage() {
             <SpeedAlertMarker key={alert.id} alert={alert} />
           ))}
 
+        {/* 📌 Marcadores de Eventos (todos os tipos exceto velocidade) */}
+        {L &&
+          visibleEventAlerts.map((alert) => (
+            <EventAlertMarker key={alert.id} alert={alert} />
+          ))}
+
         {/* Markers para cada dispositivo (com clustering) */}
         <VehicleClusterLayer
           devices={devices}
@@ -1184,12 +1301,12 @@ export default function MapPage() {
       {/* Street View Embed */}
       {streetViewActive && selectedDevice && positionsMap.get(selectedDevice.id) && (
         <div
-          className="absolute z-[1001] rounded-xl overflow-hidden shadow-2xl border border-white/10"
+          className="absolute z-[1001] rounded-xl overflow-hidden shadow-2xl border border-border"
           style={{ bottom: 12, right: 350, width: 400, maxWidth: "50vw", height: 220 }}
         >
           <button
             type="button"
-            className="absolute top-2 right-2 z-10 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+            className="absolute top-2 right-2 z-10 bg-popover/80 hover:bg-popover text-popover-foreground rounded-full p-1"
             onClick={() => setStreetViewActive(false)}
           >
             <X className="w-4 h-4" />

@@ -37,6 +37,8 @@ export default function DashboardLayout({
     !!pathname &&
     (pathname === "/map" ||
       pathname.startsWith("/map/") ||
+      pathname === "/replay" ||
+      pathname.startsWith("/replay/") ||
       pathname === "/geofences" ||
       pathname.startsWith("/geofences/"));
 
@@ -155,10 +157,10 @@ export default function DashboardLayout({
 
   if (!isAuthenticated || isValidating) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">
             Verificando sessão...
           </p>
         </div>
@@ -167,7 +169,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-background">
       <ServiceWorkerRegistrar />
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">

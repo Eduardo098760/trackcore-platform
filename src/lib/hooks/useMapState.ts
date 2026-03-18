@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Device, Position, VehicleCategory, SpeedAlert } from "@/types";
+import { Device, Position, VehicleCategory, SpeedAlert, EventAlert } from "@/types";
 import type { TileLayerKey } from "@/components/map/map-constants";
 
 export interface MapEditForm {
@@ -91,6 +91,36 @@ export function useMapState() {
     }
   });
 
+  // Event alerts (unified — all event types)
+  const [eventAlerts, setEventAlerts] = useState<EventAlert[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem("eventAlerts");
+      if (!stored) return [];
+      const alerts: EventAlert[] = JSON.parse(stored);
+
+      // Filtrar alertas de eventos já resolvidos
+      let resolvedIds: number[] = [];
+      try {
+        const res = localStorage.getItem("resolvedEvents");
+        if (res) resolvedIds = JSON.parse(res);
+      } catch { /* ignore */ }
+
+      if (resolvedIds.length === 0) return alerts;
+      const cleaned = alerts.filter((a) => {
+        const numId = Number(a.id.replace("event-", ""));
+        return !resolvedIds.includes(numId);
+      });
+      // Persistir a lista limpa
+      if (cleaned.length !== alerts.length) {
+        localStorage.setItem("eventAlerts", JSON.stringify(cleaned));
+      }
+      return cleaned;
+    } catch {
+      return [];
+    }
+  });
+
   // Map style — persist across sessions
   const [mapStyle, setMapStyleState] = useState<TileLayerKey>(() => {
     if (typeof window === "undefined") return "dark";
@@ -167,6 +197,46 @@ export function useMapState() {
       window.removeEventListener("speedAlertAdded", addHandler);
       window.removeEventListener("speedAlertsCleared", clearHandler);
       window.removeEventListener("speedAlertRemoved", removeHandler);
+    };
+  }, []);
+
+  // Event alert event listeners
+  useEffect(() => {
+    const addHandler = (e: Event) => {
+      const alert = (e as CustomEvent<EventAlert>).detail;
+      setEventAlerts((prev) => {
+        if (prev.some((a) => a.id === alert.id)) return prev;
+        return [alert, ...prev].slice(0, 50);
+      });
+    };
+
+    const clearHandler = () => {
+      setEventAlerts([]);
+    };
+
+    const removeHandler = (e: Event) => {
+      const { id } = (e as CustomEvent<{ id: string }>).detail;
+      setEventAlerts((prev) => prev.filter((a) => a.id !== id));
+    };
+
+    window.addEventListener("eventAlertAdded", addHandler);
+    window.addEventListener("eventAlertsCleared", clearHandler);
+    window.addEventListener("eventAlertRemoved", removeHandler);
+
+    try {
+      const stored = localStorage.getItem("eventAlerts");
+      if (stored) {
+        const parsed: EventAlert[] = JSON.parse(stored);
+        if (parsed.length > 0) {
+          setEventAlerts(parsed);
+        }
+      }
+    } catch { /* ignore */ }
+
+    return () => {
+      window.removeEventListener("eventAlertAdded", addHandler);
+      window.removeEventListener("eventAlertsCleared", clearHandler);
+      window.removeEventListener("eventAlertRemoved", removeHandler);
     };
   }, []);
 
@@ -251,6 +321,10 @@ export function useMapState() {
     // Speed alerts
     speedAlerts,
     setSpeedAlerts,
+
+    // Event alerts
+    eventAlerts,
+    setEventAlerts,
 
     // Map style
     mapStyle,

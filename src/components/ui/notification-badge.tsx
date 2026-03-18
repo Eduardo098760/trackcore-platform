@@ -14,10 +14,10 @@ export function NotificationBadge({ count, onClick }: NotificationBadgeProps) {
     <Button
       variant="ghost"
       size="icon"
-      className="relative"
+      className="relative h-8 w-8 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
       onClick={onClick}
     >
-      <Bell className="h-5 w-5" />
+      <Bell className="h-[18px] w-[18px]" />
       {count > 0 && (
         <Badge 
           variant="destructive" 

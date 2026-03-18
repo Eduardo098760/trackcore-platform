@@ -24,6 +24,20 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* Extended semantic tokens */
+    --sidebar: 210 40% 98%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-accent: 210 40% 96.1%;
+    --surface: 210 40% 98%;
+    --surface-foreground: 222.2 47.4% 11.2%;
+    --overlay: 0 0% 0%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --map-bg: 220 60% 6%;
   }
 
   .dark {
@@ -46,6 +60,20 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
+
+    /* Extended semantic tokens */
+    --sidebar: 224 71% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 12%;
+    --sidebar-accent: 217.2 32.6% 11%;
+    --surface: 217.2 32.6% 10%;
+    --surface-foreground: 210 40% 98%;
+    --overlay: 0 0% 0%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --map-bg: 220 60% 6%;
   }
 }
 
@@ -55,6 +83,12 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Remove native clear (X) button from search inputs - prevents double X */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
   }
 }
 
@@ -191,9 +225,9 @@
 }
 
 .leaflet-popup-tip {
-  background: #0d1117 !important;
-  border: none !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+  background: #111827 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
 }
 
 .leaflet-container a.leaflet-popup-close-button {

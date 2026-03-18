@@ -123,7 +123,11 @@ export function VehicleDetailsPanel({
   const speedExceeded = device.speedLimit && position.speed > device.speedLimit;
   const isMotion = position.attributes?.motion;
   const isIgnitionOn = position.attributes?.ignition;
-  const batteryLevel = position.attributes?.batteryLevel ?? 0;
+  const rawBattery = position.attributes?.batteryLevel
+    ?? position.attributes?.battery
+    ?? (position.attributes?.power != null && position.attributes.power <= 100 ? position.attributes.power : null);
+  const batteryLevel = rawBattery != null ? Math.min(Math.round(rawBattery), 100) : null;
+  const hasBattery = batteryLevel != null && batteryLevel > 0;
   const satCount = position.attributes?.sat ?? 0;
   const effectiveStatus = deriveDeviceStatus(device.status, position, device.lastUpdate);
   const IconComponent = getVehicleIcon(device.category);
@@ -145,7 +149,7 @@ export function VehicleDetailsPanel({
       : '0';
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-[340px] z-[900] bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+    <div className="fixed right-0 top-14 bottom-0 w-[340px] z-[900] bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
       {/* Header */}
       <div className="flex-shrink-0 p-4 pb-3">
         <div className="flex items-start justify-between mb-3">
@@ -231,13 +235,15 @@ export function VehicleDetailsPanel({
         </div>
 
         {/* Bateria */}
+        {hasBattery && (
         <div className="rounded-xl p-3 border border-border/50 bg-card/60">
           <div className="flex items-center gap-1.5 mb-2">
             <Battery className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="text-[11px] text-muted-foreground font-medium">Bateria</span>
           </div>
-          <BatteryBar level={batteryLevel} />
+          <BatteryBar level={batteryLevel!} />
         </div>
+        )}
 
         {/* Localização */}
         <div className="rounded-xl p-3 border border-border/50 bg-card/60 space-y-2">

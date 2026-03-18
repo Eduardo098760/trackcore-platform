@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { getDevices, getPositions } from "@/lib/api";
 import {
   createDevice,
@@ -106,6 +107,7 @@ function ShareCountdown({ expiresAt }: { expiresAt: number }) {
 
 export default function VehiclesPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -731,22 +733,22 @@ export default function VehiclesPage() {
                       {share.deviceName}
                     </p>
                     {share.plate && (
-                      <p className="text-[10px] font-mono text-gray-400">
+                      <p className="text-[10px] font-mono text-muted-foreground">
                         {share.plate}
                       </p>
                     )}
                   </div>
-                  <div className="hidden md:flex items-center gap-1.5 text-[11px] text-gray-500 w-36 shrink-0">
+                  <div className="hidden md:flex items-center gap-1.5 text-[11px] text-muted-foreground w-36 shrink-0">
                     <Clock className="w-3 h-3 shrink-0" />
                     Criado às{" "}
                     {new Date(share.createdAt).toLocaleTimeString("pt-BR")}
                   </div>
                   <div className="flex items-center gap-1.5 flex-1">
-                    <span className="text-[10px] text-gray-600 shrink-0">
+                    <span className="text-[10px] text-muted-foreground shrink-0">
                       Expira em
                     </span>
                     <ShareCountdown expiresAt={share.expiresAt} />
-                    <span className="text-[10px] text-gray-600 hidden sm:inline shrink-0">
+                    <span className="text-[10px] text-muted-foreground hidden sm:inline shrink-0">
                       ({new Date(share.expiresAt).toLocaleTimeString("pt-BR")})
                     </span>
                   </div>
@@ -754,7 +756,7 @@ export default function VehiclesPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-2 text-[11px] text-gray-400 hover:text-white hover:bg-white/5 border border-white/10"
+                      className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent border border-border"
                       onClick={() => {
                         const device = devices.find((d) => d.id === deviceId);
                         if (device) {
@@ -793,21 +795,21 @@ export default function VehiclesPage() {
       )}
 
       {/* Filters */}
-      <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+      <Card className="backdrop-blur-xl bg-card/90 border-border">
         <CardContent className="pt-6">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por placa ou nome..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white dark:bg-gray-900"
+                className="pl-10 bg-card"
               />
             </div>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="bg-white dark:bg-gray-900">
+              <SelectTrigger className="bg-card">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -821,7 +823,7 @@ export default function VehiclesPage() {
             </Select>
 
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="bg-white dark:bg-gray-900">
+              <SelectTrigger className="bg-card">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -842,7 +844,7 @@ export default function VehiclesPage() {
       </Card>
 
       {/* Table */}
-      <Card className="backdrop-blur-xl bg-white/90 dark:bg-gray-950/90 border-white/20">
+      <Card className="backdrop-blur-xl bg-card/90 border-border">
         <CardContent className="pt-6">
           {isLoading ? (
             <div className="space-y-2">
@@ -853,7 +855,7 @@ export default function VehiclesPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent border-gray-200 dark:border-gray-800">
+                <TableRow className="hover:bg-transparent border-border">
                   <TableHead className="font-bold">Placa</TableHead>
                   <TableHead className="font-bold">Nome</TableHead>
                   <TableHead className="font-bold">IMEI / ID</TableHead>
@@ -882,13 +884,13 @@ export default function VehiclesPage() {
                         <TableCell>
                           <div>
                             <p className="font-medium">{device.name}</p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                               {device.model}
                             </p>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                          <code className="text-xs bg-muted px-2 py-1 rounded">
                             {device.uniqueId}
                           </code>
                         </TableCell>
@@ -896,7 +898,7 @@ export default function VehiclesPage() {
                           {device.phone ? (
                             <span className="text-xs">{device.phone}</span>
                           ) : (
-                            <span className="text-xs text-gray-400">-</span>
+                            <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -948,7 +950,7 @@ export default function VehiclesPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600 dark:text-gray-400">
+                        <TableCell className="text-sm text-muted-foreground">
                           {formatDate(device.lastUpdate)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -967,6 +969,7 @@ export default function VehiclesPage() {
                               variant="ghost"
                               className="hover:bg-purple-50 dark:hover:bg-purple-950/20"
                               title="Ver no mapa"
+                              onClick={() => router.push(`/map?deviceId=${device.id}`)}
                             >
                               <MapPin className="w-4 h-4" />
                             </Button>
@@ -1133,8 +1136,8 @@ export default function VehiclesPage() {
 
           {!isLoading && filteredDevices.length === 0 && (
             <div className="text-center py-12">
-              <Filter className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-600 dark:text-gray-400">
+              <Filter className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
                 Nenhum veículo encontrado com os filtros aplicados
               </p>
             </div>
