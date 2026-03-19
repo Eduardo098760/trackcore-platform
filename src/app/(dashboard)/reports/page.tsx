@@ -609,7 +609,7 @@ export default function ReportsPage() {
             <Button
               className="w-full"
               size="lg"
-              onClick={handleGenerate}
+              onClick={() => handleGenerate()}
               disabled={isGenerating || selectedDevices.length === 0}
             >
               {isGenerating ? (
