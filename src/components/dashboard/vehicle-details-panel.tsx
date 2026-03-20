@@ -33,6 +33,7 @@ import {
   AlertCircle,
   Info,
   CheckCircle2,
+  Share2,
 } from 'lucide-react';
 import { formatDate, getDeviceStatusColor, deriveDeviceStatus, getDeviceStatusLabel } from '@/lib/utils';
 import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
@@ -49,6 +50,7 @@ interface VehicleDetailsPanelProps {
   onStreetView?: () => void;
   onManageGeofences?: (device: Device) => void;
   onSendCommand?: (device: Device) => void;
+  onShareAccess?: (device: Device) => void;
   onFollow?: () => void;
   recentDistanceKm?: number;
   recentTrail?: {lat:number; lng:number; ts:number}[];
@@ -87,6 +89,7 @@ export function VehicleDetailsPanel({
   onStreetView,
   onManageGeofences,
   onSendCommand,
+  onShareAccess,
   onFollow,
   recentDistanceKm,
   recentTrail,
@@ -352,11 +355,12 @@ export function VehicleDetailsPanel({
         <VehicleNotificationQuick deviceId={device.id} />
 
         {/* Ações secundárias */}
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           {onManageGeofences && (
             <ActionButton icon={ShieldCheck} label="Cercas" onClick={() => onManageGeofences(device)} color="text-orange-400" />
           )}
           <ActionButton icon={Terminal} label="Comandos" onClick={() => onSendCommand?.(device)} color="text-cyan-400" />
+          <ActionButton icon={Share2} label="Compartilhar" onClick={() => onShareAccess?.(device)} color="text-emerald-400" />
           <ActionButton
             icon={Phone}
             label="Contato"

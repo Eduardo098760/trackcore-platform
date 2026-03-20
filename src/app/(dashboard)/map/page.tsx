@@ -34,6 +34,7 @@ import { VehicleListPanel } from "@/components/map/vehicle-list-panel";
 import { EditVehicleDialog } from "@/components/map/edit-vehicle-dialog";
 import { GeofenceManageDialog } from "@/components/map/geofence-manage-dialog";
 import { SendCommandDialog } from "@/components/map/send-command-dialog";
+import { ShareLocationDialog } from "@/components/vehicles/share-location-dialog";
 import { MarkerClusterGroup } from "@/components/map/marker-cluster-group";
 import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-panel";
 import { useMapState } from "@/lib/hooks/useMapState";
@@ -250,6 +251,7 @@ export default function MapPage() {
   const [isVehicleListOpen, setIsVehicleListOpen] = useState(true);
   const [streetViewActive, setStreetViewActive] = useState(false);
   const [commandDialogDevice, setCommandDialogDevice] = useState<Device | null>(null);
+  const [shareDialogDevice, setShareDialogDevice] = useState<Device | null>(null);
   const {
     searchParams,
     routeIdFromUrl,
@@ -1293,6 +1295,7 @@ export default function MapPage() {
         onDetails={(deviceId) => router.push(`/vehicles/${deviceId}`)}
         onManageGeofences={(device) => setGeofenceDialogDevice(device)}
         onSendCommand={(device) => setCommandDialogDevice(device)}
+        onShareAccess={(device) => setShareDialogDevice(device)}
         onFollow={() => setFollowVehicle(true)}
         onStreetView={() => setStreetViewActive((v) => !v)}
         streetViewActive={streetViewActive}
@@ -1329,6 +1332,15 @@ export default function MapPage() {
         onOpenChange={(open) => {
           if (!open) setCommandDialogDevice(null);
         }}
+      />
+
+      {/* Dialog: Compartilhar Localização */}
+      <ShareLocationDialog
+        open={!!shareDialogDevice}
+        onOpenChange={(open) => {
+          if (!open) setShareDialogDevice(null);
+        }}
+        device={shareDialogDevice}
       />
 
       {/* Dialog: Gerenciar Cercas do Veículo */}
