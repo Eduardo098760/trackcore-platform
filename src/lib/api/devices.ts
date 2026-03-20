@@ -22,7 +22,7 @@ function getImpersonatingUserId(): number | undefined {
  * `attributes` para o nível raiz do objeto Device, pois o código da plataforma
  * os acessa diretamente como device.plate, device.speedLimit etc.
  */
-function normalizeDevice(raw: any): Device {
+export function normalizeDevice(raw: any): Device {
   const attrs = raw?.attributes || {};
   // speedLimit é sempre salvo em km/h (inteiro) pela plataforma.
   // Aplica Math.round para limpar qualquer valor decimal herdado de versões antigas.

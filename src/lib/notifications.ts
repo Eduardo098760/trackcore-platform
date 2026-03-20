@@ -31,12 +31,18 @@ export class NotificationManager {
     const stored = localStorage.getItem('inAppNotifications');
     const notifications: InAppNotification[] = stored ? JSON.parse(stored) : [];
 
-    // Verificar se já existe notificação similar recente (últimos 5 segundos)
+    // Eventos de estado (bloqueio, online/offline) usam janela longa de deduplicação
+    // pois o Traccar pode reenviar o mesmo estado várias vezes.
+    const STATE_EVENTS = new Set(['deviceBlocked', 'deviceUnblocked', 'deviceOnline', 'deviceOffline']);
+    const dedupWindowMs = STATE_EVENTS.has(notification.eventType || '') 
+      ? 30 * 60 * 1000  // 30 minutos para eventos de estado
+      : 5000;           // 5 segundos para outros eventos
+
     const isDuplicate = notifications.some(n => 
       n.title === notification.title &&
       n.deviceId === notification.deviceId &&
       n.eventType === notification.eventType &&
-      (Date.now() - new Date(n.timestamp).getTime()) < 5000
+      (Date.now() - new Date(n.timestamp).getTime()) < dedupWindowMs
     );
 
     if (isDuplicate) {

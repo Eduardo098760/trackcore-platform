@@ -12,7 +12,6 @@ import { getVehicleIconSVG } from "@/lib/vehicle-icons";
 import type { StopEventData, SpeedViolationData } from "./replay-map";
 import { exportPositionsCSV, exportSummaryReport, exportSummaryPDF, captureMapImage } from "./export-helpers";
 
-const ReplayMap = dynamic(() => import("./replay-map"), { ssr: false });
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -421,6 +420,7 @@ export default function RouteReplayPage() {
 
   // â”€â”€ playback â”€â”€
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [interpFraction, setInterpFraction] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
@@ -431,7 +431,8 @@ export default function RouteReplayPage() {
   const [isClient, setIsClient] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
 
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
@@ -589,36 +590,94 @@ export default function RouteReplayPage() {
     snapRouteToRoads,
   ]);
 
-  // playback interval
+  // Playback suave com requestAnimationFrame + interpolação entre pontos GPS
   useEffect(() => {
-    if (isPlaying && route.length > 0) {
-      intervalRef.current = setInterval(() => {
-        setCurrentIndex((prev) => {
-          if (prev >= route.length - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 500 / playbackSpeed);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (!isPlaying || route.length < 2) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      return;
     }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+
+    lastFrameTimeRef.current = 0;
+
+    const tick = (timestamp: number) => {
+      if (!lastFrameTimeRef.current) {
+        lastFrameTimeRef.current = timestamp;
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const deltaMs = timestamp - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = timestamp;
+
+      setCurrentIndex((prevIdx) => {
+        if (prevIdx >= route.length - 1) {
+          setIsPlaying(false);
+          return prevIdx;
+        }
+
+        // Tempo real entre os dois pontos GPS adjacentes
+        const curr = route[prevIdx];
+        const next = route[prevIdx + 1];
+        const t0 = new Date(curr.fixTime || curr.serverTime).getTime();
+        const t1 = new Date(next.fixTime || next.serverTime).getTime();
+        // Duração real do segmento (cap em 60s para não travar em gaps longos)
+        const segmentMs = Math.max(Math.min(t1 - t0, 60000), 100);
+
+        // Velocidade de animação: segmento inteiro em segmentMs / playbackSpeed
+        // deltaMs * playbackSpeed = tempo virtual transcorrido
+        const fractionStep = (deltaMs * playbackSpeed) / segmentMs;
+
+        setInterpFraction((prevFrac) => {
+          const newFrac = prevFrac + fractionStep;
+          if (newFrac >= 1) {
+            // Avança para o próximo índice, carregando o resto da fração
+            const overflow = newFrac - 1;
+            // Usamos setTimeout para evitar atualizar dois states no mesmo frame
+            setTimeout(() => {
+              setCurrentIndex((idx) => {
+                if (idx >= route.length - 1) {
+                  setIsPlaying(false);
+                  return idx;
+                }
+                return idx + 1;
+              });
+              setInterpFraction(Math.min(overflow, 0.99));
+            }, 0);
+            return prevFrac; // mantém até o setTimeout executar
+          }
+          return newFrac;
+        });
+
+        return prevIdx;
+      });
+
+      rafRef.current = requestAnimationFrame(tick);
     };
-  }, [isPlaying, playbackSpeed, route.length]);
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [isPlaying, playbackSpeed, route]);
 
   const handlePlayPause = () => {
-    if (currentIndex >= route.length - 1) setCurrentIndex(0);
+    if (currentIndex >= route.length - 1) {
+      setCurrentIndex(0);
+      setInterpFraction(0);
+    }
     setIsPlaying((p) => !p);
   };
   const handleStop = () => {
     setIsPlaying(false);
     setCurrentIndex(0);
+    setInterpFraction(0);
   };
-  const handleSeek = (idx: number) =>
+  const handleSeek = (idx: number) => {
     setCurrentIndex(Math.max(0, Math.min(idx, route.length - 1)));
+    setInterpFraction(0);
+  };
   const resetFilter = () => {
     setSelectedDevice(null);
     setRoute([]);
@@ -647,43 +706,73 @@ export default function RouteReplayPage() {
 
   // derived
   const currentPos = route[currentIndex];
+  const nextPos = currentIndex < route.length - 1 ? route[currentIndex + 1] : null;
   const device = devices.find((d) => d.id === selectedDevice);
   const progress =
-    route.length > 1 ? (currentIndex / (route.length - 1)) * 100 : 0;
+    route.length > 1
+      ? ((currentIndex + interpFraction) / (route.length - 1)) * 100
+      : 0;
+
+  // Interpola linearmente entre ponto atual e próximo para movimento suave
+  const interpolated = useMemo(() => {
+    if (!currentPos) return null;
+    if (!nextPos || interpFraction <= 0) {
+      return {
+        lat: currentPos.latitude,
+        lng: currentPos.longitude,
+        speed: currentPos.speed ?? 0,
+        course: currentPos.course ?? 0,
+      };
+    }
+    const t = interpFraction;
+    // Interpolação linear de course evitando pulo de 359°→0°
+    let c0 = currentPos.course ?? 0;
+    let c1 = nextPos.course ?? 0;
+    let dCourse = c1 - c0;
+    if (dCourse > 180) dCourse -= 360;
+    if (dCourse < -180) dCourse += 360;
+    const course = ((c0 + dCourse * t) % 360 + 360) % 360;
+    return {
+      lat: currentPos.latitude + (nextPos.latitude - currentPos.latitude) * t,
+      lng: currentPos.longitude + (nextPos.longitude - currentPos.longitude) * t,
+      speed: (currentPos.speed ?? 0) + ((nextPos.speed ?? 0) - (currentPos.speed ?? 0)) * t,
+      course,
+    };
+  }, [currentPos, nextPos, interpFraction]);
 
   const getMarkerPos = (): [number, number] => {
-    if (!currentPos) return [-23.5505, -46.6333];
+    if (!interpolated) return [-23.5505, -46.6333];
     if (snappedRoute.length > 0) {
+      const fractionalIdx = currentIndex + interpFraction;
       const si = Math.floor(
-        (currentIndex / route.length) * snappedRoute.length,
+        (fractionalIdx / route.length) * snappedRoute.length,
       );
       return snappedRoute[Math.max(0, Math.min(si, snappedRoute.length - 1))];
     }
-    return [currentPos.latitude, currentPos.longitude];
+    return [interpolated.lat, interpolated.lng];
   };
 
   const snappedCompleted = useMemo(
-    () =>
-      snappedRoute.length > 0
-        ? snappedRoute.slice(
-            0,
-            Math.floor(
-              (currentIndex / Math.max(route.length, 1)) * snappedRoute.length,
-            ),
-          )
-        : null,
-    [snappedRoute, currentIndex, route.length],
+    () => {
+      if (snappedRoute.length === 0) return null;
+      const fractionalIdx = currentIndex + interpFraction;
+      const si = Math.floor(
+        (fractionalIdx / Math.max(route.length, 1)) * snappedRoute.length,
+      );
+      return snappedRoute.slice(0, Math.min(si + 1, snappedRoute.length));
+    },
+    [snappedRoute, currentIndex, interpFraction, route.length],
   );
   const snappedRemaining = useMemo(
-    () =>
-      snappedRoute.length > 0
-        ? snappedRoute.slice(
-            Math.floor(
-              (currentIndex / Math.max(route.length, 1)) * snappedRoute.length,
-            ),
-          )
-        : null,
-    [snappedRoute, currentIndex, route.length],
+    () => {
+      if (snappedRoute.length === 0) return null;
+      const fractionalIdx = currentIndex + interpFraction;
+      const si = Math.floor(
+        (fractionalIdx / Math.max(route.length, 1)) * snappedRoute.length,
+      );
+      return snappedRoute.slice(si);
+    },
+    [snappedRoute, currentIndex, interpFraction, route.length],
   );
   const rawCompleted = useMemo(
     () =>
@@ -1039,10 +1128,13 @@ export default function RouteReplayPage() {
                 })}
               />
 
-              {/* VeÃ­culo */}
+              {/* Veículo */}
               <Marker
                 position={getMarkerPos()}
-                icon={createVehicleIcon(currentPos, device)}
+                icon={createVehicleIcon(
+                  interpolated ? { ...currentPos, course: interpolated.course, speed: interpolated.speed } : currentPos,
+                  device,
+                )}
               />
             </MapContainer>
 
@@ -1643,16 +1735,16 @@ export default function RouteReplayPage() {
                       <span className="text-red-400 font-bold animate-pulse">
                         ⚠ EXCESSO:{" "}
                         <strong>
-                          {Math.round(currentPos.speed)}
+                          {Math.round(interpolated?.speed ?? currentPos.speed)}
                         </strong>{" "}
                         km/h (+
-                        {Math.round(currentPos.speed) - speedLimit})
+                        {Math.round(interpolated?.speed ?? currentPos.speed) - speedLimit})
                       </span>
                     ) : (
                       <span>
                         ⚡{" "}
                         <strong>
-                          {Math.round(currentPos.speed)}
+                          {Math.round(interpolated?.speed ?? currentPos.speed)}
                         </strong>{" "}
                         km/h
                       </span>

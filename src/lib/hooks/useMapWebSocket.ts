@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Device, Position } from "@/types";
 import { getPositions } from "@/lib/api";
+import { normalizeDevice } from "@/lib/api/devices";
 import { getWebSocketClient } from "@/lib/websocket";
 import { distanceKm } from "@/lib/utils";
 
@@ -82,9 +83,23 @@ export function useMapWebSocket({
       pendingPositionsMap.current = new Map();
 
       // 1. Atualiza React Query cache
+      // Atributo "sticky" para ignition — mantém o último valor conhecido se a
+      // nova posição não trouxer o campo. Muitos rastreadores não enviam
+      // `ignition` em todo pacote, fazendo o status oscilar.
+      // NOTA: `blocked` NÃO é sticky aqui; bloqueio é controlado exclusivamente
+      // por device.attributes.blocked (comando administrativo).
       queryClient.setQueryData(["positions"], (old: Position[] = []) => {
         const posMap = new Map(old.map((p) => [p.deviceId, p]));
-        positionList.forEach((p) => posMap.set(p.deviceId, p));
+        positionList.forEach((p) => {
+          const prev = posMap.get(p.deviceId);
+          if (prev && p.attributes) {
+            // Herda ignition do pacote anterior quando ausente no novo
+            if (p.attributes.ignition === undefined && prev.attributes?.ignition !== undefined) {
+              p = { ...p, attributes: { ...p.attributes, ignition: prev.attributes.ignition } };
+            }
+          }
+          posMap.set(p.deviceId, p);
+        });
         return Array.from(posMap.values());
       });
 
@@ -174,10 +189,16 @@ export function useMapWebSocket({
       if (message.type === "positions") {
         enqueuePositions(message.data);
       } else if (message.type === "devices") {
-        // Traccar envia apenas os devices que mudaram — merge com a lista existente
+        // Traccar envia apenas os devices que mudaram — normaliza e merge com a lista existente
         queryClient.setQueryData(["devices"], (old: Device[] = []) => {
           const devMap = new Map(old.map((d) => [d.id, d]));
-          message.data.forEach((d: Device) => devMap.set(d.id, d));
+          message.data.forEach((d: any) => {
+            const existing = devMap.get(d.id);
+            const normalized = normalizeDevice(d);
+            // Preserva campos da plataforma já no cache (ex: speedLimit, plate)
+            // caso o WS não traga attributes completos
+            devMap.set(d.id, existing ? { ...existing, ...normalized } : normalized);
+          });
           return Array.from(devMap.values());
         });
       } else if (message.type === "events") {

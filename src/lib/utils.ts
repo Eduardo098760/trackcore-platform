@@ -67,6 +67,11 @@ export function getDeviceStatusColor(status: string): string {
  *
  * IMPORTANTE: Se a última comunicação (posição) tem mais de 10 min, considera offline
  * independente do status que o Traccar reporta.
+ *
+ * NOTA: "blocked" NÃO é derivado aqui. É um estado administrativo controlado
+ * exclusivamente por device.attributes.blocked (set via comando). Não usamos
+ * position.attributes.blocked pois rastreadores enviam esse campo de forma
+ * inconsistente, causando oscilação de status.
  */
 export function deriveDeviceStatus(
   deviceStatus: string,
@@ -83,15 +88,12 @@ export function deriveDeviceStatus(
   // 1) Sem comunicação por mais de 15 min → força offline por tempo
   //    (independe do que o Traccar diz)
   if (ageMin > OFFLINE_THRESHOLD_MIN) {
-    if (position?.attributes?.blocked) return 'blocked';
     return 'offline';
   }
 
   // 2) Comunicação recente — derivar do estado real da posição
   //    Mesmo que Traccar reporte 'offline' (TCP caiu), se temos dados frescos
   //    confiamos na posição (UDP pode continuar, ou status pode atrasar)
-  if (deviceStatus === 'blocked' || position?.attributes?.blocked) return 'blocked';
-
   if (position) {
     if (position.attributes?.motion === true || (position.speed ?? 0) > 2) return 'moving';
     if (position.attributes?.ignition) return 'stopped';

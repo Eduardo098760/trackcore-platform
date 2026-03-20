@@ -759,21 +759,17 @@ export async function getDashboardStats(options?: {
     blocked: 0,
   };
   for (const d of filteredDevices) {
+    // Blocked é contado separadamente via device.attributes.blocked (comando admin)
+    if (d.attributes?.blocked) deviceStats.blocked++;
     const s = deriveDeviceStatus(d.status, posMap.get(d.id), d.lastUpdate);
     if (s === "moving") deviceStats.moving++;
     else if (s === "stopped") deviceStats.stopped++;
-    else if (s === "blocked") deviceStats.blocked++;
     else if (s === "offline") deviceStats.offline++;
     else deviceStats.online++;
-    if (s !== "offline" && s !== "blocked")
-      deviceStats.online =
-        deviceStats.moving +
-        deviceStats.stopped +
-        (deviceStats.online - deviceStats.moving - deviceStats.stopped);
   }
-  // recalculate online as total minus offline/blocked
+  // recalculate online as total minus offline
   deviceStats.online =
-    filteredDevices.length - deviceStats.offline - deviceStats.blocked;
+    filteredDevices.length - deviceStats.offline;
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);

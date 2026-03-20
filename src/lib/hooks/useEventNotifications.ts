@@ -7,9 +7,21 @@ import { Device, Event, SpeedAlert } from '@/types';
 /**
  * Hook que monitora eventos do Traccar e dispara notificações automaticamente
  */
+// Tipos de evento que representam ESTADO (não ocorrência pontual).
+// Para estes, só notificamos quando há uma TRANSIÇÃO real de estado por dispositivo.
+const STATE_EVENT_TYPES = new Set([
+  'deviceBlocked',
+  'deviceUnblocked',
+  'deviceOnline',
+  'deviceOffline',
+]);
+
 export function useEventNotifications(enabled: boolean = true) {
   const processedEvents = useRef(new Set<number>());
   const lastCheckTime = useRef<Date>(new Date());
+  // Rastreia o último estado notificado por dispositivo para eventos de estado.
+  // Ex: { 42: 'deviceBlocked' } → já notificamos que o device 42 está bloqueado.
+  const deviceStateNotified = useRef<Map<number, string>>(new Map());
 
   // Buscar lista de dispositivos para resolver nome + placa
   const { data: devices = [] } = useQuery<Device[]>({
@@ -64,6 +76,16 @@ export function useEventNotifications(enabled: boolean = true) {
     // Processar eventos um por vez com pequeno delay para evitar empilhamento
     newEvents.forEach((event, index) => {
       setTimeout(async () => {
+        // Para eventos de estado, verificar se já notificamos esse estado
+        if (STATE_EVENT_TYPES.has(event.type)) {
+          const lastState = deviceStateNotified.current.get(event.deviceId);
+          if (lastState === event.type) {
+            // Já notificamos esse exato estado — ignorar repetição
+            processedEvents.current.add(event.id);
+            return;
+          }
+          deviceStateNotified.current.set(event.deviceId, event.type);
+        }
         await processEvent(event, devices);
         processedEvents.current.add(event.id);
       }, index * 500); // 500ms entre cada notificação
@@ -89,6 +111,16 @@ export function useEventNotifications(enabled: boolean = true) {
 
       console.log('⚡ Evento recebido via WebSocket:', event.type, event.id);
       processedEvents.current.add(event.id);
+
+      // Para eventos de estado, verificar se já notificamos esse estado
+      if (STATE_EVENT_TYPES.has(event.type)) {
+        const lastState = deviceStateNotified.current.get(event.deviceId);
+        if (lastState === event.type) {
+          console.debug(`[WS] Estado "${event.type}" já notificado para device #${event.deviceId} — ignorado`);
+          return;
+        }
+        deviceStateNotified.current.set(event.deviceId, event.type);
+      }
       processEvent(event, devices);
 
       // Limitar tamanho do set
