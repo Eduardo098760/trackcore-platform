@@ -1,6 +1,7 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { User, Organization } from '@/types';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { User, Organization } from "@/types";
+import { isPwaInstalled } from "@/lib/pwa-utils";
 
 interface AdminSnapshot {
   user: User;
@@ -21,7 +22,14 @@ interface AuthState {
   // Impersonação real: admin entra como outro usuário sem sair
   isImpersonating: boolean;
   adminSnapshot: AdminSnapshot | null;
-  setAuth: (user: User, token: string, organization?: Organization, email?: string, password?: string, rememberMe?: boolean) => void;
+  setAuth: (
+    user: User,
+    token: string,
+    organization?: Organization,
+    email?: string,
+    password?: string,
+    rememberMe?: boolean,
+  ) => void;
   setUser: (user: User) => void;
   clearAuth: () => void;
   getCredentials: () => { email: string | null; password: string | null };
@@ -42,15 +50,22 @@ export const useAuthStore = create<AuthState>()(
       isImpersonating: false,
       adminSnapshot: null,
       setAuth: (user, token, organization, email, password, rememberMe = true) => {
-        console.log('Salvando autenticação:', { email, rememberMe, organization: organization?.name });
-        set({ 
-          user, 
+        // Em modo PWA, sempre persistir credenciais para manter sessão permanente
+        const effectiveRememberMe = isPwaInstalled() ? true : rememberMe;
+        console.log("Salvando autenticação:", {
+          email,
+          rememberMe: effectiveRememberMe,
+          pwa: isPwaInstalled(),
+          organization: organization?.name,
+        });
+        set({
+          user,
           token,
           organization: organization || null,
-          email: rememberMe ? email : null,
-          password: rememberMe ? password : null,
+          email: effectiveRememberMe ? email : null,
+          password: effectiveRememberMe ? password : null,
           isAuthenticated: true,
-          rememberMe,
+          rememberMe: effectiveRememberMe,
           // Se setAuth for chamado manualmente fora da impersonação, reseta o estado
           isImpersonating: false,
           adminSnapshot: null,
@@ -59,22 +74,22 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => {
         // Se estiver em impersonação, não permite sobrescrever com dados do Traccar
         if (get().isImpersonating) {
-          console.log('[AuthStore] setUser ignorado durante impersonação');
+          console.log("[AuthStore] setUser ignorado durante impersonação");
           return;
         }
-        console.log('[AuthStore] setUser:', user.name, '| role:', user.role);
+        console.log("[AuthStore] setUser:", user.name, "| role:", user.role);
         set({ user });
       },
       clearAuth: () => {
-        console.log('Limpando autenticação');
+        console.log("Limpando autenticação");
         try {
-          localStorage.removeItem('inAppNotifications');
-          localStorage.removeItem('speedAlerts');
-          window.dispatchEvent(new CustomEvent('notificationsCleared'));
-          window.dispatchEvent(new CustomEvent('speedAlertsCleared'));
+          localStorage.removeItem("inAppNotifications");
+          localStorage.removeItem("speedAlerts");
+          window.dispatchEvent(new CustomEvent("notificationsCleared"));
+          window.dispatchEvent(new CustomEvent("speedAlertsCleared"));
         } catch (_) {}
-        set({ 
-          user: null, 
+        set({
+          user: null,
           token: null,
           organization: null,
           email: null,
@@ -87,25 +102,27 @@ export const useAuthStore = create<AuthState>()(
       },
       getCredentials: () => ({
         email: get().email,
-        password: get().password
+        password: get().password,
       }),
       startImpersonation: (target: User) => {
         const { user, token, email, password, organization } = get();
         if (!user || !token) {
-          console.warn('[AuthStore] startImpersonation: sem usuário admin autenticado');
+          console.warn("[AuthStore] startImpersonation: sem usuário admin autenticado");
           return;
         }
-        console.log('[AuthStore] Iniciando impersonação como:', target.name);
+        console.log("[AuthStore] Iniciando impersonação como:", target.name);
         // Salva snapshot do admin para restaurar depois
         const snapshot: AdminSnapshot = { user, token, email, password, organization };
         // Token fake para o usuário alvo (não é usado para chamadas Traccar — o cookie admin continua)
-        const targetToken = btoa(JSON.stringify({ userId: target.id, email: target.email, impersonated: true }));
+        const targetToken = btoa(
+          JSON.stringify({ userId: target.id, email: target.email, impersonated: true }),
+        );
         // Limpa dados visuais do admin
         try {
-          localStorage.removeItem('inAppNotifications');
-          localStorage.removeItem('speedAlerts');
-          window.dispatchEvent(new CustomEvent('notificationsCleared'));
-          window.dispatchEvent(new CustomEvent('speedAlertsCleared'));
+          localStorage.removeItem("inAppNotifications");
+          localStorage.removeItem("speedAlerts");
+          window.dispatchEvent(new CustomEvent("notificationsCleared"));
+          window.dispatchEvent(new CustomEvent("speedAlertsCleared"));
         } catch (_) {}
         set({
           isImpersonating: true,
@@ -120,16 +137,19 @@ export const useAuthStore = create<AuthState>()(
       stopImpersonation: () => {
         const { adminSnapshot } = get();
         if (!adminSnapshot) {
-          console.warn('[AuthStore] stopImpersonation: sem snapshot de admin');
+          console.warn("[AuthStore] stopImpersonation: sem snapshot de admin");
           return;
         }
-        console.log('[AuthStore] Encerrando impersonação, voltando ao admin:', adminSnapshot.user.name);
+        console.log(
+          "[AuthStore] Encerrando impersonação, voltando ao admin:",
+          adminSnapshot.user.name,
+        );
         // Limpa dados do usuário impersonado
         try {
-          localStorage.removeItem('inAppNotifications');
-          localStorage.removeItem('speedAlerts');
-          window.dispatchEvent(new CustomEvent('notificationsCleared'));
-          window.dispatchEvent(new CustomEvent('speedAlertsCleared'));
+          localStorage.removeItem("inAppNotifications");
+          localStorage.removeItem("speedAlerts");
+          window.dispatchEvent(new CustomEvent("notificationsCleared"));
+          window.dispatchEvent(new CustomEvent("speedAlertsCleared"));
         } catch (_) {}
         set({
           isImpersonating: false,
@@ -144,8 +164,8 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage',
+      name: "auth-storage",
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );

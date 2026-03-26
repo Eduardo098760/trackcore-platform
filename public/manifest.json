@@ -1,0 +1,26 @@
+{
+  "name": "Rastrear - Rastreamento Veicular",
+  "short_name": "Rastrear",
+  "description": "Sistema completo de rastreamento de frota em tempo real",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "scope": "/",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "handle_links": "preferred",
+  "icons": [
+    {
+      "src": "/logos/rastrear-icone-light.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "lang": "pt-BR",
+  "prefer_related_applications": false
+}

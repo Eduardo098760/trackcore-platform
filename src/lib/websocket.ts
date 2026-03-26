@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Device, Position, Event } from '@/types';
+import { Device, Position, Event } from "@/types";
 
-type WebSocketMessage = 
-  | { type: 'positions'; data: Position[] }
-  | { type: 'devices'; data: Device[] }
-  | { type: 'events'; data: Event[] };
+type WebSocketMessage =
+  | { type: "positions"; data: Position[] }
+  | { type: "devices"; data: Device[] }
+  | { type: "events"; data: Event[] };
 
 type WebSocketCallback = (message: WebSocketMessage) => void;
 type ConnectionCallback = (connected: boolean) => void;
@@ -20,60 +20,66 @@ function deriveTraccarWsUrl(): string {
   }
 
   // Multi-tenant: ler servidor dinâmico do localStorage
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     try {
-      const server = localStorage.getItem('traccar-server');
+      const server = localStorage.getItem("traccar-server");
       if (server && /^https?:\/\//i.test(server)) {
         const wsBase = server
-          .replace(/^http:/i, 'ws:')
-          .replace(/^https:/i, 'wss:')
-          .replace(/\/+$/, '');
+          .replace(/^http:/i, "ws:")
+          .replace(/^https:/i, "wss:")
+          .replace(/\/+$/, "");
         return `${wsBase}/api/socket`;
       }
     } catch {}
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
   if (/^https?:\/\//i.test(apiUrl)) {
     const wsBase = apiUrl
-      .replace(/^http:/i, 'ws:')
-      .replace(/^https:/i, 'wss:')
-      .replace(/\/api\/?$/, '');
+      .replace(/^http:/i, "ws:")
+      .replace(/^https:/i, "wss:")
+      .replace(/\/api\/?$/, "");
     return `${wsBase}/api/socket`;
   }
 
   // Sem URL explícita: conecta diretamente via proxy path do Next.js rewrite
   // O WebSocket NÃO passa por rewrites do Next.js, então usa o mesmo host
   // com o path /api/traccar/socket que será redirecionado pelo servidor
-  if (typeof window !== 'undefined') {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host  = window.location.host;
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
     return `${proto}//${host}/api/traccar/socket`;
   }
 
-  return 'ws://localhost:8082/api/socket';
+  return "ws://localhost:8082/api/socket";
 }
 
-const BASE_DELAY_MS  = 1_500;
-const MAX_DELAY_MS   = 30_000;
-const HEARTBEAT_MS   = 25_000; // ping a cada 25s
+const BASE_DELAY_MS = 1_500;
+const MAX_DELAY_MS = 30_000;
+const HEARTBEAT_MS = 25_000; // ping a cada 25s
 const HEARTBEAT_TIMEOUT_MS = 10_000; // se não responder em 10s, reconecta
+const AUTH_FAILURE_CODES = [401, 403, 1008]; // códigos que indicam sessão expirada
+const MAX_AUTH_RETRIES = 3; // máximo de tentativas de re-auth antes de forçar login
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
   private callbacks: Set<WebSocketCallback> = new Set();
   private connectionCallbacks: Set<ConnectionCallback> = new Set();
-  private isManualClose  = false;
+  private isManualClose = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
-  private attempt        = 0;
-  private _isConnected   = false;
+  private attempt = 0;
+  private authRetries = 0;
+  private _isConnected = false;
   private _lastMessageTime = 0;
   private visibilityHandler: (() => void) | null = null;
+  private onlineHandler: (() => void) | null = null;
 
-  get lastMessageTime() { return this._lastMessageTime; }
+  get lastMessageTime() {
+    return this._lastMessageTime;
+  }
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
@@ -90,10 +96,12 @@ class WebSocketClient {
         this._isConnected = true;
         this._lastMessageTime = Date.now();
         this.attempt = 0;
+        this.authRetries = 0;
         this.clearReconnectTimer();
         this.startHeartbeat();
         this.notifyConnectionChange(true);
         this.setupVisibilityHandler();
+        this.setupOnlineHandler();
       };
 
       this.ws.onmessage = (event) => {
@@ -102,29 +110,29 @@ class WebSocketClient {
 
         try {
           const raw = JSON.parse(event.data);
-          
+
           // Formato Traccar padrão: { positions: [...], devices: [...], events: [...] }
-          if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
             if (Array.isArray(raw.positions) && raw.positions.length > 0) {
               // Traccar envia speed em knots — normaliza para km/h
               const normalized = raw.positions.map((p: any) => ({
                 ...p,
-                speed: typeof p.speed === 'number' ? p.speed * 1.852 : p.speed,
+                speed: typeof p.speed === "number" ? p.speed * 1.852 : p.speed,
               }));
-              const msg: WebSocketMessage = { type: 'positions', data: normalized };
-              this.callbacks.forEach(cb => cb(msg));
+              const msg: WebSocketMessage = { type: "positions", data: normalized };
+              this.callbacks.forEach((cb) => cb(msg));
             }
             if (Array.isArray(raw.devices) && raw.devices.length > 0) {
-              const msg: WebSocketMessage = { type: 'devices', data: raw.devices };
-              this.callbacks.forEach(cb => cb(msg));
+              const msg: WebSocketMessage = { type: "devices", data: raw.devices };
+              this.callbacks.forEach((cb) => cb(msg));
             }
             if (Array.isArray(raw.events) && raw.events.length > 0) {
-              const msg: WebSocketMessage = { type: 'events', data: raw.events };
-              this.callbacks.forEach(cb => cb(msg));
+              const msg: WebSocketMessage = { type: "events", data: raw.events };
+              this.callbacks.forEach((cb) => cb(msg));
             }
           }
         } catch (err) {
-          console.error('[WebSocket] Erro ao processar mensagem:', err);
+          console.error("[WebSocket] Erro ao processar mensagem:", err);
         }
       };
 
@@ -140,10 +148,42 @@ class WebSocketClient {
         this.stopHeartbeat();
         if (wasConnected) this.notifyConnectionChange(false);
         if (this.isManualClose) return;
+
+        // Detectar falha de autenticação (sessão expirada após restart do servidor)
+        if (AUTH_FAILURE_CODES.includes(ev.code)) {
+          console.warn(
+            `[WebSocket] Sessão expirada (code: ${ev.code}). Solicitando re-autenticação...`,
+          );
+          this.authRetries++;
+          if (this.authRetries <= MAX_AUTH_RETRIES) {
+            // Emitir evento para que o layout tente re-login automático
+            window.dispatchEvent(
+              new CustomEvent("session-expired", {
+                detail: { source: "websocket", code: ev.code },
+              }),
+            );
+            // Aguardar re-login antes de reconectar (delay maior)
+            this.reconnectTimer = setTimeout(() => {
+              this.reconnectTimer = null;
+              this.connect();
+            }, 3000);
+            return;
+          } else {
+            console.error(
+              "[WebSocket] Máximo de tentativas de re-auth excedido. Forçando login...",
+            );
+            window.dispatchEvent(
+              new CustomEvent("session-expired", { detail: { source: "websocket", fatal: true } }),
+            );
+            return;
+          }
+        }
+
+        // Reconexão normal para falhas de rede
         this.scheduleReconnect();
       };
     } catch (err) {
-      console.warn('[WebSocket] Exceção ao criar conexão:', err);
+      console.warn("[WebSocket] Exceção ao criar conexão:", err);
       this.scheduleReconnect();
     }
   }
@@ -155,14 +195,14 @@ class WebSocketClient {
 
       // Se não recebemos nada há mais que o timeout, a conexão está morta
       if (Date.now() - this._lastMessageTime > HEARTBEAT_MS + HEARTBEAT_TIMEOUT_MS) {
-        console.warn('[WebSocket] Sem resposta do servidor — reconectando');
+        console.warn("[WebSocket] Sem resposta do servidor — reconectando");
         this.forceReconnect();
         return;
       }
 
       // Envia um ping (Traccar ignora mensagens desconhecidas, mas mantém a conexão viva)
       try {
-        this.ws.send('{}');
+        this.ws.send("{}");
       } catch {
         // no-op
       }
@@ -170,7 +210,7 @@ class WebSocketClient {
       // Seta timeout: se nenhuma mensagem chegar em HEARTBEAT_TIMEOUT_MS, reconecta
       this.heartbeatTimeout = setTimeout(() => {
         if (Date.now() - this._lastMessageTime > HEARTBEAT_TIMEOUT_MS) {
-          console.warn('[WebSocket] Heartbeat timeout — reconectando');
+          console.warn("[WebSocket] Heartbeat timeout — reconectando");
           this.forceReconnect();
         }
       }, HEARTBEAT_TIMEOUT_MS);
@@ -195,7 +235,11 @@ class WebSocketClient {
   private forceReconnect() {
     this.stopHeartbeat();
     if (this.ws) {
-      try { this.ws.close(); } catch { /* no-op */ }
+      try {
+        this.ws.close();
+      } catch {
+        /* no-op */
+      }
       this.ws = null;
     }
     this._isConnected = false;
@@ -207,18 +251,40 @@ class WebSocketClient {
   private setupVisibilityHandler() {
     if (this.visibilityHandler) return;
     this.visibilityHandler = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         // Voltou à aba: verifica se a conexão está viva
         if (!this.isConnected()) {
           this.attempt = 0;
-          this.connect();
+          // Tenta re-auth antes de reconectar caso sessão tenha expirado
+          window.dispatchEvent(
+            new CustomEvent("session-expired", { detail: { source: "visibility", silent: true } }),
+          );
+          setTimeout(() => this.connect(), 1000);
         } else if (Date.now() - this._lastMessageTime > HEARTBEAT_MS) {
           // Conexão parece viva mas não recebemos dados durante a ausência
           this.forceReconnect();
         }
       }
     };
-    document.addEventListener('visibilitychange', this.visibilityHandler);
+    document.addEventListener("visibilitychange", this.visibilityHandler);
+  }
+
+  private setupOnlineHandler() {
+    if (this.onlineHandler) return;
+    this.onlineHandler = () => {
+      // Rede restaurada: reconecta imediatamente
+      if (!this.isConnected() && !this.isManualClose) {
+        console.log("[WebSocket] Rede restaurada, reconectando...");
+        this.attempt = 0;
+        this.clearReconnectTimer();
+        // Re-autenticar antes de reconectar (sessão pode ter morrido)
+        window.dispatchEvent(
+          new CustomEvent("session-expired", { detail: { source: "online", silent: true } }),
+        );
+        setTimeout(() => this.connect(), 1500);
+      }
+    };
+    window.addEventListener("online", this.onlineHandler);
   }
 
   private scheduleReconnect() {
@@ -242,17 +308,21 @@ class WebSocketClient {
   }
 
   private notifyConnectionChange(connected: boolean) {
-    this.connectionCallbacks.forEach(cb => cb(connected));
+    this.connectionCallbacks.forEach((cb) => cb(connected));
   }
 
   disconnect() {
     this.isManualClose = true;
-    this._isConnected  = false;
+    this._isConnected = false;
     this.stopHeartbeat();
     this.clearReconnectTimer();
     if (this.visibilityHandler) {
-      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
       this.visibilityHandler = null;
+    }
+    if (this.onlineHandler) {
+      window.removeEventListener("online", this.onlineHandler);
+      this.onlineHandler = null;
     }
     if (this.ws) {
       this.ws.close();
@@ -262,12 +332,16 @@ class WebSocketClient {
 
   subscribe(callback: WebSocketCallback) {
     this.callbacks.add(callback);
-    return () => { this.callbacks.delete(callback); };
+    return () => {
+      this.callbacks.delete(callback);
+    };
   }
 
   onConnectionChange(callback: ConnectionCallback) {
     this.connectionCallbacks.add(callback);
-    return () => { this.connectionCallbacks.delete(callback); };
+    return () => {
+      this.connectionCallbacks.delete(callback);
+    };
   }
 
   send(message: unknown) {
@@ -285,7 +359,7 @@ class WebSocketClient {
 let wsClient: WebSocketClient | null = null;
 
 export function getWebSocketClient(): WebSocketClient {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return {
       connect: () => {},
       disconnect: () => {},

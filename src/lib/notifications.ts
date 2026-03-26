@@ -1,4 +1,4 @@
-import { InAppNotification } from '@/components/layout/notification-panel';
+import { InAppNotification } from "@/components/layout/notification-panel";
 
 /**
  * Sistema de gerenciamento de notificações in-app
@@ -19,7 +19,9 @@ export class NotificationManager {
   /**
    * Adiciona uma nova notificação
    */
-  async addNotification(notification: Omit<InAppNotification, 'id' | 'timestamp' | 'read'>): Promise<void> {
+  async addNotification(
+    notification: Omit<InAppNotification, "id" | "timestamp" | "read">,
+  ): Promise<void> {
     const newNotification: InAppNotification = {
       ...notification,
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -28,25 +30,31 @@ export class NotificationManager {
     };
 
     // Obter notificações existentes
-    const stored = localStorage.getItem('inAppNotifications');
+    const stored = localStorage.getItem("inAppNotifications");
     const notifications: InAppNotification[] = stored ? JSON.parse(stored) : [];
 
     // Eventos de estado (bloqueio, online/offline) usam janela longa de deduplicação
     // pois o Traccar pode reenviar o mesmo estado várias vezes.
-    const STATE_EVENTS = new Set(['deviceBlocked', 'deviceUnblocked', 'deviceOnline', 'deviceOffline']);
-    const dedupWindowMs = STATE_EVENTS.has(notification.eventType || '') 
-      ? 30 * 60 * 1000  // 30 minutos para eventos de estado
-      : 5000;           // 5 segundos para outros eventos
+    const STATE_EVENTS = new Set([
+      "deviceBlocked",
+      "deviceUnblocked",
+      "deviceOnline",
+      "deviceOffline",
+    ]);
+    const dedupWindowMs = STATE_EVENTS.has(notification.eventType || "")
+      ? 30 * 60 * 1000 // 30 minutos para eventos de estado
+      : 5000; // 5 segundos para outros eventos
 
-    const isDuplicate = notifications.some(n => 
-      n.title === notification.title &&
-      n.deviceId === notification.deviceId &&
-      n.eventType === notification.eventType &&
-      (Date.now() - new Date(n.timestamp).getTime()) < dedupWindowMs
+    const isDuplicate = notifications.some(
+      (n) =>
+        n.title === notification.title &&
+        n.deviceId === notification.deviceId &&
+        n.eventType === notification.eventType &&
+        Date.now() - new Date(n.timestamp).getTime() < dedupWindowMs,
     );
 
     if (isDuplicate) {
-      console.log('⚠️ Notificação duplicada detectada, ignorando');
+      console.log("⚠️ Notificação duplicada detectada, ignorando");
       return;
     }
 
@@ -57,27 +65,29 @@ export class NotificationManager {
     const trimmed = notifications.slice(0, 50);
 
     // Salvar
-    localStorage.setItem('inAppNotifications', JSON.stringify(trimmed));
+    localStorage.setItem("inAppNotifications", JSON.stringify(trimmed));
 
     // Disparar evento customizado para atualização imediata da UI
-    window.dispatchEvent(new CustomEvent('notificationAdded', { 
-      detail: newNotification 
-    }));
+    window.dispatchEvent(
+      new CustomEvent("notificationAdded", {
+        detail: newNotification,
+      }),
+    );
 
-    console.log('✅ Notificação criada:', newNotification.title);
+    console.log("✅ Notificação criada:", newNotification.title);
 
     // Tocar som e mostrar notificação do navegador em paralelo
     Promise.all([
       this.playNotificationSound(),
-      this.showBrowserNotification(newNotification)
-    ]).catch(err => console.error('Erro ao processar notificação:', err));
+      this.showBrowserNotification(newNotification),
+    ]).catch((err) => console.error("Erro ao processar notificação:", err));
   }
 
   /**
    * Toca som de notificação se habilitado
    */
   private async playNotificationSound(): Promise<void> {
-    const settings = localStorage.getItem('notificationSettings');
+    const settings = localStorage.getItem("notificationSettings");
     if (settings) {
       const parsed = JSON.parse(settings);
       if (parsed.inApp?.enabled && parsed.inApp?.sound) {
@@ -90,7 +100,7 @@ export class NotificationManager {
         gainNode.connect(audioContext.destination);
 
         oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
+        oscillator.type = "sine";
 
         gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
@@ -107,34 +117,35 @@ export class NotificationManager {
    * Fallback para Notification API se o SW não estiver disponível.
    */
   private async showBrowserNotification(notification: InAppNotification): Promise<void> {
-    const settings = localStorage.getItem('notificationSettings');
-    if (!settings) return;
+    const settings = localStorage.getItem("notificationSettings");
+    const parsed = settings ? JSON.parse(settings) : {};
 
-    const parsed = JSON.parse(settings);
-    if (!parsed.inApp?.enabled || !parsed.inApp?.desktop) return;
+    // Notificações nativas habilitadas por padrão se tiver permissão
+    // Só bloqueia se o usuário explicitamente desabilitou
+    if (parsed.inApp?.enabled === false || parsed.inApp?.desktop === false) return;
 
     // Verificar permissão
-    if (!('Notification' in window)) {
-      console.log('Este navegador não suporta notificações desktop');
+    if (!("Notification" in window)) {
+      console.log("Este navegador não suporta notificações desktop");
       return;
     }
 
-    if (Notification.permission !== 'granted') {
-      if (Notification.permission === 'denied') return;
+    if (Notification.permission !== "granted") {
+      if (Notification.permission === "denied") return;
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return;
+      if (permission !== "granted") return;
     }
 
     // Tentar via Service Worker (funciona em segundo plano)
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
-        type: 'SHOW_NOTIFICATION',
+        type: "SHOW_NOTIFICATION",
         payload: {
           title: notification.title,
           body: notification.message,
           tag: notification.id,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
+          icon: "/logos/rastrear-icone-light.png",
+          badge: "/logos/rastrear-icone-light.png",
           data: {
             deviceId: notification.deviceId,
             deviceName: notification.deviceName,
@@ -151,8 +162,8 @@ export class NotificationManager {
     // Fallback: Notification API direta (só funciona com aba ativa)
     new Notification(notification.title, {
       body: notification.message,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: "/logos/rastrear-icone-light.png",
+      badge: "/logos/rastrear-icone-light.png",
       tag: notification.id,
     });
   }
@@ -161,10 +172,10 @@ export class NotificationManager {
    * Cria notificação customizada com dados dinâmicos
    */
   async createCustomNotification(
-    type: 'info' | 'warning' | 'error' | 'success',
+    type: "info" | "warning" | "error" | "success",
     title: string,
     message: string,
-    customData?: Record<string, any>
+    customData?: Record<string, any>,
   ): Promise<void> {
     await this.addNotification({
       type,
@@ -172,7 +183,7 @@ export class NotificationManager {
       message,
       deviceId: customData?.deviceId,
       deviceName: customData?.deviceName,
-      eventType: customData?.eventType || 'custom',
+      eventType: customData?.eventType || "custom",
     });
   }
 
@@ -183,54 +194,57 @@ export class NotificationManager {
     type: string,
     deviceName: string,
     deviceId: number,
-    details?: string
+    details?: string,
   ): Promise<void> {
-    const eventMap: Record<string, {
-      type: 'info' | 'warning' | 'error' | 'success';
-      title: string;
-      message: string;
-    }> = {
+    const eventMap: Record<
+      string,
+      {
+        type: "info" | "warning" | "error" | "success";
+        title: string;
+        message: string;
+      }
+    > = {
       speedLimit: {
-        type: 'warning',
-        title: 'Velocidade Excedida',
-        message: `${deviceName} ${details || 'excedeu o limite de velocidade'}`,
+        type: "warning",
+        title: "Velocidade Excedida",
+        message: `${deviceName} ${details || "excedeu o limite de velocidade"}`,
       },
       geofenceEnter: {
-        type: 'info',
-        title: 'Entrada em Cerca',
-        message: `${deviceName} ${details || 'entrou em uma cerca geográfica'}`,
+        type: "info",
+        title: "Entrada em Cerca",
+        message: `${deviceName} ${details || "entrou em uma cerca geográfica"}`,
       },
       geofenceExit: {
-        type: 'warning',
-        title: 'Saída de Cerca',
-        message: `${deviceName} ${details || 'saiu de uma cerca geográfica'}`,
+        type: "warning",
+        title: "Saída de Cerca",
+        message: `${deviceName} ${details || "saiu de uma cerca geográfica"}`,
       },
       deviceOffline: {
-        type: 'error',
-        title: 'Dispositivo Offline',
-        message: `${deviceName} ${details || 'está sem comunicação'}`,
+        type: "error",
+        title: "Dispositivo Offline",
+        message: `${deviceName} ${details || "está sem comunicação"}`,
       },
       maintenance: {
-        type: 'info',
-        title: 'Manutenção',
-        message: `${deviceName} ${details || 'requer manutenção'}`,
+        type: "info",
+        title: "Manutenção",
+        message: `${deviceName} ${details || "requer manutenção"}`,
       },
       ignitionOn: {
-        type: 'info',
-        title: '🔑 Ignição Ligada',
-        message: `${deviceName} ${details || 'teve a ignição ligada'}`,
+        type: "info",
+        title: "🔑 Ignição Ligada",
+        message: `${deviceName} ${details || "teve a ignição ligada"}`,
       },
       ignitionOff: {
-        type: 'info',
-        title: '🔑 Ignição Desligada',
-        message: `${deviceName} ${details || 'teve a ignição desligada'}`,
+        type: "info",
+        title: "🔑 Ignição Desligada",
+        message: `${deviceName} ${details || "teve a ignição desligada"}`,
       },
     };
 
     const eventData = eventMap[type] || {
-      type: 'info' as const,
+      type: "info" as const,
       title: type,
-      message: `${deviceName} ${details || '- evento customizado'}`,
+      message: `${deviceName} ${details || "- evento customizado"}`,
     };
 
     await this.addNotification({
@@ -247,18 +261,18 @@ export class NotificationManager {
    * Limpa todas as notificações
    */
   clearAll(): void {
-    localStorage.setItem('inAppNotifications', JSON.stringify([]));
+    localStorage.setItem("inAppNotifications", JSON.stringify([]));
   }
 
   /**
    * Obtém contagem de não lidas
    */
   getUnreadCount(): number {
-    const stored = localStorage.getItem('inAppNotifications');
+    const stored = localStorage.getItem("inAppNotifications");
     if (!stored) return 0;
 
     const notifications: InAppNotification[] = JSON.parse(stored);
-    return notifications.filter(n => !n.read).length;
+    return notifications.filter((n) => !n.read).length;
   }
 }
 

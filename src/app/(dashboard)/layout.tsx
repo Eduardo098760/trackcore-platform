@@ -10,12 +10,13 @@ import { RouteGuard } from "@/components/layout/route-guard";
 import { useEventNotifications } from "@/lib/hooks/useEventNotifications";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { WhatsAppButton } from "@/components/whatsapp-button";
+import { PwaInstallBanner } from "@/components/pwa-install-banner";
+import { MobileAppBanner } from "@/components/mobile-app-banner";
+import { NotificationPermissionBanner } from "@/components/notification-permission-banner";
+import { LocationPermissionBanner } from "@/components/location-permission-banner";
+import { isPwaFirstLaunch } from "@/lib/pwa-utils";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const {
@@ -44,6 +45,15 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const validateSession = async () => {
+      // 🔐 PWA: na primeira abertura após instalação, forçar re-autenticação
+      if (isPwaFirstLaunch()) {
+        console.log("[PWA] Primeira abertura do app instalado, forçando autenticação...");
+        clearAuth();
+        router.push("/login");
+        setIsValidating(false);
+        return;
+      }
+
       // ⚡ Em modo de impersonação, não validar sessão Traccar:
       // getCurrentUser() retornaria o admin e sobrescreveria o usuário impersonado.
       // O cookie Traccar do admin continua válido para todas as chamadas de API.
@@ -54,9 +64,7 @@ export default function DashboardLayout({
 
       if (!isAuthenticated) {
         // Aguarda re-hidratação do estado persistido antes de forçar logout
-        const hasPersist =
-          typeof window !== "undefined" &&
-          !!localStorage.getItem("auth-storage");
+        const hasPersist = typeof window !== "undefined" && !!localStorage.getItem("auth-storage");
         if (!hasPersist) {
           console.log("Não autenticado e sem persistência, redirecionando...");
           router.push("/login");
@@ -73,17 +81,10 @@ export default function DashboardLayout({
       try {
         // Verifica se a sessão do Traccar ainda é válida
         const freshUser = await getCurrentUser();
-        console.log(
-          "Sessão válida:",
-          freshUser.email,
-          "| role:",
-          freshUser.role,
-        );
+        console.log("Sessão válida:", freshUser.email, "| role:", freshUser.role);
         // Atualiza o user no store com dados frescos (corrige role, etc.)
         if (storedUser && freshUser.role !== storedUser.role) {
-          console.log(
-            `[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`,
-          );
+          console.log(`[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`);
         }
         setUser(freshUser);
         setIsValidating(false);
@@ -98,14 +99,7 @@ export default function DashboardLayout({
           try {
             const response = await login(email, password);
             console.log("Re-autenticação bem-sucedida");
-            setAuth(
-              response.user,
-              response.token,
-              undefined,
-              email,
-              password,
-              true,
-            );
+            setAuth(response.user, response.token, undefined, email, password, true);
             setIsValidating(false);
           } catch (reloginError) {
             console.error("Re-autenticação falhou:", reloginError);
@@ -121,6 +115,46 @@ export default function DashboardLayout({
     };
 
     validateSession();
+
+    // ─── Escutar eventos de sessão expirada (WebSocket, visibility, online) ───
+    let isRecovering = false;
+    const handleSessionExpired = async (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (isRecovering) return;
+
+      // Fatal: forçar login
+      if (detail.fatal) {
+        clearAuth();
+        router.push("/login");
+        return;
+      }
+
+      // Tentativa silenciosa de re-login
+      const { email, password } = getCredentials();
+      if (!email || !password) {
+        if (!detail.silent) {
+          clearAuth();
+          router.push("/login");
+        }
+        return;
+      }
+
+      isRecovering = true;
+      try {
+        console.log(`[SessionRecovery] Re-autenticando (source: ${detail.source})...`);
+        await login(email, password);
+        console.log("[SessionRecovery] Re-autenticação bem-sucedida");
+      } catch (err) {
+        console.error("[SessionRecovery] Re-autenticação falhou:", err);
+        if (!detail.silent) {
+          clearAuth();
+          router.push("/login");
+        }
+      } finally {
+        isRecovering = false;
+      }
+    };
+    window.addEventListener("session-expired", handleSessionExpired);
 
     // Renova a sessão a cada 15 minutos (menos agressivo)
     const interval = setInterval(
@@ -144,25 +178,18 @@ export default function DashboardLayout({
       15 * 60 * 1000,
     ); // 15 minutos
 
-    return () => clearInterval(interval);
-  }, [
-    isAuthenticated,
-    isImpersonating,
-    router,
-    setAuth,
-    clearAuth,
-    getCredentials,
-    rememberMe,
-  ]);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("session-expired", handleSessionExpired);
+    };
+  }, [isAuthenticated, isImpersonating, router, setAuth, clearAuth, getCredentials, rememberMe]);
 
   if (!isAuthenticated || isValidating) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">
-            Verificando sessão...
-          </p>
+          <p className="text-muted-foreground">Verificando sessão...</p>
         </div>
       </div>
     );
@@ -185,6 +212,10 @@ export default function DashboardLayout({
         </main>
       </div>
       <WhatsAppButton />
+      <PwaInstallBanner />
+      <MobileAppBanner />
+      <NotificationPermissionBanner />
+      <LocationPermissionBanner />
     </div>
   );
 }

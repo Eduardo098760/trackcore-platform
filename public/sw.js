@@ -6,64 +6,80 @@
  * que funcionam mesmo quando a aba está em background ou fechada.
  */
 
-const SW_VERSION = '1.0.0';
+const SW_VERSION = "2.0.0";
+
+const CACHE_NAME = `trackcore-v${SW_VERSION}`;
+const PRECACHE_URLS = [
+  "/",
+  "/manifest.json",
+  "/logos/rastrear-icone-light.png",
+  "/logos/rastrear-logo-light.webp",
+];
 
 // ─── Instalação ────────────────────────────────────────────────────
-self.addEventListener('install', () => {
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))),
+      )
+      .then(() => self.clients.claim()),
+  );
 });
 
 // ─── Mensagens do app principal ────────────────────────────────────
-self.addEventListener('message', (event) => {
+self.addEventListener("message", (event) => {
   const { type, payload } = event.data || {};
 
-  if (type === 'SHOW_NOTIFICATION') {
+  if (type === "SHOW_NOTIFICATION") {
     const { title, body, tag, icon, badge, data } = payload;
     event.waitUntil(
       self.registration.showNotification(title, {
         body,
         tag: tag || `trackcore-${Date.now()}`,
-        icon: icon || '/favicon.ico',
-        badge: badge || '/favicon.ico',
+        icon: icon || "/favicon.ico",
+        badge: badge || "/favicon.ico",
         data: data || {},
         requireInteraction: false,
         silent: false,
-      })
+      }),
     );
   }
 
-  if (type === 'PING') {
-    event.source?.postMessage({ type: 'PONG', version: SW_VERSION });
+  if (type === "PING") {
+    event.source?.postMessage({ type: "PONG", version: SW_VERSION });
   }
 });
 
 // ─── Clique na notificação ─────────────────────────────────────────
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
-  let targetUrl = '/map';
+  let targetUrl = "/map";
 
   // Construir URL com parâmetros relevantes
   if (data.deviceId) {
     targetUrl = `/map?deviceId=${data.deviceId}`;
   }
   if (data.speedAlertId) {
-    targetUrl += `${targetUrl.includes('?') ? '&' : '?'}alertId=${data.speedAlertId}`;
+    targetUrl += `${targetUrl.includes("?") ? "&" : "?"}alertId=${data.speedAlertId}`;
   }
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       // Se já tem uma aba aberta, foca nela e navega
       for (const client of clientList) {
-        if ('focus' in client) {
+        if ("focus" in client) {
           client.focus();
           client.postMessage({
-            type: 'NOTIFICATION_CLICK',
+            type: "NOTIFICATION_CLICK",
             url: targetUrl,
             data,
           });
@@ -72,6 +88,6 @@ self.addEventListener('notificationclick', (event) => {
       }
       // Nenhuma aba aberta: abre uma nova
       return self.clients.openWindow(targetUrl);
-    })
+    }),
   );
 });

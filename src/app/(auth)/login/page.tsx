@@ -14,6 +14,7 @@ import { useTenant } from "@/lib/hooks/useTenant";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
 import { Loader2, MapPin, ArrowRight } from "lucide-react";
 import { getTenantServerUrl } from "@/config/tenants";
+import { isPwaInstalled, markPwaAuthenticated } from "@/lib/pwa-utils";
 
 /* ─── Helpers de servidor ─── */
 
@@ -55,6 +56,10 @@ export default function LoginPage() {
       const response = await login(email, password);
       queryClient.clear();
       setAuth(response.user, response.token, response.organization, email, password, rememberMe);
+      // Marcar que o PWA foi autenticado (evita re-auth forçada no próximo launch)
+      if (isPwaInstalled()) {
+        markPwaAuthenticated();
+      }
       router.push("/splash");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao fazer login");
@@ -105,7 +110,13 @@ export default function LoginPage() {
                   <>
                     {/* Anel orbital com brilho */}
                     <div className="absolute inset-1 rounded-full border border-white/10" />
-                    <div className="absolute inset-1 rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 25%, transparent 50%)' }} />
+                    <div
+                      className="absolute inset-1 rounded-full"
+                      style={{
+                        background:
+                          "conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 25%, transparent 50%)",
+                      }}
+                    />
 
                     {/* Satélite principal - órbita circular */}
                     <div className="absolute inset-1 animate-[orbit_10s_linear_infinite]">
@@ -131,10 +142,10 @@ export default function LoginPage() {
                 <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
               </div>
             )}
-            <h1 className="text-3xl font-bold tracking-tight">
-              {tenant.companyName}
-            </h1>
-            <p className="text-white/95 text-base mt-2 font-normal">{tenant?.metadata?.title || "Plataforma de rastreamento"}</p>
+            <h1 className="text-3xl font-bold tracking-tight">{tenant.companyName}</h1>
+            <p className="text-white/95 text-base mt-2 font-normal">
+              {tenant?.metadata?.title || "Plataforma de rastreamento"}
+            </p>
           </div>
         </div>
       </div>
@@ -161,7 +172,9 @@ export default function LoginPage() {
         )}
         <div className="flex flex-col">
           <span className="text-xl font-bold">{tenant.companyName}</span>
-          <span className="text-xs text-white/80">{tenant?.metadata?.description || "Plataforma de rastreamento"}</span>
+          <span className="text-xs text-white/80">
+            {tenant?.metadata?.description || "Plataforma de rastreamento"}
+          </span>
         </div>
       </div>
 
@@ -171,7 +184,9 @@ export default function LoginPage() {
           <div className="bg-card rounded-2xl shadow-xl p-8 sm:p-10 border border-border">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-foreground">Entrar</h2>
-              <p className="text-muted-foreground text-sm mt-1">Informe suas credenciais para acessar</p>
+              <p className="text-muted-foreground text-sm mt-1">
+                Informe suas credenciais para acessar
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
