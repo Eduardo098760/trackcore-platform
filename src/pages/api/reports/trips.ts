@@ -135,7 +135,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const totalDistance = trips.reduce((sum: number, trip: any) => sum + (trip.distance || 0), 0);
           const totalDuration = trips.reduce((sum: number, trip: any) => sum + (trip.duration || 0), 0);
           const averageSpeed = totalDistance > 0 && totalDuration > 0 
-            ? ((totalDistance / 1000) / (totalDuration / 3600000)) * 1.852
+            ? (totalDistance / 1000) / (totalDuration / 3600000)
             : 0;
 
           const geocodeAddr = async (lat: any, lon: any, fallback: any): Promise<string> => {

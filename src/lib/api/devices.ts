@@ -24,8 +24,7 @@ function getImpersonatingUserId(): number | undefined {
  */
 export function normalizeDevice(raw: any): Device {
   const attrs = raw?.attributes || {};
-  // speedLimit é sempre salvo em km/h (inteiro) pela plataforma.
-  // Aplica Math.round para limpar qualquer valor decimal herdado de versões antigas.
+  // Traccar armazena speedLimit em knots — converte para km/h para exibição.
   const rawSpeedLimit = raw.speedLimit || attrs.speedLimit;
   // Usa || (não ??) para string fields: Traccar pode retornar plate:"" no root
   // enquanto o valor real está em attributes.plate — ?? não filtra strings vazias.
@@ -34,7 +33,7 @@ export function normalizeDevice(raw: any): Device {
     plate: raw.plate || attrs.licensePlate || attrs.plate || "",
     year: raw.year || attrs.year,
     color: raw.color || attrs.color,
-    speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit) : undefined,
+    speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit * 1.852) : undefined,
     clientId: raw.clientId || attrs.clientId,
   } as Device;
 }
@@ -134,7 +133,7 @@ export async function createDevice(
     ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),
-    ...(speedLimit !== undefined ? { speedLimit } : {}),
+    ...(speedLimit !== undefined ? { speedLimit: speedLimit / 1.852 } : {}),
   };
 
   const payload: Record<string, any> = {
@@ -224,7 +223,7 @@ export async function updateDevice(
     ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),
-    ...(speedLimit !== undefined ? { speedLimit } : {}),
+    ...(speedLimit !== undefined ? { speedLimit: speedLimit / 1.852 } : {}),
   };
 
   // 4. Montar payload final — somente campos reconhecidos pelo Traccar

@@ -42,23 +42,21 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
         ? Math.round((activeDevices / devices.length) * 100)
         : 0;
 
-    // Average speed of moving vehicles (Traccar speed is in knots → × 1.852 = km/h)
-    const KNOTS_TO_KMH = 1.852;
+    // Average speed of moving vehicles (positions já normalizadas para km/h)
     const movingPositions = positions.filter((p) => p.speed > 0);
     const avgSpeed =
       movingPositions.length > 0
         ? Math.round(
-            (movingPositions.reduce((sum, p) => sum + p.speed, 0) *
-              KNOTS_TO_KMH) /
+            movingPositions.reduce((sum, p) => sum + p.speed, 0) /
               movingPositions.length,
           )
         : 0;
 
-    // Max speed across fleet (knots → km/h)
+    // Max speed across fleet (já em km/h)
     const maxSpeed =
       positions.length > 0
         ? Math.round(
-            Math.max(...positions.map((p) => p.speed)) * KNOTS_TO_KMH,
+            Math.max(...positions.map((p) => p.speed)),
           )
         : 0;
 

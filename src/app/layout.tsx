@@ -22,7 +22,7 @@ export default function RootLayout({
         {/* Injetar CSS variables do tenant para evitar flash */}
         <style>{tenantColorsCSS}</style>
         {/* PWA */}
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/api/manifest" />
         <meta name="theme-color" content="#2563eb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />

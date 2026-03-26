@@ -11,7 +11,7 @@ const SW_VERSION = "2.0.0";
 const CACHE_NAME = `trackcore-v${SW_VERSION}`;
 const PRECACHE_URLS = [
   "/",
-  "/manifest.json",
+  "/api/manifest",
   "/logos/rastrear-icone-light.png",
   "/logos/rastrear-logo-light.webp",
 ];
@@ -55,6 +55,33 @@ self.addEventListener("message", (event) => {
   if (type === "PING") {
     event.source?.postMessage({ type: "PONG", version: SW_VERSION });
   }
+});
+
+// ─── Web Push do backend Traccar ───────────────────────────────────
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    try {
+      data = { body: event.data?.text() || "Nova notificação" };
+    } catch {
+      data = { body: "Nova notificação" };
+    }
+  }
+
+  const title = data.title || "Rastrear";
+  const options = {
+    body: data.body || data.message || "Você tem uma nova notificação",
+    icon: data.icon || "/logos/rastrear-icone-light.png",
+    badge: "/logos/rastrear-icone-light.png",
+    tag: data.tag || `push-${Date.now()}`,
+    data: data.data || data,
+    requireInteraction: false,
+    silent: false,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // ─── Clique na notificação ─────────────────────────────────────────

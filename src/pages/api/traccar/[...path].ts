@@ -58,11 +58,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const addApiPrefer = process.env.TRACCAR_ADD_API !== "false";
     const base = resolveTraccarUrl(req);
     if (!base) {
-      return res
-        .status(400)
-        .json({
-          error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login.",
-        });
+      return res.status(400).json({
+        error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login.",
+      });
     }
     const query = req.url?.split("?")[1];
 
@@ -125,6 +123,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             statusText: upstream.statusText,
             body: text,
           };
+          // Se for erro de auth (401/403) ou método não suportado (405),
+          // não faz sentido tentar o fallback — retorna imediatamente
+          if ([401, 403, 405].includes(upstream.status)) {
+            break;
+          }
           continue;
         }
 

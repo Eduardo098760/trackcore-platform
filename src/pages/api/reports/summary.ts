@@ -72,8 +72,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             deviceId,
             deviceName: device.name,
             distance: summary.distance || 0,
-            averageSpeed: summary.averageSpeed || 0,
-            maxSpeed: summary.maxSpeed || 0,
+            averageSpeed: (summary.averageSpeed || 0) * 1.852,
+            maxSpeed: (summary.maxSpeed || 0) * 1.852,
             engineHours: summary.engineHours || 0,
             spentFuel: summary.spentFuel || 0,
           };

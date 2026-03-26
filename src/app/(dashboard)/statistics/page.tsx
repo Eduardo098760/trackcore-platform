@@ -100,13 +100,11 @@ export default function StatisticsPage() {
     const totalDistanceKm = totalDistanceM / 1000;
 
     const speeds = currentSummary.filter((r: any) => r.averageSpeed > 0);
-    const avgSpeedKnots = speeds.length > 0
+    const avgSpeedKmh = speeds.length > 0
       ? speeds.reduce((s: number, r: any) => s + r.averageSpeed, 0) / speeds.length
       : 0;
-    const avgSpeedKmh = avgSpeedKnots * 1.852;
 
-    const maxSpeedKnots = Math.max(...currentSummary.map((r: any) => r.maxSpeed || 0));
-    const maxSpeedKmh = maxSpeedKnots * 1.852;
+    const maxSpeedKmh = Math.max(...currentSummary.map((r: any) => r.maxSpeed || 0));
 
     const totalEngineMs = currentSummary.reduce((s: number, r: any) => s + (r.engineHours || 0), 0);
     const totalEngineHours = totalEngineMs / 3600000;

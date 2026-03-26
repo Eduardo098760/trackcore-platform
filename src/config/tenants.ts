@@ -48,6 +48,12 @@ export interface TenantConfig {
   /** Mensagem padrão ao abrir o WhatsApp */
   whatsappMessage?: string;
 
+  /** Ícone PWA 192x192 */
+  pwaIcon192?: string;
+
+  /** Ícone PWA 512x512 */
+  pwaIcon512?: string;
+
   /** Dados adicionais */
   metadata?: {
     title?: string;
@@ -76,6 +82,8 @@ export const TENANTS_CONFIG: Record<string, TenantConfig> = {
     },
     whatsapp: "5527999173219",
     whatsappMessage: "Olá! Preciso de suporte na plataforma de rastreamento.",
+    pwaIcon192: "/logos/rastrear-pwa-icon-192.png",
+    pwaIcon512: "/logos/rastrear-pwa-icon-512.png",
     metadata: {
       title: "Plataforma de Rastreamento Veicular",
       description: "Sistema completo de rastreamento de frota em tempo real",
