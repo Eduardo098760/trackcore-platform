@@ -50,19 +50,7 @@ function getRawBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-/**
- * Simple in-memory cookie jar for tracking Traccar sessions per request context
- * In production, consider using http.CookieJar or the `tough-cookie` library
- */
-const cookieJars: Map<string, string> = new Map();
 
-function getCookieKey(req: NextApiRequest): string {
-  const clientIp =
-    (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
-    req.socket?.remoteAddress ||
-    "unknown";
-  return clientIp;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -100,18 +88,9 @@ export default async function handler(
 
     const headers: Record<string, string> = {};
 
-    // Repassa cookies do browser
+    // Repassa cookies do browser (sessão Traccar é gerenciada pelo browser via set-cookie)
     if (req.headers.cookie) {
       headers["cookie"] = String(req.headers.cookie);
-    }
-
-    // Também inclui cookies do jar interno
-    const cookieKey = getCookieKey(req);
-    if (cookieJars.has(cookieKey)) {
-      const jarCookies = cookieJars.get(cookieKey)!;
-      headers["cookie"] = headers["cookie"]
-        ? `${headers["cookie"]}; ${jarCookies}`
-        : jarCookies;
     }
 
     // Repassa Accept para que Traccar retorne JSON em vez de Excel nos reports
@@ -194,7 +173,6 @@ export default async function handler(
             isLocalhost ? "(localhost mode)" : "(production mode)",
           );
           res.setHeader("set-cookie", rewritten);
-          cookieJars.set(cookieKey, rewritten.join("; "));
         }
 
         return res.send(text);

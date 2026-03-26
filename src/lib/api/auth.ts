@@ -75,6 +75,17 @@ export async function login(
   password: string,
   organizationSlug?: string,
 ): Promise<AuthResponse> {
+  // Limpa sessão anterior para evitar "Duplicate sessions" no Traccar (Jetty)
+  try {
+    await fetch(`${api.getConfig().baseURL}/session`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { ...getServerHeader() },
+    });
+  } catch {
+    // Ignora erro se não havia sessão ativa
+  }
+
   // Traccar usa form-encoded data para login
   const formData = new URLSearchParams();
   formData.append("email", email);
