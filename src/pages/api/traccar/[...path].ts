@@ -50,22 +50,19 @@ function getRawBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { path = [] } = req.query as { path?: string | string[] };
-    const forwardPath = Array.isArray(path)
-      ? path.join("/")
-      : String(path || "");
+    const forwardPath = Array.isArray(path) ? path.join("/") : String(path || "");
 
     const addApiPrefer = process.env.TRACCAR_ADD_API !== "false";
     const base = resolveTraccarUrl(req);
     if (!base) {
-      return res.status(400).json({ error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login." });
+      return res
+        .status(400)
+        .json({
+          error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login.",
+        });
     }
     const query = req.url?.split("?")[1];
 
@@ -81,9 +78,7 @@ export default async function handler(
     const candidates = addApiPrefer ? [true, false] : [false, true];
 
     // Lê o body cru UMA vez (stream só pode ser lido uma vez)
-    const isBodyMethod = !["GET", "HEAD"].includes(
-      (req.method || "").toUpperCase(),
-    );
+    const isBodyMethod = !["GET", "HEAD"].includes((req.method || "").toUpperCase());
     const rawBody = isBodyMethod ? await getRawBody(req) : undefined;
 
     const headers: Record<string, string> = {};
@@ -94,16 +89,12 @@ export default async function handler(
     }
 
     // Repassa Accept para que Traccar retorne JSON em vez de Excel nos reports
-    if (req.headers["accept"])
-      headers["accept"] = String(req.headers["accept"]);
-    else
-      headers["accept"] = "application/json";
+    if (req.headers["accept"]) headers["accept"] = String(req.headers["accept"]);
+    else headers["accept"] = "application/json";
 
     // Repassa content-type e content-length originais
-    if (req.headers["content-type"])
-      headers["content-type"] = String(req.headers["content-type"]);
-    if (rawBody && rawBody.length > 0)
-      headers["content-length"] = String(rawBody.length);
+    if (req.headers["content-type"]) headers["content-type"] = String(req.headers["content-type"]);
+    if (rawBody && rawBody.length > 0) headers["content-length"] = String(rawBody.length);
 
     const fetchOptionsBase: RequestInit = {
       method: req.method,
@@ -123,17 +114,11 @@ export default async function handler(
           rawBody ? `body=${rawBody.length}b` : "",
         );
         const upstream = await fetch(targetUrl, fetchOptionsBase);
-        const contentType =
-          upstream.headers.get("content-type") || "application/json";
+        const contentType = upstream.headers.get("content-type") || "application/json";
         const text = await upstream.text();
 
         if (upstream.status >= 400) {
-          console.warn(
-            "[traccar-proxy] upstream error",
-            upstream.status,
-            "for",
-            targetUrl,
-          );
+          console.warn("[traccar-proxy] upstream error", upstream.status, "for", targetUrl);
           console.warn("[traccar-proxy] body:", text.slice(0, 500));
           lastError = {
             status: upstream.status,
@@ -177,30 +162,22 @@ export default async function handler(
 
         return res.send(text);
       } catch (err: any) {
-        console.error(
-          "[traccar-proxy] fetch error for",
-          targetUrl,
-          err?.message || err,
-        );
+        console.error("[traccar-proxy] fetch error for", targetUrl, err?.message || err);
         lastError = err;
       }
     }
 
     console.error("[traccar-proxy] all attempts failed", lastError);
     if (lastError?.status) {
-      res
-        .status(lastError.status)
-        .json({
-          error: lastError.statusText || "Upstream error",
-          details: lastError.body,
-        });
+      res.status(lastError.status).json({
+        error: lastError.statusText || "Upstream error",
+        details: lastError.body,
+      });
     } else {
-      res
-        .status(502)
-        .json({
-          error: "Bad Gateway",
-          details: lastError?.message || String(lastError),
-        });
+      res.status(502).json({
+        error: "Bad Gateway",
+        details: lastError?.message || String(lastError),
+      });
     }
   } catch (error: any) {
     console.error("[traccar-proxy] handler error:", error?.message || error);

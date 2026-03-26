@@ -50,8 +50,7 @@ function mapTraccarRole(traccarUser: any): string {
   if (traccarUser?.deviceReadonly) return "deviceReadonly";
 
   // 6. Manager: userLimit diferente de 0 (gerente no Traccar)
-  if (traccarUser?.userLimit != null && traccarUser.userLimit !== 0)
-    return "manager";
+  if (traccarUser?.userLimit != null && traccarUser.userLimit !== 0) return "manager";
 
   return "user";
 }
