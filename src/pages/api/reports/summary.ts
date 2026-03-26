@@ -1,41 +1,40 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
     const { deviceIds, from, to } = req.body;
 
     if (!deviceIds || !Array.isArray(deviceIds) || deviceIds.length === 0) {
-      return res.status(400).json({ message: 'deviceIds is required' });
+      return res.status(400).json({ message: "deviceIds is required" });
     }
 
     if (!from || !to) {
-      return res.status(400).json({ message: 'from and to dates are required' });
+      return res.status(400).json({ message: "from and to dates are required" });
     }
 
-    const proto = req.headers['x-forwarded-proto'] || 'http';
-    const host = req.headers.host || 'localhost:3000';
+    const proto = req.headers["x-forwarded-proto"] || "http";
+    const host = req.headers.host || "localhost:3000";
     const baseUrl = `${proto}://${host}`;
 
     const reports = await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {
           // Buscar device via proxy (preserva sessão/cookie)
-          const deviceResponse = await fetch(
-            `${baseUrl}/api/traccar/devices/${deviceId}`,
-            {
-              headers: {
-                'Accept': 'application/json',
-                'Cookie': req.headers.cookie || '',
-              },
-            }
-          );
+          const deviceResponse = await fetch(`${baseUrl}/api/traccar/devices/${deviceId}`, {
+            headers: {
+              Accept: "application/json",
+              Cookie: req.headers.cookie || "",
+            },
+          });
 
           if (!deviceResponse.ok) {
-            console.error(`[Summary API] Erro ao buscar device ${deviceId}: ${deviceResponse.status}`);
+            console.error(
+              `[Summary API] Erro ao buscar device ${deviceId}: ${deviceResponse.status}`,
+            );
             return null;
           }
 
@@ -46,14 +45,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             `${baseUrl}/api/traccar/reports/summary?deviceId=${deviceId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
             {
               headers: {
-                'Accept': 'application/json',
-                'Cookie': req.headers.cookie || '',
+                Accept: "application/json",
+                Cookie: req.headers.cookie || "",
               },
-            }
+            },
           );
 
           if (!summaryResponse.ok) {
-            console.error(`[Summary API] Erro ao buscar summary para device ${deviceId}: ${summaryResponse.status}`);
+            console.error(
+              `[Summary API] Erro ao buscar summary para device ${deviceId}: ${summaryResponse.status}`,
+            );
             return null;
           }
 
@@ -62,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             summaries = await summaryResponse.json();
             if (!Array.isArray(summaries)) summaries = [];
           } catch (e: any) {
-            console.error('[Summary API] Erro ao parsear JSON:', e?.message || e);
+            console.error("[Summary API] Erro ao parsear JSON:", e?.message || e);
             summaries = [];
           }
 
@@ -81,13 +82,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.error(`[Summary API] Erro processando device ${deviceId}:`, error.message);
           return null;
         }
-      })
+      }),
     );
 
     const validReports = reports.filter((r) => r !== null);
     return res.status(200).json(validReports);
   } catch (error) {
-    console.error('[Summary API] Erro fatal:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error("[Summary API] Erro fatal:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }

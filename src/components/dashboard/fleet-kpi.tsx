@@ -2,16 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  TrendingUp,
-  Gauge,
-  Route,
-  AlertTriangle,
-  Fuel,
-  MapPin,
-  Activity,
-  Zap,
-} from "lucide-react";
+import { TrendingUp, Gauge, Route, AlertTriangle, Fuel, MapPin, Activity, Zap } from "lucide-react";
 import type { Device, Position, Event } from "@/types";
 
 interface FleetKpiProps {
@@ -37,28 +28,18 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
     const activeDevices = devices.filter(
       (d) => d.status === "online" || d.status === "moving",
     ).length;
-    const utilization =
-      devices.length > 0
-        ? Math.round((activeDevices / devices.length) * 100)
-        : 0;
+    const utilization = devices.length > 0 ? Math.round((activeDevices / devices.length) * 100) : 0;
 
     // Average speed of moving vehicles (positions já normalizadas para km/h)
     const movingPositions = positions.filter((p) => p.speed > 0);
     const avgSpeed =
       movingPositions.length > 0
-        ? Math.round(
-            movingPositions.reduce((sum, p) => sum + p.speed, 0) /
-              movingPositions.length,
-          )
+        ? Math.round(movingPositions.reduce((sum, p) => sum + p.speed, 0) / movingPositions.length)
         : 0;
 
     // Max speed across fleet (já em km/h)
     const maxSpeed =
-      positions.length > 0
-        ? Math.round(
-            Math.max(...positions.map((p) => p.speed)),
-          )
-        : 0;
+      positions.length > 0 ? Math.round(Math.max(...positions.map((p) => p.speed))) : 0;
 
     // Total distance traveled (Traccar totalDistance is in meters → ÷ 1000 = km)
     const totalDistanceKm = positions.reduce((sum, p) => {
@@ -79,10 +60,7 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
 
     // Geofence events today
     const geofenceEvents = events.filter(
-      (e) =>
-        e.type === "geofenceEnter" ||
-        e.type === "geofenceExit" ||
-        e.type === "geofence",
+      (e) => e.type === "geofenceEnter" || e.type === "geofenceExit" || e.type === "geofence",
     ).length;
 
     // Fuel alerts
@@ -91,9 +69,7 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
     ).length;
 
     // Devices with ignition on
-    const ignitionOn = positions.filter(
-      (p) => p.attributes?.ignition === true,
-    ).length;
+    const ignitionOn = positions.filter((p) => p.attributes?.ignition === true).length;
 
     return [
       {
@@ -184,15 +160,9 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
                   <Icon className={`w-4 h-4 ${kpi.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className={`text-lg font-bold ${kpi.color}`}>
-                    {kpi.value}
-                  </p>
-                  <p className="text-xs font-medium text-foreground truncate">
-                    {kpi.label}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {kpi.subtext}
-                  </p>
+                  <p className={`text-lg font-bold ${kpi.color}`}>{kpi.value}</p>
+                  <p className="text-xs font-medium text-foreground truncate">{kpi.label}</p>
+                  <p className="text-[11px] text-muted-foreground">{kpi.subtext}</p>
                 </div>
               </div>
             );

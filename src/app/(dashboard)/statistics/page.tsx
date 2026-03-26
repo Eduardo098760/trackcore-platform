@@ -1,16 +1,31 @@
-'use client';
+"use client";
 
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
-import { BarChart3, TrendingUp, TrendingDown, Activity, Fuel, Clock, Loader2, AlertCircle, Gauge } from 'lucide-react';
-import { getDevices } from '@/lib/api';
-import { generateSummaryReport } from '@/lib/api/reports';
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  Fuel,
+  Clock,
+  Loader2,
+  AlertCircle,
+  Gauge,
+} from "lucide-react";
+import { getDevices } from "@/lib/api";
+import { generateSummaryReport } from "@/lib/api/reports";
 
-type Period = 'day' | 'week' | 'month';
+type Period = "day" | "week" | "month";
 
-function getPeriodRange(period: Period): { from: string; to: string; prevFrom: string; prevTo: string } {
+function getPeriodRange(period: Period): {
+  from: string;
+  to: string;
+  prevFrom: string;
+  prevTo: string;
+} {
   const now = new Date();
   const to = now.toISOString();
   let from: Date;
@@ -18,7 +33,7 @@ function getPeriodRange(period: Period): { from: string; to: string; prevFrom: s
   let prevTo: Date;
 
   switch (period) {
-    case 'day': {
+    case "day": {
       from = new Date(now);
       from.setHours(0, 0, 0, 0);
       prevTo = new Date(from);
@@ -26,7 +41,7 @@ function getPeriodRange(period: Period): { from: string; to: string; prevFrom: s
       prevFrom.setDate(prevFrom.getDate() - 1);
       break;
     }
-    case 'week': {
+    case "week": {
       from = new Date(now);
       from.setDate(from.getDate() - 7);
       prevTo = new Date(from);
@@ -34,7 +49,7 @@ function getPeriodRange(period: Period): { from: string; to: string; prevFrom: s
       prevFrom.setDate(prevFrom.getDate() - 7);
       break;
     }
-    case 'month': {
+    case "month": {
       from = new Date(now);
       from.setMonth(from.getMonth() - 1);
       prevTo = new Date(from);
@@ -58,36 +73,42 @@ function calcChange(current: number, previous: number): number {
 }
 
 export default function StatisticsPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('week');
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>("week");
 
   const ranges = useMemo(() => getPeriodRange(selectedPeriod), [selectedPeriod]);
 
   const { data: devices } = useQuery({
-    queryKey: ['devices'],
+    queryKey: ["devices"],
     queryFn: getDevices,
   });
 
-  const deviceIds = useMemo(() => devices?.map(d => d.id) ?? [], [devices]);
+  const deviceIds = useMemo(() => devices?.map((d) => d.id) ?? [], [devices]);
 
-  const { data: currentSummary, isLoading: loadingCurrent, isError: errorCurrent } = useQuery({
-    queryKey: ['statistics-current', selectedPeriod, deviceIds],
-    queryFn: () => generateSummaryReport({
-      deviceIds,
-      from: ranges.from,
-      to: ranges.to,
-      type: 'summary',
-    }),
+  const {
+    data: currentSummary,
+    isLoading: loadingCurrent,
+    isError: errorCurrent,
+  } = useQuery({
+    queryKey: ["statistics-current", selectedPeriod, deviceIds],
+    queryFn: () =>
+      generateSummaryReport({
+        deviceIds,
+        from: ranges.from,
+        to: ranges.to,
+        type: "summary",
+      }),
     enabled: deviceIds.length > 0,
   });
 
   const { data: prevSummary, isLoading: loadingPrev } = useQuery({
-    queryKey: ['statistics-prev', selectedPeriod, deviceIds],
-    queryFn: () => generateSummaryReport({
-      deviceIds,
-      from: ranges.prevFrom,
-      to: ranges.prevTo,
-      type: 'summary',
-    }),
+    queryKey: ["statistics-prev", selectedPeriod, deviceIds],
+    queryFn: () =>
+      generateSummaryReport({
+        deviceIds,
+        from: ranges.prevFrom,
+        to: ranges.prevTo,
+        type: "summary",
+      }),
     enabled: deviceIds.length > 0,
   });
 
@@ -100,9 +121,10 @@ export default function StatisticsPage() {
     const totalDistanceKm = totalDistanceM / 1000;
 
     const speeds = currentSummary.filter((r: any) => r.averageSpeed > 0);
-    const avgSpeedKmh = speeds.length > 0
-      ? speeds.reduce((s: number, r: any) => s + r.averageSpeed, 0) / speeds.length
-      : 0;
+    const avgSpeedKmh =
+      speeds.length > 0
+        ? speeds.reduce((s: number, r: any) => s + r.averageSpeed, 0) / speeds.length
+        : 0;
 
     const maxSpeedKmh = Math.max(...currentSummary.map((r: any) => r.maxSpeed || 0));
 
@@ -161,17 +183,17 @@ export default function StatisticsPage() {
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium">Período:</label>
             <div className="flex gap-2">
-              {(['day', 'week', 'month'] as const).map(period => (
+              {(["day", "week", "month"] as const).map((period) => (
                 <button
                   key={period}
                   onClick={() => setSelectedPeriod(period)}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     selectedPeriod === period
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-muted hover:bg-muted/80'
+                      ? "bg-blue-600 text-white"
+                      : "bg-muted hover:bg-muted/80"
                   }`}
                 >
-                  {period === 'day' ? 'Hoje' : period === 'week' ? 'Semana' : 'Mês'}
+                  {period === "day" ? "Hoje" : period === "week" ? "Semana" : "Mês"}
                 </button>
               ))}
             </div>
@@ -293,11 +315,17 @@ export default function StatisticsPage() {
   );
 }
 
-function TrendIndicator({ value, label, invertColor }: { value: number; label: string; invertColor?: boolean }) {
+function TrendIndicator({
+  value,
+  label,
+  invertColor,
+}: {
+  value: number;
+  label: string;
+  invertColor?: boolean;
+}) {
   if (value === 0) {
-    return (
-      <p className="text-xs text-muted-foreground mt-1">Sem dados do período anterior</p>
-    );
+    return <p className="text-xs text-muted-foreground mt-1">Sem dados do período anterior</p>;
   }
 
   const isPositive = value > 0;
@@ -307,11 +335,11 @@ function TrendIndicator({ value, label, invertColor }: { value: number; label: s
   return (
     <div className="flex items-center text-xs mt-1">
       {isPositive ? (
-        <TrendingUp className={`h-3 w-3 mr-1 ${isGood ? 'text-green-500' : 'text-red-500'}`} />
+        <TrendingUp className={`h-3 w-3 mr-1 ${isGood ? "text-green-500" : "text-red-500"}`} />
       ) : (
-        <TrendingDown className={`h-3 w-3 mr-1 ${isGood ? 'text-green-500' : 'text-red-500'}`} />
+        <TrendingDown className={`h-3 w-3 mr-1 ${isGood ? "text-green-500" : "text-red-500"}`} />
       )}
-      <span className={isGood ? 'text-green-500' : 'text-red-500'}>
+      <span className={isGood ? "text-green-500" : "text-red-500"}>
         {Math.abs(value).toFixed(1)}%
       </span>
       <span className="text-muted-foreground ml-1">{label}</span>

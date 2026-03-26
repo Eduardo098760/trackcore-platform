@@ -49,10 +49,7 @@ export async function getDevices(organizationId?: number): Promise<Device[]> {
     const params: Record<string, any> = {};
     if (impersonatingUserId) {
       params.userId = impersonatingUserId;
-      console.log(
-        "[getDevices] Impersonação ativa — filtrando por userId:",
-        impersonatingUserId,
-      );
+      console.log("[getDevices] Impersonação ativa — filtrando por userId:", impersonatingUserId);
     }
 
     console.log("[getDevices] Iniciando requisição de devices...");
@@ -67,9 +64,7 @@ export async function getDevices(organizationId?: number): Promise<Device[]> {
     // Se organizationId for fornecido (e não em impersonação), filtrar por org
     if (organizationId && !impersonatingUserId) {
       const filtered = normalized.filter(
-        (d) =>
-          d.clientId === organizationId ||
-          (d as any).groupId === organizationId,
+        (d) => d.clientId === organizationId || (d as any).groupId === organizationId,
       );
       console.log("[getDevices] Devices filtrados por org:", filtered.length);
       return filtered;
@@ -153,10 +148,7 @@ export async function createDevice(
   if (positionId !== undefined) payload.positionId = positionId;
   if (expiryDate) payload.expirationTime = new Date(expiryDate).toISOString();
 
-  console.log(
-    "[createDevice] Payload Traccar:",
-    JSON.stringify(payload, null, 2),
-  );
+  console.log("[createDevice] Payload Traccar:", JSON.stringify(payload, null, 2));
   const raw = await api.post<any>("/devices", payload);
   return normalizeDevice(raw);
 }
@@ -247,10 +239,7 @@ export async function updateDevice(
   // expiryDate do form → expirationTime aceito pelo Traccar
   if (expiryDate) payload.expirationTime = new Date(expiryDate).toISOString();
 
-  console.log(
-    "[updateDevice] Payload Traccar:",
-    JSON.stringify(payload, null, 2),
-  );
+  console.log("[updateDevice] Payload Traccar:", JSON.stringify(payload, null, 2));
   const raw = await api.put<any>(`/devices/${id}`, payload);
   return normalizeDevice(raw);
 }
