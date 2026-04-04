@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { getDevices, getPositions } from "@/lib/api";
+import { socket } from "@/lib/socket";
+import { getPublicAppUrl, isLocalhostAppUrl } from "@/lib/public-runtime";
 import {
   createDevice,
   updateDevice,
@@ -71,6 +73,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareLocationDialog } from "@/components/vehicles/share-location-dialog";
 import { SendCommandDialog } from "@/components/map/send-command-dialog";
+import QRCode from "qrcode";
 
 interface ActiveShare {
   shareId: string;
@@ -79,6 +82,21 @@ interface ActiveShare {
   plate: string;
   createdAt: number;
   expiresAt: number;
+}
+
+function getGuidedScanStatus(uniqueId?: string, phone?: string) {
+  const hasImei = Boolean(uniqueId?.trim());
+  const hasIccid = Boolean(phone?.trim());
+
+  if (!hasImei) {
+    return "Passo 1: escaneie o dispositivo para preencher o IMEI.";
+  }
+
+  if (!hasIccid) {
+    return "Passo 2: agora escaneie o chip para preencher o ICCID.";
+  }
+
+  return "Leitura concluida. Revise os dados e salve o veiculo.";
 }
 
 // Countdown ao vivo para sub-linha de shares inline
@@ -194,6 +212,21 @@ export default function VehiclesPage() {
     odometer: 0,
     attributes: {} as Record<string, any>,
   });
+  const [scanQr, setScanQr] = useState("");
+  const [scanStatus, setScanStatus] = useState(getGuidedScanStatus("", ""));
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanAccessWarning, setScanAccessWarning] = useState<string | null>(null);
+
+  const scanProgress = {
+    imeiDone: Boolean(formData.uniqueId.trim()),
+    iccidDone: Boolean(formData.phone.trim()),
+  };
+
+  const currentScanStep = !scanProgress.imeiDone
+    ? "imei"
+    : !scanProgress.iccidDone
+      ? "iccid"
+      : "done";
 
   const {
     data: devices = [],
@@ -338,8 +371,93 @@ export default function VehiclesPage() {
       odometer: 0,
       attributes: {},
     });
+    setScanQr("");
+    setScanStatus(getGuidedScanStatus("", ""));
+    setScanError(null);
+    setScanAccessWarning(null);
     setEditingDevice(null);
   };
+
+  const createScanSession = useCallback(async () => {
+    try {
+      setScanStatus("Preparando o leitor do celular...");
+      setScanError(null);
+
+      const res = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) throw new Error("failed_to_create_session");
+
+      const json = await res.json();
+      const sessionId = json.sessionId as string;
+      const token = json.token as string;
+      const expires = json.expiresAt as number;
+
+      socket.emit("join-session", { sessionId, token, expires });
+
+      const baseUrl = getPublicAppUrl();
+      const scanUrl = `${baseUrl}/scan?session=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}&expires=${encodeURIComponent(expires)}`;
+      const qrDataUrl = await QRCode.toDataURL(scanUrl);
+
+      setScanQr(qrDataUrl);
+      setScanStatus(getGuidedScanStatus(formData.uniqueId, formData.phone));
+      setScanAccessWarning(
+        isLocalhostAppUrl(baseUrl)
+          ? "Este QR aponta para localhost. No celular isso nao abre. Acesse a plataforma pelo IP da sua maquina ou configure NEXT_PUBLIC_APP_URL com algo como http://192.168.x.x:3000."
+          : null,
+      );
+    } catch (error) {
+      console.error("Erro criando sessão de leitura:", error);
+      setScanError("Não foi possível preparar a leitura automática.");
+      setScanStatus("Falha ao criar sessão de leitura.");
+    }
+  }, [formData.phone, formData.uniqueId]);
+
+  useEffect(() => {
+    if (!isDialogOpen || !!editingDevice) {
+      return;
+    }
+
+    createScanSession();
+
+    const handleScanResult = (data: any) => {
+      if (data.type === "imei") {
+        setFormData((prev) => {
+          const next = { ...prev, uniqueId: data.value };
+          setScanStatus(getGuidedScanStatus(next.uniqueId, next.phone));
+          return next;
+        });
+      }
+
+      if (data.type === "iccid") {
+        setFormData((prev) => {
+          const next = { ...prev, phone: data.value };
+          setScanStatus(getGuidedScanStatus(next.uniqueId, next.phone));
+          return next;
+        });
+      }
+    };
+
+    const handleSessionError = (data: any) => {
+      setScanError(data?.reason || "Erro na sessão de leitura.");
+    };
+
+    const handleScanError = (data: any) => {
+      setScanError(data?.reason || "Erro ao validar leitura.");
+    };
+
+    socket.on("scan-result", handleScanResult);
+    socket.on("session-error", handleSessionError);
+    socket.on("scan-error", handleScanError);
+
+    return () => {
+      socket.off("scan-result", handleScanResult);
+      socket.off("session-error", handleSessionError);
+      socket.off("scan-error", handleScanError);
+    };
+  }, [createScanSession, editingDevice, isDialogOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -565,6 +683,89 @@ export default function VehiclesPage() {
                     </p>
                   </div>
                 </div>
+
+                {!editingDevice && (
+                  <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold">Leitura por celular</p>
+                        <p className="text-xs text-muted-foreground">
+                          Use o celular para fotografar primeiro o IMEI e depois o ICCID com Google Vision.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={createScanSession}>
+                        Gerar novo QR do leitor
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div
+                        className={`rounded-xl border p-3 ${scanProgress.imeiDone ? "border-emerald-500/40 bg-emerald-500/10" : currentScanStep === "imei" ? "border-cyan-500/40 bg-cyan-500/10" : "border-border bg-background"}`}
+                      >
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                          Passo 1
+                        </div>
+                        <div className="mt-1 text-sm font-semibold">Escanear o dispositivo</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Capture a etiqueta do rastreador para preencher o IMEI.
+                        </div>
+                        <div className="mt-3 text-xs font-medium">
+                          {scanProgress.imeiDone ? "Concluido" : currentScanStep === "imei" ? "Em andamento" : "Aguardando"}
+                        </div>
+                        {scanProgress.imeiDone ? (
+                          <div className="mt-2 text-xs text-emerald-700 break-all">{formData.uniqueId}</div>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className={`rounded-xl border p-3 ${scanProgress.iccidDone ? "border-emerald-500/40 bg-emerald-500/10" : currentScanStep === "iccid" ? "border-cyan-500/40 bg-cyan-500/10" : "border-border bg-background"}`}
+                      >
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                          Passo 2
+                        </div>
+                        <div className="mt-1 text-sm font-semibold">Escanear o chip</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Depois fotografe o SIM para preencher o ICCID.
+                        </div>
+                        <div className="mt-3 text-xs font-medium">
+                          {scanProgress.iccidDone ? "Concluido" : currentScanStep === "iccid" ? "Em andamento" : "Aguardando"}
+                        </div>
+                        {scanProgress.iccidDone ? (
+                          <div className="mt-2 text-xs text-emerald-700 break-all">{formData.phone}</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                      <div className="rounded-lg border bg-background p-3 min-w-[180px] min-h-[180px] flex items-center justify-center">
+                        {scanQr ? (
+                          <img src={scanQr} alt="QR de leitura do dispositivo" className="w-40 h-40" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground text-center">
+                            Preparando QR de leitura...
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 text-sm">
+                        <p className="font-medium">{scanStatus}</p>
+                        {scanAccessWarning ? (
+                          <p className="text-amber-600 text-xs">{scanAccessWarning}</p>
+                        ) : null}
+                        {scanError ? (
+                          <p className="text-destructive text-xs">{scanError}</p>
+                        ) : null}
+                        <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                          <li>Abra o leitor no celular apontando para este QR.</li>
+                          <li>Primeiro fotografe a etiqueta do dispositivo para capturar o IMEI.</li>
+                          <li>Em seguida fotografe o chip para capturar o ICCID.</li>
+                          <li>Se a leitura falhar, use a digitacao manual como fallback.</li>
+                          <li>Os campos do formulario serao preenchidos automaticamente.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

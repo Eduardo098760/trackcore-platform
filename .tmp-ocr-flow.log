@@ -1,0 +1,2 @@
+{"stage":"start"}
+{"stage":"unexpected-error","error":"fetch failed","stack":"TypeError: fetch failed\n    at node:internal/deps/undici/undici:13502:13\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async main (C:\\Users\\Rastrear\\Desktop\\trackCore\\trackcore-platform\\scripts\\test-ocr-flow.js:18:27)"}
