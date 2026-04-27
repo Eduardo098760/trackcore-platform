@@ -62,6 +62,13 @@ export const DEFAULT_WIDGETS: WidgetConfig[] = [
     category: "kpi",
     visible: true,
   },
+  {
+    id: "custom-kpis",
+    label: "KPIs Personalizados",
+    description: "Indicadores criados a partir dos atributos computados",
+    category: "kpi",
+    visible: true,
+  },
 ];
 
 function loadConfig(): WidgetConfig[] {

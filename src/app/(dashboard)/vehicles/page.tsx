@@ -15,6 +15,7 @@ import {
 import { Device, VehicleCategory } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -41,7 +42,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { RowActionsMenu, RowActionsMenuItem } from "@/components/ui/row-actions-menu";
 import {
   Search,
   MapPin,
@@ -73,6 +78,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShareLocationDialog } from "@/components/vehicles/share-location-dialog";
 import { SendCommandDialog } from "@/components/map/send-command-dialog";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import QRCode from "qrcode";
 
 interface ActiveShare {
@@ -115,17 +121,20 @@ function ShareCountdown({ expiresAt }: { expiresAt: number }) {
   const urgent = ms < 5 * 60_000;
   return (
     <span
-      className={`font-mono text-xs font-bold shrink-0 ${urgent ? "text-red-400" : "text-amber-400"}`}
+      className={urgent ? "text-[10px] font-medium text-red-400" : "text-[10px] text-muted-foreground"}
     >
       {h > 0 ? `${h}h ` : ""}
-      {String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+      {m}m {s}s
     </span>
   );
 }
 
 export default function VehiclesPage() {
+  const normalizePhone = useCallback((phone?: string) => String(phone || "").replace(/\D/g, ""), []);
+  const { can } = usePermissions();
   const queryClient = useQueryClient();
   const router = useRouter();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -462,11 +471,15 @@ export default function VehiclesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { odometer, ...formRest } = formData;
+    const normalizedFormRest = {
+      ...formRest,
+      phone: normalizePhone(formRest.phone),
+    };
 
     if (editingDevice) {
       const updateData = {
         ...editingDevice,
-        ...formRest,
+        ...normalizedFormRest,
         id: editingDevice.id,
         disabled: editingDevice.disabled ?? false,
       };
@@ -501,7 +514,7 @@ export default function VehiclesPage() {
       }
     } else {
       const deviceData = {
-        ...formRest,
+        ...normalizedFormRest,
         status: "offline" as const,
         lastUpdate: new Date().toISOString(),
         disabled: false,
@@ -674,15 +687,30 @@ export default function VehiclesPage() {
                       id="phone"
                       value={formData.phone}
                       onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
+                        setFormData({ ...formData, phone: normalizePhone(e.target.value) })
                       }
                       placeholder="Ex: +5511999999999"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Número do chip GSM do rastreador
+                      Número do chip GSM usado quando o envio por SMS estiver habilitado na plataforma
                     </p>
                   </div>
                 </div>
+
+                {!editingDevice && (
+                  <div className="rounded-xl border bg-muted/20 p-4 space-y-2">
+                    <p className="text-sm font-semibold">Hierarquia da operação</p>
+                    <p className="text-xs text-muted-foreground">
+                      1. Em Configuração SMS você define qual empresa fará o envio dos comandos por SMS.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      2. No cadastro do dispositivo você informa IMEI e número do chip para deixar o veículo pronto para esse envio.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      3. Depois, a tela de Comandos e os Comandos Salvos usam esses dados para disparar comandos pelo canal escolhido.
+                    </p>
+                  </div>
+                )}
 
                 {!editingDevice && (
                   <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
@@ -1045,16 +1073,23 @@ export default function VehiclesPage() {
       </Card>
 
       {/* Table */}
-      <Card className="backdrop-blur-xl bg-card/90 border-border">
-        <CardContent className="pt-6">
-          {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
+      <DataTableCard
+        isLoading={isLoading}
+        isEmpty={filteredDevices.length === 0}
+        cardClassName="backdrop-blur-xl bg-card/90 border-border"
+        contentClassName="pt-6"
+        loadingRows={5}
+        skeletonClassName="h-16 w-full"
+        emptyState={
+          <div className="text-center py-12">
+            <Filter className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              Nenhum veículo encontrado com os filtros aplicados
+            </p>
+          </div>
+        }
+      >
+        <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border">
                   <TableHead className="font-bold">Placa</TableHead>
@@ -1155,80 +1190,77 @@ export default function VehiclesPage() {
                           {formatDate(device.lastUpdate)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEdit(device)}
-                              className="hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                              title="Editar"
+                          <div className="flex justify-end">
+                            <RowActionsMenu
+                              label={`Ações de ${device.name}`}
+                              indicator={hasShares ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full border border-background bg-green-400 animate-pulse" /> : undefined}
                             >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="hover:bg-purple-50 dark:hover:bg-purple-950/20"
-                              title="Ver no mapa"
-                              onClick={() => router.push(`/map?deviceId=${device.id}`)}
-                            >
-                              <MapPin className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="hover:bg-blue-50 dark:hover:bg-blue-950/20 text-blue-600"
-                              title="Enviar comando"
-                              onClick={() => {
-                                setCommandDevice(device);
-                                setIsCommandOpen(true);
-                              }}
-                            >
-                              <Terminal className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                if (hasShares) {
-                                  setExpandedShares((prev) => {
-                                    const n = new Set(prev);
-                                    n.has(device.id)
-                                      ? n.delete(device.id)
-                                      : n.add(device.id);
-                                    return n;
-                                  });
-                                } else {
-                                  setShareDevice(device);
-                                  setIsShareOpen(true);
-                                }
-                              }}
-                              className={`relative hover:bg-sky-50 dark:hover:bg-sky-950/20 ${hasShares ? "text-green-500" : "text-sky-500"}`}
-                              title={
-                                hasShares
-                                  ? `${deviceShares.length} compartilhamento(s) ativo(s)`
-                                  : "Compartilhar localização"
-                              }
-                            >
-                              <Share2 className="w-4 h-4" />
-                              {hasShares && (
-                                <>
-                                  <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-green-400 border border-background animate-pulse" />
-                                  <ChevronDown
-                                    className={`w-2.5 h-2.5 ml-0.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                                  />
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(device.id)}
-                              className="hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600"
-                              title="Remover"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                                <RowActionsMenuItem icon={Edit} onClick={() => handleEdit(device)}>
+                                  Editar veículo
+                                </RowActionsMenuItem>
+                                <RowActionsMenuItem
+                                  icon={MapPin}
+                                  onClick={() => router.push(`/map?deviceId=${device.id}`)}
+                                >
+                                  Ver no mapa
+                                </RowActionsMenuItem>
+                                {can("commands") && (
+                                  <RowActionsMenuItem
+                                    icon={Terminal}
+                                    onClick={() => {
+                                      setCommandDevice(device);
+                                      setIsCommandOpen(true);
+                                    }}
+                                    className="text-blue-600 focus:text-blue-600"
+                                  >
+                                    Enviar comando
+                                  </RowActionsMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <RowActionsMenuItem
+                                  icon={Share2}
+                                  onClick={() => {
+                                    if (hasShares) {
+                                      setExpandedShares((prev) => {
+                                        const next = new Set(prev);
+                                        next.has(device.id)
+                                          ? next.delete(device.id)
+                                          : next.add(device.id);
+                                        return next;
+                                      });
+                                      return;
+                                    }
+
+                                    setShareDevice(device);
+                                    setIsShareOpen(true);
+                                  }}
+                                  className={hasShares ? "text-green-500 focus:text-green-500" : "text-sky-500 focus:text-sky-500"}
+                                >
+                                  {hasShares
+                                    ? `${isExpanded ? "Ocultar" : "Ver"} compartilhamentos (${deviceShares.length})`
+                                    : "Compartilhar localização"}
+                                </RowActionsMenuItem>
+                                {hasShares && (
+                                  <RowActionsMenuItem
+                                    icon={ChevronDown}
+                                    onClick={() => {
+                                      setShareDevice(device);
+                                      setIsShareOpen(true);
+                                    }}
+                                    className="text-sky-500 focus:text-sky-500"
+                                  >
+                                    Novo link de compartilhamento
+                                  </RowActionsMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <RowActionsMenuItem
+                                  icon={Trash2}
+                                  onClick={() => handleDelete(device.id)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  Remover veículo
+                                </RowActionsMenuItem>
+                            </RowActionsMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1332,19 +1364,8 @@ export default function VehiclesPage() {
                   );
                 })}
               </TableBody>
-            </Table>
-          )}
-
-          {!isLoading && filteredDevices.length === 0 && (
-            <div className="text-center py-12">
-              <Filter className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
-                Nenhum veículo encontrado com os filtros aplicados
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </Table>
+      </DataTableCard>
 
       <ShareLocationDialog
         open={isShareOpen}

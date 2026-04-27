@@ -402,7 +402,7 @@ export default function NotificationsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Configurações de Notificações"
-          description="Gerencie regras de notificação integradas ao servidor Traccar"
+          description="Gerencie regras de notificação integradas à plataforma Rastrear"
           icon={Bell}
           stats={[
             { label: "Regras ativas", value: notifications.length, variant: "success" },
@@ -494,7 +494,7 @@ export default function NotificationsPage() {
             <div>
               <h3 className="text-base font-bold">Regras de Notificação (Servidor)</h3>
               <p className="text-xs text-muted-foreground">
-                Cada regra dispara uma notificação pelo Traccar nos canais selecionados
+                Cada regra dispara uma notificação pela plataforma Rastrear nos canais selecionados
               </p>
             </div>
             <Button onClick={openNewDialog} size="sm" disabled={availableTypes.length === 0}>

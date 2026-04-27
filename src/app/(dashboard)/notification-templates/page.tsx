@@ -9,7 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ActionIconButton } from "@/components/ui/action-icon-button";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -558,20 +560,24 @@ export default function NotificationTemplatesPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div>Carregando...</div>
-          ) : templates.length === 0 ? (
-            <div className="text-center py-12">
-              <Sparkles className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground mb-4">
-                Nenhum template criado ainda
-              </p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Criar Primeiro Template
-              </Button>
-            </div>
-          ) : (
+          <DataTableCard
+            isLoading={isLoading}
+            isEmpty={templates.length === 0}
+            withCard={false}
+            loadingClassName="py-4"
+            emptyState={
+              <div className="text-center py-12">
+                <Sparkles className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-muted-foreground mb-4">
+                  Nenhum template criado ainda
+                </p>
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar Primeiro Template
+                </Button>
+              </div>
+            }
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -617,45 +623,42 @@ export default function NotificationTemplatesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
+                        <ActionIconButton
                           size="sm"
                           onClick={() => handleTest(template)}
-                          title="Testar notificação"
+                          label="Testar notificação"
                         >
                           <Bell className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ActionIconButton>
+                        <ActionIconButton
                           size="sm"
                           onClick={() => handleDuplicate(template)}
-                          title="Duplicar template"
+                          label="Duplicar template"
                         >
                           <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ActionIconButton>
+                        <ActionIconButton
                           size="sm"
                           onClick={() => handleEdit(template)}
-                          title="Editar template"
+                          label="Editar template"
                         >
                           <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ActionIconButton>
+                        <ActionIconButton
                           size="sm"
                           onClick={() => handleDelete(template.id)}
-                          title="Excluir template"
+                          label="Excluir template"
+                          destructive
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                          <Trash2 className="w-4 h-4" />
+                        </ActionIconButton>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
+          </DataTableCard>
         </CardContent>
       </Card>
 

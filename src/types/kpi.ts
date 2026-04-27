@@ -6,10 +6,19 @@
 export interface KPI {
   id: string;
   name: string;
+  organizationId?: number;
+  computedAttributeId?: number;
+  attributeName?: string;
   sensorKey: string;        // chave do atributo computado (ex: "batteryLow")
+  sensorLabel?: string;
+  sensorType?: 'string' | 'number' | 'boolean';
+  source?: KPIValueSource;
   aggregation: AggregationType;
   filter?: string;          // filtro adicional (ex: "batteryLow == true")
   period: PeriodType;
+  unit?: string;
+  enabledOnDashboard?: boolean;
+  reportSchedule?: KPIReportSchedule | null;
   customPeriod?: {
     start: Date;
     end: Date;
@@ -25,6 +34,18 @@ export interface KPICalculation {
   value: number;
   label: string;
   timestamp: Date;
+}
+
+export interface KPIEvaluationResult {
+  kpiId: string;
+  value: string;
+  rawValue: number | string;
+  label: string;
+  subtext: string;
+  basis: string;
+  periodLabel: string;
+  sampleCount: number;
+  timestamp: string;
 }
 
 export interface SensorData {
@@ -86,19 +107,46 @@ export interface SensorReadingStored extends SensorReading {
 
 export type VehicleSensors = Record<string, ExternalSensorConfig[]>
 
+export type KPIValueSource = 'auto' | 'device' | 'position';
+export type KPIReportFrequency = 'daily' | 'weekly' | 'fortnightly' | 'monthly';
+export type KPIReportPeriod = 'current' | '24h' | '7d' | '15d' | '30d';
+
+export interface KPIReportSchedule {
+  enabled: boolean;
+  recipients: string[];
+  frequency: KPIReportFrequency;
+  period: KPIReportPeriod;
+  deliveryTime: string; // HH:mm
+  weeklyDay?: number; // 0-6, usado apenas em frequência semanal
+  sendPdf: boolean;
+  subject?: string;
+  customMessage?: string;
+  lastSentAt?: string | null;
+  nextRunAt?: string | null;
+}
+
 // Tipos enumerados
 export type AggregationType = 'count' | 'sum' | 'avg' | 'min' | 'max';
 export type ChartType = 'bar' | 'line' | 'pie' | 'card';
-export type PeriodType = '1h' | '24h' | '7d' | '30d' | 'custom';
+export type PeriodType = 'current' | '1h' | '24h' | '7d' | '15d' | '30d' | 'custom';
 export type GroupByType = 'vehicle' | 'day' | 'hour' | 'organization';
 
 // Tipos para o builder de KPIs
 export interface KPIBuilderData {
   name: string;
+  organizationId?: number;
+  computedAttributeId?: number;
+  attributeName?: string;
   sensorKey: string;
+  sensorLabel?: string;
+  sensorType?: 'string' | 'number' | 'boolean';
+  source?: KPIValueSource;
   aggregation: AggregationType;
   filter: string;
   period: PeriodType;
+  unit?: string;
+  enabledOnDashboard?: boolean;
+  reportSchedule?: KPIReportSchedule | null;
   customPeriod?: {
     start: Date;
     end: Date;
@@ -131,9 +179,11 @@ export const CHART_OPTIONS: { value: ChartType; label: string; icon: string }[] 
 ];
 
 export const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
+  { value: 'current', label: 'Snapshot atual' },
   { value: '1h', label: 'Última hora' },
   { value: '24h', label: 'Últimas 24h' },
   { value: '7d', label: 'Últimos 7 dias' },
+  { value: '15d', label: 'Últimos 15 dias' },
   { value: '30d', label: 'Últimos 30 dias' },
   { value: 'custom', label: 'Período customizado' },
 ];
@@ -143,4 +193,19 @@ export const GROUP_BY_OPTIONS: { value: GroupByType; label: string }[] = [
   { value: 'day', label: 'Dia' },
   { value: 'hour', label: 'Hora' },
   { value: 'organization', label: 'Organização' },
+];
+
+export const KPI_REPORT_FREQUENCY_OPTIONS: { value: KPIReportFrequency; label: string }[] = [
+  { value: 'daily', label: 'Todo final do dia' },
+  { value: 'weekly', label: 'Todo final da semana' },
+  { value: 'fortnightly', label: 'A cada quinzena' },
+  { value: 'monthly', label: 'Todo final do mês' },
+];
+
+export const KPI_REPORT_PERIOD_OPTIONS: { value: KPIReportPeriod; label: string }[] = [
+  { value: 'current', label: 'Snapshot atual' },
+  { value: '24h', label: 'Últimas 24h' },
+  { value: '7d', label: 'Últimos 7 dias' },
+  { value: '15d', label: 'Últimos 15 dias' },
+  { value: '30d', label: 'Últimos 30 dias' },
 ];

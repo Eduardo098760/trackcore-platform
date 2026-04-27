@@ -38,6 +38,8 @@ function mapUserToTraccar(user: Partial<User>): any {
     clientId,
     organizationId,
     lastLogin,
+    accessInvitePending,
+    accessInviteExpiresAt,
     ...traccarUser
   } = user as any;
 
@@ -73,6 +75,8 @@ function mapTraccarToUser(traccarUser: any): User {
   // Ignorar valor "false" que é lixo em alguns usuários
   const rawLogin = traccarUser.login && traccarUser.login !== "false" ? traccarUser.login : null;
   const lastLogin = traccarUser.attributes?.lastLogin || rawLogin || null;
+  const accessInvitePending = Boolean(traccarUser.attributes?.accessInvitePending);
+  const accessInviteExpiresAt = traccarUser.attributes?.accessInviteExpiresAt || null;
 
   // 1. administrator: true → admin
   if (traccarUser.administrator) {
@@ -80,6 +84,8 @@ function mapTraccarToUser(traccarUser: any): User {
       ...traccarUser,
       role: "admin",
       lastLogin,
+      accessInvitePending,
+      accessInviteExpiresAt,
       createdAt: traccarUser.createdAt || new Date().toISOString(),
       updatedAt: traccarUser.updatedAt || new Date().toISOString(),
     } as User;
@@ -110,6 +116,8 @@ function mapTraccarToUser(traccarUser: any): User {
     ...traccarUser,
     role,
     lastLogin,
+    accessInvitePending,
+    accessInviteExpiresAt,
     createdAt: traccarUser.createdAt || new Date().toISOString(),
     updatedAt: traccarUser.updatedAt || new Date().toISOString(),
   } as User;
@@ -263,7 +271,7 @@ export async function markEventAsResolved(eventId: number): Promise<Event> {
 }
 
 // Commands API (usando Traccar)
-// Payload segue exatamente o formato nativo: { id:0, deviceId, type, attributes }
+// Para novo envio, o payload nao precisa de id salvo.
 export async function sendCommand(
   deviceId: number,
   type: string,
@@ -271,7 +279,6 @@ export async function sendCommand(
   textChannel?: boolean,
 ): Promise<TraccarCommand> {
   const command: Record<string, any> = {
-    id: 0,
     deviceId,
     type,
     attributes: attributes || {},
@@ -279,6 +286,20 @@ export async function sendCommand(
   if (textChannel) command.textChannel = true;
 
   return api.post<TraccarCommand>("/commands/send", command);
+}
+
+export async function getSupportedCommandTypes(
+  deviceId: number,
+  textChannel?: boolean,
+): Promise<string[]> {
+  const response = await api.get<Array<{ type?: string } | string>>("/commands/types", {
+    deviceId,
+    textChannel: textChannel ? true : undefined,
+  });
+
+  return (response || [])
+    .map((item) => (typeof item === "string" ? item : item?.type))
+    .filter((value): value is string => !!value);
 }
 
 /** Retorna templates de comandos salvos no Traccar */

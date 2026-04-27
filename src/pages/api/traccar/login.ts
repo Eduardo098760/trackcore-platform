@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getTenantServerUrl, normalizeHostname } from '@/config/tenants';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -21,6 +22,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const cookies = req.headers.cookie || '';
       const match = cookies.match(/(?:^|;\s*)traccar-server=([^;]+)/);
       if (match) { try { serverUrl = decodeURIComponent(match[1]); } catch {} }
+    }
+    if (!serverUrl) {
+      const hostHeader = String(req.headers.host || '');
+      const tenantHost = normalizeHostname(hostHeader);
+      serverUrl = getTenantServerUrl(tenantHost);
     }
     if (!serverUrl || !/^https?:\/\//i.test(serverUrl)) {
       return res.status(400).json({ error: 'Nenhum servidor configurado. Informe o endereço do servidor na tela de login.' });

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Organization } from "@/types";
+import { ActionIconButton } from "@/components/ui/action-icon-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -47,7 +49,6 @@ import {
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Skeleton } from "@/components/ui/skeleton";
 
 // API functions
 const getOrganizations = async (): Promise<Organization[]> => {
@@ -509,13 +510,7 @@ export default function OrganizationsPage() {
           </div>
 
           {/* Table */}
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
+          <DataTableCard isLoading={isLoading} contentClassName="pt-6" withCard={false}>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -598,12 +593,12 @@ export default function OrganizationsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(org)}>
+                          <ActionIconButton size="sm" onClick={() => handleEdit(org)} label="Editar organização">
                             <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(org.id)}>
+                          </ActionIconButton>
+                          <ActionIconButton size="sm" onClick={() => handleDelete(org.id)} label="Excluir organização" destructive>
                             <Trash2 className="h-4 w-4" />
-                          </Button>
+                          </ActionIconButton>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -612,7 +607,7 @@ export default function OrganizationsPage() {
                 )}
               </TableBody>
             </Table>
-          )}
+          </DataTableCard>
         </CardContent>
       </Card>
     </div>

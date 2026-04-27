@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Device, Command } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import {
   Terminal,
   Lock,
@@ -61,6 +62,7 @@ interface RecentCommandsProps {
 }
 
 export function RecentCommands({ devices }: RecentCommandsProps) {
+  const { can } = usePermissions();
   const [commands, setCommands] = useState<Command[]>([]);
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export function RecentCommands({ devices }: RecentCommandsProps) {
   );
 
   const recent = commands.slice(0, 8);
+  const canSendCommands = can("commands");
 
   return (
     <Card>
@@ -96,12 +99,14 @@ export function RecentCommands({ devices }: RecentCommandsProps) {
           <Terminal className="w-5 h-5" />
           Comandos Recentes
         </CardTitle>
-        <Link href="/commands">
-          <Button variant="ghost" size="sm" className="text-xs">
-            <Send className="w-3.5 h-3.5 mr-1" />
-            Enviar
-          </Button>
-        </Link>
+        {canSendCommands && (
+          <Link href="/commands">
+            <Button variant="ghost" size="sm" className="text-xs">
+              <Send className="w-3.5 h-3.5 mr-1" />
+              Enviar
+            </Button>
+          </Link>
+        )}
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px] pr-4">
@@ -109,11 +114,13 @@ export function RecentCommands({ devices }: RecentCommandsProps) {
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Terminal className="w-8 h-8 mb-2 opacity-30" />
               <p className="text-sm">Nenhum comando enviado</p>
-              <Link href="/commands">
-                <Button variant="link" size="sm" className="mt-1 text-xs">
-                  Enviar um comando
-                </Button>
-              </Link>
+              {canSendCommands && (
+                <Link href="/commands">
+                  <Button variant="link" size="sm" className="mt-1 text-xs">
+                    Enviar um comando
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -144,6 +151,11 @@ export function RecentCommands({ devices }: RecentCommandsProps) {
                       {cmd.sentTime && (
                         <p className="text-[11px] text-muted-foreground mt-0.5">
                           {formatDate(cmd.sentTime)}
+                        </p>
+                      )}
+                      {cmd.providerResponse && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate" title={`${cmd.providerResponse.situacao} · ${cmd.providerResponse.codigo || "-"} · ${cmd.providerResponse.id || "-"} · ${cmd.providerResponse.descricao || "-"}`}>
+                          {cmd.providerResponse.situacao} · {cmd.providerResponse.codigo || "-"} · {cmd.providerResponse.descricao || "-"}
                         </p>
                       )}
                     </div>

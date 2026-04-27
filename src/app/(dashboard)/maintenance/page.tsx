@@ -11,8 +11,10 @@ import {
   linkMaintenanceToDevice,
 } from "@/lib/api/maintenance";
 import { Maintenance, Device } from "@/types";
+import { ActionIconButton } from "@/components/ui/action-icon-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -377,10 +379,10 @@ function MaintenanceTable({
             <TableCell><StatusBadge status={m.status} /></TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-1">
-                <Button size="sm" variant="ghost" onClick={() => onEdit(m)} title="Editar"><Edit className="w-4 h-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => onDelete(m.id)} className="text-red-500 hover:text-red-600" disabled={isDeleting} title="Excluir">
+                <ActionIconButton size="sm" onClick={() => onEdit(m)} label="Editar manutenção"><Edit className="w-4 h-4" /></ActionIconButton>
+                <ActionIconButton size="sm" onClick={() => onDelete(m.id)} disabled={isDeleting} label="Excluir manutenção" destructive>
                   <Trash2 className="w-4 h-4" />
-                </Button>
+                </ActionIconButton>
               </div>
             </TableCell>
           </TableRow>
@@ -558,24 +560,14 @@ export default function MaintenancePage() {
       </Card>
 
       {/* Tabela */}
-      <Card>
-        <CardContent className="pt-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <MaintenanceTable
-              maintenances={filteredMaintenances}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              isDeleting={deleteMutation.isPending}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+        <MaintenanceTable
+          maintenances={filteredMaintenances}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          isDeleting={deleteMutation.isPending}
+        />
+      </DataTableCard>
 
       <MaintenanceFormDialog
         open={isDialogOpen}

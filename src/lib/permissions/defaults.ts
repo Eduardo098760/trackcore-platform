@@ -22,7 +22,7 @@ export const SUPER_ADMIN_PERMISSIONS: RoutePermissions = {
 
 /** MANAGER (Traccar userLimit != 0): gerencia usuários e dispositivos, sem auditoria e controle de acesso */
 export const MANAGER_PERMISSIONS: RoutePermissions = {
-  dashboard: true, map: true, routes: true, vehicles: true, drivers: true, history: true, replay: true, events: true, commands: true, savedCommands: true,
+  dashboard: true, map: true, routes: true, vehicles: true, drivers: true, history: true, replay: true, events: true, commands: false, savedCommands: false,
   video: true, videoAlerts: true, cameras: true,
   geofences: true, notifications: true, maintenance: true, reports: true, groups: true, calendars: true,
   computedAttributes: true, obd: true, statistics: true,
@@ -32,7 +32,7 @@ export const MANAGER_PERMISSIONS: RoutePermissions = {
 
 /** USER (usuário regular Traccar): acesso operacional aos próprios recursos */
 export const USER_PERMISSIONS: RoutePermissions = {
-  dashboard: true, map: true, routes: true, vehicles: true, drivers: false, history: true, replay: true, events: true, commands: true, savedCommands: false,
+  dashboard: true, map: true, routes: true, vehicles: true, drivers: false, history: true, replay: true, events: true, commands: false, savedCommands: false,
   video: true, videoAlerts: true, cameras: true,
   geofences: true, notifications: true, maintenance: false, reports: true, groups: false, calendars: false,
   computedAttributes: false, obd: false, statistics: true,

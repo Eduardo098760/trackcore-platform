@@ -1,5 +1,29 @@
-import { RoutePermissions, ALL_ROUTE_KEYS } from './types';
-import { SUPER_ADMIN_PERMISSIONS, DENIED_ALL_PERMISSIONS, READONLY_PERMISSIONS } from './defaults';
+import { RouteKey, RoutePermissions, ALL_ROUTE_KEYS } from './types';
+import {
+  SUPER_ADMIN_PERMISSIONS,
+  DENIED_ALL_PERMISSIONS,
+  READONLY_PERMISSIONS,
+  getDefaultPermissionsByRole,
+} from './defaults';
+
+const ADMIN_ONLY_KEYS: RouteKey[] = ['commands', 'savedCommands'];
+
+function enforceAdminOnlyRoutes(
+  role: string,
+  permissions: RoutePermissions,
+  isImpersonating: boolean,
+): RoutePermissions {
+  if (!isImpersonating && (role === 'admin' || role === 'superadmin')) {
+    return permissions;
+  }
+
+  const restricted = { ...permissions };
+  for (const key of ADMIN_ONLY_KEYS) {
+    restricted[key] = false;
+  }
+
+  return restricted;
+}
 
 interface ResolveOptions {
   role: string;
@@ -20,8 +44,7 @@ interface ResolveOptions {
  * Resolve as permissões finais de um usuário seguindo a hierarquia:
  *
  *   1. SUPER_ADMIN → tudo liberado, sem restrições
- *   2. Sem NENHUMA configuração salva → libera tudo (open by default)
- *      Garante que ninguém perde acesso antes de qualquer definição no painel.
+ *   2. Sem NENHUMA configuração salva → usa as permissões padrão da role
  *   3. Empresa define o teto máximo (ceiling)
  *   4. Usuário pode:
  *      a) Herdar as permissões da empresa (inheritFromCompany = true)
@@ -37,29 +60,34 @@ export function resolvePermissions(options: ResolveOptions): RoutePermissions {
 
   // ── 2. Sem nenhuma configuração salva ────────────────────────────────
   // Durante impersonação: READONLY_PERMISSIONS (visão do usuário somente leitura)
-  // Fora da impersonação: libera tudo (open by default para novos usuários)
+  // Fora da impersonação: usa o padrão da role do usuário
   const hasCompanyConfig = companyPermissions !== undefined && companyPermissions !== null;
   const hasUserConfig    = userPermissions    !== undefined && userPermissions    !== null;
+  const roleDefaults = getDefaultPermissionsByRole(role);
 
   if (!hasCompanyConfig && !hasUserConfig) {
-    return isImpersonating
-      ? { ...READONLY_PERMISSIONS }
-      : { ...SUPER_ADMIN_PERMISSIONS };
+    return enforceAdminOnlyRoutes(
+      role,
+      isImpersonating
+        ? { ...READONLY_PERMISSIONS }
+        : { ...roleDefaults },
+      isImpersonating,
+    );
   }
 
   // ── 3. Teto da empresa ──────────────────────────────────────────
-  // Se empresa não foi configurada ainda, usa tudo aberto como ceiling
-  const ceiling: RoutePermissions = { ...SUPER_ADMIN_PERMISSIONS };
+  // Se empresa não foi configurada ainda, usa o padrão da role como teto inicial
+  const ceiling: RoutePermissions = { ...roleDefaults };
   if (hasCompanyConfig) {
     for (const key of ALL_ROUTE_KEYS) {
-      ceiling[key] = companyPermissions![key] ?? true;
+      ceiling[key] = companyPermissions![key] ?? roleDefaults[key];
     }
   }
 
   // ── 4. Permissões do usuário ────────────────────────────────────
   // a) Sem config de usuário ou herda da empresa → retorna o teto da empresa
   if (!userPermissions || userPermissions.inheritFromCompany) {
-    return ceiling;
+    return enforceAdminOnlyRoutes(role, ceiling, isImpersonating);
   }
 
   // b) Customizado → interseção com o teto (usuário nunca supera a empresa)
@@ -70,5 +98,5 @@ export function resolvePermissions(options: ResolveOptions): RoutePermissions {
     result[key] = companyAllows && userAllows;
   }
 
-  return result;
+  return enforceAdminOnlyRoutes(role, result, isImpersonating);
 }

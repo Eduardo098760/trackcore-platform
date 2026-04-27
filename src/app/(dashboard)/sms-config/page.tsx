@@ -13,15 +13,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import {
   MessageSquare,
   CheckCircle2,
-  XCircle,
   Loader2,
   Send,
   Settings2,
   Globe,
   Shield,
-  Smartphone,
   AlertTriangle,
-  Copy,
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +26,18 @@ import { useAuthStore } from "@/lib/stores/auth";
 
 // ─── Provedores SMS pré-configurados ────────────────────────────────────────
 const SMS_PROVIDERS = [
+  {
+    id: "smsdev",
+    name: "SMS Dev",
+    description: "Gateway brasileiro de envio de SMS transacional e em massa",
+    urlTemplate: "https://api.smsdev.com.br/v1/send",
+    bodyTemplate: '{"key":"{SMSDEV_KEY}","type":"9","number":"{phone}","msg":"{message}"}',
+    authType: "url" as const,
+    authPlaceholder: "A chave vai na URL como parâmetro key",
+    docsUrl: "https://api.smsdev.com.br/v1/send",
+    instructions: "Informe a chave da SMS Dev no campo dedicado. A plataforma irá configurar o Traccar para enviar POST JSON direto à SMS Dev com key, type=9, number e msg.",
+    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  },
   {
     id: "twilio",
     name: "Twilio",
@@ -111,8 +120,38 @@ export default function SmsConfigPage() {
   const [smsUrl, setSmsUrl] = useState("");
   const [smsTemplate, setSmsTemplate] = useState("");
   const [smsAuth, setSmsAuth] = useState("");
+  const [smsDevKey, setSmsDevKey] = useState("");
   const [testPhone, setTestPhone] = useState("");
   const [testSending, setTestSending] = useState(false);
+
+  const buildSmsDevDirectUrl = () => "https://api.smsdev.com.br/v1/send";
+
+  const buildSmsDevDirectTemplate = (apiKey: string) => {
+    const trimmedKey = apiKey.trim();
+    if (!trimmedKey) {
+      return "";
+    }
+
+    return JSON.stringify({
+      key: trimmedKey,
+      type: "9",
+      number: "{phone}",
+      msg: "{message}",
+    });
+  };
+
+  const maskSmsDevTemplate = (template: string) =>
+    template.replace(/("key"\s*:\s*")([^"]+)(")/i, '$1***MASCARADO***$3');
+
+  const displayedSmsUrl =
+    selectedProvider === "smsdev"
+      ? buildSmsDevDirectUrl()
+      : smsUrl;
+
+  const displayedSmsTemplate =
+    selectedProvider === "smsdev"
+      ? maskSmsDevTemplate(smsTemplate)
+      : smsTemplate;
 
   const { data: server, isLoading } = useQuery({
     queryKey: ["server-settings"],
@@ -125,12 +164,26 @@ export default function SmsConfigPage() {
       const url = attrs["sms.http.url"] || "";
       const tpl = attrs["sms.http.template"] || "";
       const auth = attrs["sms.http.authorization"] || "";
+      const providerAttr = attrs["sms.provider"] || "";
+      const savedSmsDevKey = attrs["smsdev.apiKey"] || "";
       setSmsUrl(url);
       setSmsTemplate(tpl);
       setSmsAuth(auth);
+      setSmsDevKey(savedSmsDevKey);
 
       // Detectar provedor atual baseado na URL
       if (url) {
+        if (providerAttr === "smsdev" || url.includes("api.smsdev.com.br/v1/send")) {
+          setSelectedProvider("smsdev");
+          setSmsUrl(buildSmsDevDirectUrl());
+          setSmsAuth("");
+          const templateKeyMatch = String(tpl || "").match(/"key"\s*:\s*"([^"]+)"/i);
+          const resolvedKey = savedSmsDevKey || templateKeyMatch?.[1] || "";
+          setSmsDevKey(resolvedKey);
+          setSmsTemplate(buildSmsDevDirectTemplate(resolvedKey));
+          return;
+        }
+
         const detected = SMS_PROVIDERS.find(
           (p) => p.id !== "custom" && url.includes(new URL(p.urlTemplate || "https://x.com").hostname),
         );
@@ -142,24 +195,50 @@ export default function SmsConfigPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const attributes: Record<string, any> = { ...(server?.attributes || {}) };
-      attributes["sms.http.url"] = smsUrl;
-      attributes["sms.http.template"] = smsTemplate;
-      attributes["sms.http.authorization"] = smsAuth;
+      if (selectedProvider === "smsdev") {
+        const trimmedKey = smsDevKey.trim();
+        if (!trimmedKey) {
+          throw new Error("Informe a chave da API da SMS Dev.");
+        }
+        attributes["sms.provider"] = "smsdev";
+        attributes["smsdev.apiKey"] = trimmedKey;
+        attributes["sms.http.url"] = buildSmsDevDirectUrl();
+        attributes["sms.http.template"] = buildSmsDevDirectTemplate(trimmedKey);
+        attributes["sms.http.authorization"] = "";
+      } else {
+        attributes["sms.provider"] = selectedProvider || "custom";
+        delete attributes["smsdev.apiKey"];
+        attributes["sms.http.url"] = smsUrl;
+        attributes["sms.http.template"] = smsTemplate;
+        attributes["sms.http.authorization"] = smsAuth;
+      }
+
       return updateServerSettings({ ...server, attributes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["server-settings"] });
       toast.success("Configuração SMS salva com sucesso!");
     },
-    onError: () => toast.error("Erro ao salvar configuração SMS"),
+    onError: (error: Error) => toast.error(error.message || "Erro ao salvar configuração SMS"),
   });
 
   const handleSelectProvider = (providerId: string) => {
     setSelectedProvider(providerId);
     const provider = SMS_PROVIDERS.find((p) => p.id === providerId);
     if (provider && providerId !== "custom") {
-      setSmsUrl(provider.urlTemplate);
-      setSmsTemplate(provider.bodyTemplate);
+      if (providerId === "smsdev") {
+        const nextKey = smsDevKey.trim();
+        setSmsUrl(buildSmsDevDirectUrl());
+        setSmsTemplate(
+          nextKey
+            ? buildSmsDevDirectTemplate(nextKey)
+            : '{"key":"{SMSDEV_KEY}","type":"9","number":"{phone}","msg":"{message}"}'
+        );
+        setSmsAuth("");
+      } else {
+        setSmsUrl(provider.urlTemplate);
+        setSmsTemplate(provider.bodyTemplate);
+      }
       // Não limpar auth pois o usuário pode já ter preenchido
     }
   };
@@ -171,35 +250,36 @@ export default function SmsConfigPage() {
     }
     setTestSending(true);
     try {
-      // Monta a URL de teste substituindo placeholders
-      const testUrl = smsUrl
-        .replace("{phone}", encodeURIComponent(testPhone.trim()))
-        .replace("{message}", encodeURIComponent("Teste de SMS - TrackCore Platform"));
+      const effectiveUrl =
+        selectedProvider === "smsdev"
+          ? buildSmsDevDirectUrl()
+          : smsUrl;
+      const effectiveTemplate =
+        selectedProvider === "smsdev"
+          ? buildSmsDevDirectTemplate(smsDevKey.trim())
+          : smsTemplate;
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (smsAuth) {
-        headers["Authorization"] = smsAuth;
-      }
-
-      const body = smsTemplate
-        ? smsTemplate
-            .replace("{phone}", testPhone.trim())
-            .replace("{message}", "Teste de SMS - TrackCore Platform")
-        : undefined;
-
-      const res = await fetch(testUrl, {
-        method: body ? "POST" : "GET",
-        headers,
-        body: body || undefined,
+      const res = await fetch("/api/sms/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: effectiveUrl,
+          template: effectiveTemplate,
+          authorization: selectedProvider === "smsdev" ? "" : smsAuth,
+          phone: testPhone.trim(),
+          message: "Teste de SMS - Plataforma Rastrear",
+        }),
       });
 
-      if (res.ok) {
+      const payload = await res.json().catch(() => null);
+
+      if (res.ok && payload?.ok) {
         toast.success("SMS de teste enviado! Verifique o telefone informado.");
       } else {
-        const text = await res.text();
-        toast.error(`Erro HTTP ${res.status}: ${text.slice(0, 200)}`);
+        const errorText = payload?.error || payload?.body || `HTTP ${res.status}`;
+        toast.error(`Falha no teste: ${String(errorText).slice(0, 220)}`);
       }
     } catch (err: any) {
       toast.error(`Falha na requisição: ${err.message}`);
@@ -236,7 +316,7 @@ export default function SmsConfigPage() {
       <PageHeader
         icon={MessageSquare}
         title="Configuração SMS"
-        description="Configure a integração com provedores de SMS para envio de comandos e notificações via mensagem de texto."
+        description="Passo 1: defina aqui qual empresa e qual canal SMS serão usados pela plataforma para envio de comandos."
         stats={[
           {
             label: "Status",
@@ -257,7 +337,7 @@ export default function SmsConfigPage() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Globe className="w-5 h-5" />
-            Selecione o Provedor SMS
+            Passo 1: escolha a empresa de envio
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -309,6 +389,14 @@ export default function SmsConfigPage() {
                         {provider.instructions}
                       </p>
                       <p className="text-xs text-muted-foreground mt-2">
+                        Essa configuração será reutilizada automaticamente na tela de Comandos e na tela de Comandos Salvos.
+                      </p>
+                      {provider.id === "smsdev" && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          O Traccar será configurado para chamar a SMS Dev diretamente no formato key, type=9, number e msg. O retorno inclui situacao, codigo, id e descricao.
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
                         Placeholders disponíveis: <code className="bg-muted/50 px-1 rounded">&#123;phone&#125;</code> = número do destinatário,{" "}
                         <code className="bg-muted/50 px-1 rounded">&#123;message&#125;</code> = conteúdo da mensagem
                       </p>
@@ -339,58 +427,88 @@ export default function SmsConfigPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {selectedProvider === "smsdev" && (
+                <div>
+                  <Label>Chave da API SMS Dev</Label>
+                  <Input
+                    type="password"
+                    value={smsDevKey}
+                    onChange={(e) => {
+                      const nextKey = e.target.value;
+                      setSmsDevKey(nextKey);
+                      setSmsUrl(buildSmsDevDirectUrl());
+                      setSmsTemplate(
+                        nextKey.trim()
+                          ? buildSmsDevDirectTemplate(nextKey.trim())
+                          : '{"key":"{SMSDEV_KEY}","type":"9","number":"{phone}","msg":"{message}"}'
+                      );
+                    }}
+                    placeholder="Sua chave da SMS Dev"
+                    className="mt-1 font-mono text-sm"
+                    autoComplete="new-password"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    A chave será enviada no body JSON da SMS Dev configurado no Traccar.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Label>URL do Gateway SMS</Label>
                 <Textarea
-                  value={smsUrl}
+                  value={displayedSmsUrl}
                   onChange={(e) => setSmsUrl(e.target.value)}
                   placeholder="https://api.provider.com/sms?phone={phone}&message={message}"
                   className="mt-1 font-mono text-sm min-h-[80px]"
                   rows={3}
+                  readOnly={selectedProvider === "smsdev"}
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  URL completa com placeholders &#123;phone&#125; e &#123;message&#125;. Usada como GET se não houver template de body.
+                  URL do endpoint SMS. Quando houver template, o Traccar envia POST com o body configurado abaixo.
                 </p>
               </div>
 
               <div>
                 <Label>Template do Body (POST)</Label>
                 <Textarea
-                  value={smsTemplate}
+                  value={displayedSmsTemplate}
                   onChange={(e) => setSmsTemplate(e.target.value)}
                   placeholder='{"to":"{phone}","text":"{message}"}'
                   className="mt-1 font-mono text-sm min-h-[80px]"
                   rows={3}
+                  readOnly={selectedProvider === "smsdev"}
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Se preenchido, a requisição será POST com este conteúdo como body. Deixe vazio para GET.
+                  Se preenchido, a requisição será POST com este conteúdo como body. Para SMS Dev, a chave fica mascarada nesta visualização.
                 </p>
               </div>
 
-              <div>
-                <Label>Authorization Header</Label>
-                <div className="relative">
-                  <Input
-                    type="password"
-                    value={smsAuth}
-                    onChange={(e) => setSmsAuth(e.target.value)}
-                    placeholder={
-                      SMS_PROVIDERS.find((p) => p.id === selectedProvider)
-                        ?.authPlaceholder || "Bearer/Basic token"
-                    }
-                    className="mt-1 font-mono text-sm pr-10"
-                    autoComplete="new-password"
-                  />
+              {selectedProvider !== "smsdev" && (
+                <div>
+                  <Label>Authorization Header</Label>
+                  <div className="relative">
+                    <Input
+                      type="password"
+                      value={smsAuth}
+                      onChange={(e) => setSmsAuth(e.target.value)}
+                      placeholder={
+                        SMS_PROVIDERS.find((p) => p.id === selectedProvider)
+                          ?.authPlaceholder || "Bearer/Basic token"
+                      }
+                      className="mt-1 font-mono text-sm pr-10"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Valor do header Authorization enviado nas requisições. Ex: Bearer xxx, Basic xxx, Token xxx
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Valor do header Authorization enviado nas requisições. Ex: Bearer xxx, Basic xxx, Token xxx
-                </p>
-              </div>
+              )}
 
               <div className="flex items-center gap-3 pt-2">
                 <Button
                   onClick={() => saveMutation.mutate()}
-                  disabled={saveMutation.isPending || !smsUrl}
+                  disabled={saveMutation.isPending || !(selectedProvider === "smsdev" ? smsDevKey.trim() : smsUrl)}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
                 >
                   {saveMutation.isPending ? (
@@ -416,13 +534,12 @@ export default function SmsConfigPage() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Send className="w-5 h-5" />
-                Testar Envio de SMS
+                Validar a empresa escolhida
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Envie uma mensagem de teste para verificar se a configuração está funcionando.
-                Certifique-se de salvar as credenciais antes de testar.
+                Faça um teste antes de seguir para a tela de Comandos. Esse é o canal que será usado nos disparos manuais e nos comandos salvos.
               </p>
               <div className="flex gap-3">
                 <div className="flex-1">
@@ -440,7 +557,7 @@ export default function SmsConfigPage() {
               </div>
               <Button
                 onClick={handleTestSms}
-                disabled={testSending || !smsUrl || !testPhone.trim()}
+                disabled={testSending || !(selectedProvider === "smsdev" ? smsDevKey.trim() : smsUrl) || !testPhone.trim()}
                 variant="outline"
                 className="gap-2"
               >
@@ -467,18 +584,26 @@ export default function SmsConfigPage() {
                   </h4>
                   <ul className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1.5 list-disc list-inside">
                     <li>
-                      O Traccar substitui <code className="bg-muted/50 px-1 rounded text-xs">&#123;phone&#125;</code> pelo número do dispositivo e{" "}
+                      A plataforma Rastrear substitui <code className="bg-muted/50 px-1 rounded text-xs">&#123;phone&#125;</code> pelo número do dispositivo e{" "}
                       <code className="bg-muted/50 px-1 rounded text-xs">&#123;message&#125;</code> pelo conteúdo do comando.
                     </li>
                     <li>
-                      O número do telefone vem do campo &quot;Telefone&quot; cadastrado no dispositivo no Traccar.
+                      O número do telefone vem do campo &quot;Telefone&quot; cadastrado no dispositivo na plataforma Rastrear.
                     </li>
                     <li>
                       Para comandos SMS, o dispositivo precisa ter um número de telefone/SIM configurado.
                     </li>
                     <li>
-                      Após configurar, ative &quot;Enviar via SMS&quot; na tela de Comandos para usar este gateway.
+                      Depois de salvar esta etapa, a tela de Comandos usará a empresa escolhida aqui.
                     </li>
+                    <li>
+                      A tela de Comandos Salvos apenas define o modelo do comando; o canal e a empresa continuam vindo desta configuração.
+                    </li>
+                    {selectedProvider === "smsdev" && (
+                      <li>
+                        Para SMS Dev, o envio fica direto no endpoint oficial da operadora, sem depender de um gateway público da plataforma.
+                      </li>
+                    )}
                   </ul>
                 </div>
               </div>

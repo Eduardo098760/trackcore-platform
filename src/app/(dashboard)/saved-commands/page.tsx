@@ -10,8 +10,10 @@ import {
   deleteSavedCommand,
 } from "@/lib/api";
 import { getDevices } from "@/lib/api/devices";
+import { ActionIconButton } from "@/components/ui/action-icon-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -49,14 +51,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
+import { BASE_COMMAND_TYPES, getBaseCommandLabel } from "@/lib/commands/catalog";
 
 const COMMAND_TYPES = [
-  { value: "positionSingle", label: "Solicitar Posição" },
-  { value: "engineStop", label: "Bloquear Veículo" },
-  { value: "engineResume", label: "Desbloquear Veículo" },
-  { value: "rebootDevice", label: "Reiniciar Rastreador" },
-  { value: "custom", label: "Comando Personalizado" },
+  ...BASE_COMMAND_TYPES.map(({ value, label }) => ({ value, label })),
   { value: "setTimezone", label: "Definir Fuso Horário" },
   { value: "sendSms", label: "Enviar SMS" },
   { value: "sendUssd", label: "Enviar USSD" },
@@ -74,7 +72,7 @@ const COMMAND_TYPES = [
 ];
 
 const getCommandTypeLabel = (type: string) => {
-  return COMMAND_TYPES.find((t) => t.value === type)?.label || type;
+  return COMMAND_TYPES.find((t) => t.value === type)?.label || getBaseCommandLabel(type);
 };
 
 export default function SavedCommandsPage() {
@@ -192,8 +190,25 @@ export default function SavedCommandsPage() {
       <PageHeader
         icon={FileCog}
         title="Comandos Salvos"
-        description="Gerencie templates de comandos reutilizáveis para seus dispositivos"
+        description="Passo 3: salve modelos de comandos personalizados para reutilizar na tela de Comandos com a empresa já definida na Configuração SMS."
       />
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Hierarquia das telas</p>
+            <p className="text-xs text-muted-foreground">
+              1. Configuração SMS define qual empresa fará o envio.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              2. Comandos executa o disparo usando essa empresa.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              3. Comandos Salvos armazena modelos personalizados para você reaproveitar no envio.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Toolbar */}
       <div className="flex items-center gap-3">
@@ -248,20 +263,21 @@ export default function SavedCommandsPage() {
       </div>
 
       {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </div>
-          ) : filteredCommands.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">
-              <FileCog className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum comando salvo encontrado</p>
-              <p className="text-sm">Crie templates para reutilizar em seus dispositivos</p>
-            </div>
-          ) : (
-            <Table>
+      <DataTableCard
+        isLoading={isLoading}
+        isEmpty={filteredCommands.length === 0}
+        contentClassName="p-0"
+        loadingRows={3}
+        loadingClassName="p-6 space-y-3"
+        emptyState={
+          <div className="p-12 text-center text-muted-foreground">
+            <FileCog className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <p>Nenhum comando salvo encontrado</p>
+            <p className="text-sm">Crie comandos salvos para reutilizar o mesmo padrão de envio nos seus veículos</p>
+          </div>
+        }
+      >
+        <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Descrição</TableHead>
@@ -292,37 +308,35 @@ export default function SavedCommandsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
+                        <ActionIconButton
                           size="icon"
                           onClick={() => handleEdit(cmd)}
+                          label="Editar comando salvo"
                         >
                           <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
+                        </ActionIconButton>
+                        <ActionIconButton
                           size="icon"
                           onClick={() => handleDelete(cmd.id)}
-                          className="text-destructive hover:text-destructive"
+                          label="Excluir comando salvo"
+                          destructive
                         >
                           <Trash2 className="h-4 w-4" />
-                        </Button>
+                        </ActionIconButton>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+      </DataTableCard>
 
       {/* Dialog Criar/Editar */}
       <Dialog open={isDialogOpen} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingCommand ? "Editar Comando" : "Novo Comando Salvo"}
+              {editingCommand ? "Editar comando salvo" : "Novo comando salvo"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
@@ -336,7 +350,7 @@ export default function SavedCommandsPage() {
             </div>
 
             <div>
-              <Label>Tipo de Comando</Label>
+              <Label>Tipo de comando</Label>
               <Select
                 value={formData.type}
                 onValueChange={(v) => setFormData({ ...formData, type: v })}
@@ -355,7 +369,7 @@ export default function SavedCommandsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <Label>Enviar via SMS</Label>
-                <p className="text-xs text-muted-foreground">Usar canal de texto ao invés de GPRS</p>
+                <p className="text-xs text-muted-foreground">Quando usado, este modelo seguirá a empresa definida na tela Configuração SMS</p>
               </div>
               <Switch
                 checked={formData.textChannel}
@@ -377,7 +391,7 @@ export default function SavedCommandsPage() {
                   placeholder="Ex: relay,1#"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Texto que será enviado diretamente ao rastreador
+                  Texto que será enviado exatamente como digitado na hora do disparo
                 </p>
               </div>
             )}

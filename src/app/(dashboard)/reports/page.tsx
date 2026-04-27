@@ -328,6 +328,7 @@ export default function ReportsPage() {
   const handleGenerate = useCallback(async (type?: ReportType) => {
     const currentType = type ?? reportType;
     if (selectedDevices.length === 0) return;
+
     setIsGenerating(true);
     clearReports();
 
@@ -470,7 +471,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-2xl font-bold">Relatórios</h1>
             <p className="text-sm text-muted-foreground">
-              Gere e exporte relatórios detalhados no padrão Traccar
+              Gere relatórios detalhados no padrão Traccar
             </p>
           </div>
           {hasData && (
@@ -1347,6 +1348,7 @@ function ChartReport({
     </div>
   );
 }
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // COMBINED REPORT

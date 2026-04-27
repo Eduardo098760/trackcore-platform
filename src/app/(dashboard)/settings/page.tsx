@@ -115,6 +115,7 @@ function ServerSettingsTab() {
 
   const handleSave = () => {
     const attributes: Record<string, any> = { ...(server?.attributes || {}) };
+    const isSmsDevProvider = attributes["sms.provider"] === "smsdev";
     if (smtpHost) attributes["mail.smtp.host"] = smtpHost;
     if (smtpPort) attributes["mail.smtp.port"] = smtpPort;
     if (smtpUser) attributes["mail.smtp.username"] = smtpUser;
@@ -123,9 +124,11 @@ function ServerSettingsTab() {
     attributes["mail.smtp.ssl.enable"] = String(smtpSsl);
 
     // SMS Gateway
-    if (smsHttpUrl) attributes["sms.http.url"] = smsHttpUrl;
-    if (smsHttpTemplate) attributes["sms.http.template"] = smsHttpTemplate;
-    if (smsHttpAuth) attributes["sms.http.authorization"] = smsHttpAuth;
+    if (!isSmsDevProvider) {
+      if (smsHttpUrl) attributes["sms.http.url"] = smsHttpUrl;
+      if (smsHttpTemplate) attributes["sms.http.template"] = smsHttpTemplate;
+      if (smsHttpAuth) attributes["sms.http.authorization"] = smsHttpAuth;
+    }
 
     // Firebase
     if (firebaseKey) attributes["notificator.firebase.key"] = firebaseKey;
@@ -358,7 +361,7 @@ function ServerSettingsTab() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Configure um gateway HTTP para envio de SMS. O Traccar enviará requisições HTTP para a URL configurada.
+            Configure um gateway HTTP para envio de SMS. A plataforma Rastrear enviará requisições HTTP para a URL configurada.
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">

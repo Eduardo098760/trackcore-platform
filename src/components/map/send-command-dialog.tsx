@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { sendCommand } from "@/lib/api";
-import { Device, Command } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { getSupportedCommandTypes, sendCommand } from "@/lib/api";
+import { Device, Command, SmsProviderResponse } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -13,63 +13,30 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Lock,
-  Unlock,
-  MapPin,
-  RotateCcw,
   Send,
   AlertTriangle,
   CheckCircle2,
   Loader2,
-  FileText,
   WifiOff,
   MessageSquare,
 } from "lucide-react";
 import { deriveDeviceStatus } from "@/lib/utils";
+import { BASE_COMMAND_TYPES } from "@/lib/commands/catalog";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 
-const COMMAND_TYPES = [
-  {
-    value: "positionSingle",
-    label: "Solicitar Posição",
-    description: "Solicita a posição atual do rastreador",
-    icon: MapPin,
-    dangerous: false,
-  },
-  {
-    value: "engineResume",
-    label: "Bloquear Veículo",
-    description: "Corta a alimentação do motor remotamente",
-    icon: Lock,
-    dangerous: true,
-  },
-  {
-    value: "engineStop",
-    label: "Desbloquear Veículo",
-    description: "Restaura a alimentação do motor",
-    icon: Unlock,
-    dangerous: false,
-  },
-  {
-    value: "rebootDevice",
-    label: "Reiniciar Rastreador",
-    description: "Reinicia o dispositivo rastreador",
-    icon: RotateCcw,
-    dangerous: false,
-  },
-  {
-    value: "custom",
-    label: "Comando Personalizado",
-    description: "Envia um comando de texto customizado",
-    icon: FileText,
-    dangerous: false,
-  },
-] as const;
+const COMMAND_TYPES = BASE_COMMAND_TYPES;
 
 // ─── Histórico local (localStorage) ─────────────────────────────────────────
 const STORAGE_KEY = "commandHistory";
 const MAX_HISTORY = 50;
 
-function addToLocalHistory(deviceId: number, type: string, status: Command["status"]) {
+function addToLocalHistory(
+  deviceId: number,
+  type: string,
+  status: Command["status"],
+  textChannel?: boolean,
+  providerResponse?: SmsProviderResponse | null,
+) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const items: Command[] = raw ? JSON.parse(raw) : [];
@@ -79,6 +46,8 @@ function addToLocalHistory(deviceId: number, type: string, status: Command["stat
       type,
       sentTime: new Date().toISOString(),
       status,
+      textChannel,
+      providerResponse: providerResponse || null,
     };
     const updated = [entry, ...items].slice(0, MAX_HISTORY);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -92,6 +61,7 @@ interface SendCommandDialogProps {
 }
 
 export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDialogProps) {
+  const { can } = usePermissions();
   const [selected, setSelected] = useState<string | null>(null);
   const [customText, setCustomText] = useState("");
   const [useSms, setUseSms] = useState(false);
@@ -104,12 +74,43 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     return status === "offline" || status === "unknown";
   }, [device]);
 
+  const { data: supportedCommandTypes = [] } = useQuery({
+    queryKey: ["device-command-types", device?.id, useSms],
+    queryFn: () => getSupportedCommandTypes(device!.id, useSms),
+    enabled: !!device?.id,
+  });
+
+  const supportedCommands = useMemo(() => new Set(supportedCommandTypes), [supportedCommandTypes]);
+
+  useEffect(() => {
+    if (selected && supportedCommandTypes.length > 0 && !supportedCommands.has(selected)) {
+      setSelected(null);
+      setConfirmDangerous(false);
+      setResult({
+        success: false,
+        message: `O canal atual não suporta esse comando para este veículo. Suportados: ${supportedCommandTypes.join(", ")}.`,
+      });
+    }
+  }, [selected, supportedCommandTypes, supportedCommands]);
+
   const mutation = useMutation({
     mutationFn: ({ deviceId, type, attributes, textChannel }: { deviceId: number; type: string; attributes?: Record<string, any>; textChannel?: boolean }) =>
       sendCommand(deviceId, type, attributes, textChannel),
-    onSuccess: (_data, variables) => {
-      addToLocalHistory(variables.deviceId, variables.type, "sent");
-      setResult({ success: true, message: "Comando enviado com sucesso!" });
+    onSuccess: (data, variables) => {
+      addToLocalHistory(
+        variables.deviceId,
+        variables.type,
+        "sent",
+        variables.textChannel,
+        data?.providerResponse || null,
+      );
+      const provider = data?.providerResponse;
+      setResult({
+        success: true,
+        message: provider
+          ? `Situação: ${provider.situacao} | Código: ${provider.codigo || "-"} | ID: ${provider.id || "-"} | ${provider.descricao || "-"}`
+          : "Comando enviado com sucesso!",
+      });
       setTimeout(() => {
         setSelected(null);
         setCustomText("");
@@ -120,14 +121,27 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
       }, 1500);
     },
     onError: (err: any, variables) => {
-      addToLocalHistory(variables.deviceId, variables.type, "failed");
-      const msg = err?.details?.message || err?.message || "Falha ao enviar comando";
+      addToLocalHistory(variables.deviceId, variables.type, "failed", variables.textChannel, null);
+      const details = err?.details;
+      const detailText = typeof details === "string"
+        ? details
+        : details
+          ? JSON.stringify(details)
+          : "";
+      const msg = err?.details?.message || err?.message || detailText || "Falha ao enviar comando";
       setResult({ success: false, message: msg });
     },
   });
 
   const handleSend = () => {
     if (!device || !selected) return;
+    if (supportedCommandTypes.length > 0 && !supportedCommands.has(selected)) {
+      setResult({
+        success: false,
+        message: `O comando ${selected} não é suportado para este veículo nesse canal.`,
+      });
+      return;
+    }
     const cmd = COMMAND_TYPES.find((c) => c.value === selected);
     if (cmd?.dangerous && !confirmDangerous) {
       setConfirmDangerous(true);
@@ -152,7 +166,7 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     onOpenChange(open);
   };
 
-  if (!device) return null;
+  if (!device || !can("commands")) return null;
 
   const selectedCmd = COMMAND_TYPES.find((c) => c.value === selected);
 
@@ -170,13 +184,26 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
         </DialogHeader>
 
         <div className="space-y-3 mt-2">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-xs font-semibold">Hierarquia do fluxo</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              1. A empresa de envio SMS é definida na tela Configuração SMS.
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              2. Este modal apenas usa essa configuração para enviar o comando ao veículo selecionado.
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              3. Se existir um comando salvo, mantenha o mesmo padrão usado na tela Comandos Salvos.
+            </p>
+          </div>
+
           {/* Offline warning */}
           {isOffline && (
             <div className="p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
               <div className="flex items-start gap-2">
                 <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Veículo offline — o comando será enfileirado e enviado quando reconectar.
+                  Veículo offline — o envio imediato pode falhar e depende do tipo de comando, do canal configurado e do suporte do rastreador.
                 </p>
               </div>
             </div>
@@ -187,20 +214,24 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
             {COMMAND_TYPES.map((cmd) => {
               const Icon = cmd.icon;
               const isSelected = selected === cmd.value;
+              const isSupported = supportedCommandTypes.length === 0 || supportedCommands.has(cmd.value);
               return (
                 <button
                   key={cmd.value}
                   onClick={() => {
+                    if (!isSupported) return;
                     setSelected(cmd.value);
                     setConfirmDangerous(false);
                     setResult(null);
                     mutation.reset();
                   }}
-                  disabled={mutation.isPending}
+                  disabled={mutation.isPending || !isSupported}
                   className={`p-3 rounded-xl border-2 transition-all text-left ${
                     isSelected
                       ? `bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-transparent shadow-lg`
-                      : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
+                      : isSupported
+                        ? "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
+                        : "border-gray-200 dark:border-gray-800 opacity-45 cursor-not-allowed"
                   }`}
                 >
                   <Icon className={`w-5 h-5 mb-1.5 ${isSelected ? "text-white" : ""}`} />
@@ -208,12 +239,18 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
                     {cmd.label}
                   </p>
                   <p className={`text-[10px] mt-0.5 leading-tight ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
-                    {cmd.description}
+                    {isSupported ? cmd.description : "Não suportado para este veículo nesse canal"}
                   </p>
                 </button>
               );
             })}
           </div>
+
+          {device && supportedCommandTypes.length > 0 && (
+            <p className="text-[10px] text-muted-foreground">
+              Tipos suportados neste canal: {supportedCommandTypes.join(", ")}
+            </p>
+          )}
 
           {/* Custom command text field */}
           {selected === "custom" && (
@@ -221,11 +258,11 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
               <Input
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
-                placeholder="Ex: setdigout 0"
+                placeholder="Ex: relay,1#"
                 className="font-mono text-sm"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Texto para protocolos text-based ou hex para binários.
+                Use o mesmo padrão adotado na tela de Comandos Salvos para manter consistência.
               </p>
             </div>
           )}
@@ -237,7 +274,7 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium">Enviar via SMS</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Se GPRS não funcionar
+                  Usa a empresa definida em Configuração SMS quando o envio por dados não funcionar
                 </p>
               </div>
               <button
@@ -294,7 +331,12 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
           {/* Send button */}
           <Button
             onClick={handleSend}
-            disabled={!selected || mutation.isPending || (selected === "custom" && !customText.trim())}
+            disabled={
+              !selected ||
+              mutation.isPending ||
+              (selected === "custom" && !customText.trim()) ||
+              (supportedCommandTypes.length > 0 && selected != null && !supportedCommands.has(selected))
+            }
             className={`w-full ${
               confirmDangerous && selectedCmd?.dangerous
                 ? "bg-red-600 hover:bg-red-700 text-white"

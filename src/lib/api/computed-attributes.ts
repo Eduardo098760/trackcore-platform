@@ -14,25 +14,69 @@ export interface TraccarComputedAttribute {
   attribute: string;       // nome do atributo resultante (ex: "fuelConsumption")
   expression: string;      // expressão de cálculo
   type: 'string' | 'number' | 'boolean';
+  organizationId?: number;
+  createdByUserId?: number;
+  assignedUserIds?: number[];
 }
 
 export async function getComputedAttributes(): Promise<TraccarComputedAttribute[]> {
-  return api.get<TraccarComputedAttribute[]>('/attributes/computed');
+  const response = await fetch('/api/computed-attributes', {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.error || 'Falha ao carregar atributos computados');
+  }
+
+  return await response.json();
 }
 
 export async function createComputedAttribute(
   data: Omit<TraccarComputedAttribute, 'id'>,
 ): Promise<TraccarComputedAttribute> {
-  return api.post<TraccarComputedAttribute>('/attributes/computed', data);
+  const response = await fetch('/api/computed-attributes', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || 'Falha ao criar atributo computado');
+  }
+
+  return await response.json();
 }
 
 export async function updateComputedAttribute(
   id: number,
   data: TraccarComputedAttribute,
 ): Promise<TraccarComputedAttribute> {
-  return api.put<TraccarComputedAttribute>(`/attributes/computed/${id}`, data);
+  const response = await fetch(`/api/computed-attributes/${id}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || 'Falha ao atualizar atributo computado');
+  }
+
+  return await response.json();
 }
 
 export async function deleteComputedAttribute(id: number): Promise<void> {
-  return api.delete<void>(`/attributes/computed/${id}`);
+  const response = await fetch(`/api/computed-attributes/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.error || 'Falha ao excluir atributo computado');
+  }
 }

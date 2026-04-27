@@ -22,7 +22,9 @@ class ApiClient {
 
   constructor(config?: Partial<ApiConfig>) {
     this.config = {
-      baseURL: process.env.NEXT_PUBLIC_API_URL || '/api/traccar',
+      // O cliente do navegador deve sempre usar o proxy interno.
+      // A URL real do Traccar vai no header/cookie multi-tenant.
+      baseURL: '/api/traccar',
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -82,8 +84,13 @@ class ApiClient {
    * Trata erros de API
    */
   private handleError(error: any): never {
+    const detailMessage =
+      typeof error?.details === 'object' && error?.details
+        ? error.details.message || error.details.error || undefined
+        : undefined;
+
     const apiError: ApiError = {
-      message: error.message || error.statusText || 'Erro desconhecido',
+      message: detailMessage || error.message || error.statusText || 'Erro desconhecido',
       status: error.status,
       code: error.code,
       details: error.details || error,
@@ -192,7 +199,7 @@ class ApiClient {
         }
 
         throw {
-          message: `HTTP ${response.status}: ${response.statusText}`,
+          message: errorBody?.message || errorBody?.error || `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
           statusText: response.statusText,
           details: errorBody,

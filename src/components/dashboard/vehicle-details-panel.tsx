@@ -38,6 +38,7 @@ import {
 import { formatDate, getDeviceStatusColor, deriveDeviceStatus, getDeviceStatusLabel } from '@/lib/utils';
 import { usePositionAddress } from '@/lib/hooks/usePositionAddress';
 import { getVehicleIcon } from '@/lib/vehicle-icons';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 
 interface VehicleDetailsPanelProps {
   device: Device | null;
@@ -95,7 +96,9 @@ export function VehicleDetailsPanel({
   recentTrail,
   streetViewActive,
 }: VehicleDetailsPanelProps) {
+  const { can } = usePermissions();
   const { enrichedPosition, isLoadingAddress } = usePositionAddress(position);
+  const canSendCommands = can('commands');
   
   const recentDistanceText = useMemo(() => {
     const d = recentDistanceKm ?? 0;
@@ -359,7 +362,9 @@ export function VehicleDetailsPanel({
           {onManageGeofences && (
             <ActionButton icon={ShieldCheck} label="Cercas" onClick={() => onManageGeofences(device)} color="text-orange-400" />
           )}
-          <ActionButton icon={Terminal} label="Comandos" onClick={() => onSendCommand?.(device)} color="text-cyan-400" />
+          {canSendCommands && (
+            <ActionButton icon={Terminal} label="Comandos" onClick={() => onSendCommand?.(device)} color="text-cyan-400" />
+          )}
           <ActionButton icon={Share2} label="Compartilhar" onClick={() => onShareAccess?.(device)} color="text-emerald-400" />
           <ActionButton
             icon={Phone}

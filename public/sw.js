@@ -6,11 +6,10 @@
  * que funcionam mesmo quando a aba está em background ou fechada.
  */
 
-const SW_VERSION = "2.0.0";
+const SW_VERSION = "2.0.1";
 
 const CACHE_NAME = `trackcore-v${SW_VERSION}`;
 const PRECACHE_URLS = [
-  "/",
   "/api/manifest",
   "/logos/rastrear-icone-light.png",
   "/logos/rastrear-logo-light.webp",

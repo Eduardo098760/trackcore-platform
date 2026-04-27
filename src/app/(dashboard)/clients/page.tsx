@@ -7,7 +7,9 @@ import { getClients, createClient, updateClient, deleteClient } from "@/lib/api"
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { PermissionSheet } from "@/components/layout/permission-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ActionIconButton } from "@/components/ui/action-icon-button";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -52,7 +54,6 @@ import {
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ClientsPage() {
   const queryClient = useQueryClient();
@@ -457,16 +458,8 @@ export default function ClientsPage() {
       </Card>
 
       {/* Clients Table */}
-      <Card>
-        <CardContent className="pt-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+        <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
@@ -519,31 +512,30 @@ export default function ClientsPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           {isSuperAdmin && (
-                            <Button
+                            <ActionIconButton
                               size="sm"
-                              variant="ghost"
                               onClick={() => {
                                 setPermSheetClient(client);
                                 setIsPermSheetOpen(true);
                               }}
-                              title="Controle de acesso"
+                              label="Controle de acesso"
                               style={{ color: `hsl(${colors.primary.light})` }}
                               className="hover:bg-white/10"
                             >
                               <ShieldCheck className="w-4 h-4" />
-                            </Button>
+                            </ActionIconButton>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => handleEdit(client)}>
+                          <ActionIconButton size="sm" onClick={() => handleEdit(client)} label="Editar cliente">
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
+                          </ActionIconButton>
+                          <ActionIconButton
                             size="sm"
-                            variant="ghost"
                             onClick={() => handleDelete(client.id)}
-                            className="text-red-500 hover:text-red-600"
+                            label="Excluir cliente"
+                            destructive
                           >
                             <Trash2 className="w-4 h-4" />
-                          </Button>
+                          </ActionIconButton>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -551,9 +543,7 @@ export default function ClientsPage() {
                 )}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+      </DataTableCard>
       {/* Permission Sheet - Super Admin only */}
       <PermissionSheet
         mode="company"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getDashboardStats,
@@ -17,10 +17,22 @@ import { RecentEvents } from "@/components/dashboard/recent-events";
 import { RecentCommands } from "@/components/dashboard/recent-commands";
 import { MaintenanceSummary } from "@/components/dashboard/maintenance-summary";
 import { FleetKpi } from "@/components/dashboard/fleet-kpi";
+import { CustomKpiGrid } from '@/components/dashboard/custom-kpi-grid';
+import { DashboardSummaryScheduleCard } from "@/components/dashboard/dashboard-summary-schedule-card";
 import { DashboardCustomizeMenu } from "@/components/dashboard/dashboard-customize-menu";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { deriveDeviceStatus } from "@/lib/utils";
 import type { UserRole } from "@/types";
+import { getKpis } from '@/lib/api/kpis';
+import { Mail } from "lucide-react";
 
 /** admin/manager/user: todos os dispositivos vinculados. readonly/deviceReadonly: apenas do seu clientId. */
 function getDeviceIdsForUser(
@@ -49,8 +61,10 @@ function getDeviceIdsForUser(
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
   const { widgets, toggleWidget, isVisible, resetToDefaults } =
     useDashboardConfig();
+  const canManageSummary = user?.role === "admin" || user?.role === "manager";
 
   const { data: devices, isLoading: devicesLoading } = useQuery({
     queryKey: ["devices"],
@@ -72,6 +86,11 @@ export default function DashboardPage() {
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
     queryFn: getClients,
+  });
+
+  const { data: kpiResponse } = useQuery({
+    queryKey: ['custom-kpis', user?.organizationId ?? user?.clientId ?? 'global'],
+    queryFn: () => getKpis(user?.organizationId ?? user?.clientId),
   });
 
   const deviceIds = useMemo(
@@ -202,11 +221,19 @@ export default function DashboardPage() {
             Visão geral do sistema de rastreamento
           </p>
         </div>
-        <DashboardCustomizeMenu
-          widgets={widgets}
-          onToggle={toggleWidget}
-          onReset={resetToDefaults}
-        />
+        <div className="flex items-center gap-2">
+          {canManageSummary && (
+            <Button variant="outline" size="sm" onClick={() => setIsSummaryDialogOpen(true)}>
+              <Mail className="w-4 h-4 mr-2" />
+              Resumo por Email
+            </Button>
+          )}
+          <DashboardCustomizeMenu
+            widgets={widgets}
+            onToggle={toggleWidget}
+            onReset={resetToDefaults}
+          />
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -252,6 +279,15 @@ export default function DashboardPage() {
         />
       )}
 
+      {isVisible('custom-kpis') && (kpiResponse?.kpis?.length ?? 0) > 0 && (
+        <CustomKpiGrid
+          kpis={kpiResponse?.kpis ?? []}
+          devices={enrichedDevices}
+          positions={positions}
+          events={events ?? []}
+        />
+      )}
+
       {/* Bottom widgets grid */}
       {bottomWidgets.length > 0 && (
         <div className={`grid gap-6 ${gridCols}`}>
@@ -260,6 +296,18 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={isSummaryDialogOpen} onOpenChange={setIsSummaryDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resumo Programado da Dashboard</DialogTitle>
+            <DialogDescription>
+              Atalho individual do gestor para configurar e testar o envio do resumo sem ocupar espaço na dashboard principal.
+            </DialogDescription>
+          </DialogHeader>
+          <DashboardSummaryScheduleCard canManage={canManageSummary} variant="embedded" />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

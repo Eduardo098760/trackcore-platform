@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDevices,
+  getSupportedCommandTypes,
   sendCommand,
   getSavedCommands,
   createSavedCommand,
@@ -44,7 +45,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatDate, deriveDeviceStatus } from "@/lib/utils";
-import { Command, Device, TraccarCommand } from "@/types";
+import { Command, Device, SmsProviderResponse, TraccarCommand } from "@/types";
 import { toast } from "sonner";
 import {
   Select,
@@ -61,45 +62,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { BASE_COMMAND_TYPES } from "@/lib/commands/catalog";
 
-// ─── Constantes de tipos de comando ──────────────────────────────────────────
-const COMMAND_TYPES = [
-  {
-    value: "positionSingle",
-    label: "Solicitar Posição",
-    description: "Solicita a posição atual do rastreador",
-    icon: MapPin,
-    dangerous: false,
-  },
-  {
-    value: "engineResume",
-    label: "Bloquear Veículo",
-    description: "Corta a alimentação do motor remotamente",
-    icon: Lock,
-    dangerous: true,
-  },
-  {
-    value: "engineStop",
-    label: "Desbloquear Veículo",
-    description: "Restaura a alimentação do motor",
-    icon: Unlock,
-    dangerous: false,
-  },
-  {
-    value: "rebootDevice",
-    label: "Reiniciar Rastreador",
-    description: "Reinicia o dispositivo rastreador",
-    icon: RotateCcw,
-    dangerous: false,
-  },
-  {
-    value: "custom",
-    label: "Comando Personalizado",
-    description: "Envia um comando de texto customizado",
-    icon: FileText,
-    dangerous: false,
-  },
-];
+const COMMAND_TYPES = BASE_COMMAND_TYPES;
 
 // ─── Histórico local (localStorage) ─────────────────────────────────────────
 const STORAGE_KEY = "commandHistory";
@@ -350,6 +315,24 @@ export default function CommandsPage() {
     queryFn: () => getSavedCommands(),
   });
 
+  const selectedDeviceNumericId = selectedDeviceId ? parseInt(selectedDeviceId, 10) : null;
+
+  const { data: supportedCommandTypes = [] } = useQuery({
+    queryKey: ["device-command-types", selectedDeviceNumericId, useSms],
+    queryFn: () => getSupportedCommandTypes(selectedDeviceNumericId!, useSms),
+    enabled: selectedDeviceNumericId != null,
+  });
+
+  const supportedCommands = useMemo(() => new Set(supportedCommandTypes), [supportedCommandTypes]);
+
+  useEffect(() => {
+    if (selectedCommand && supportedCommandTypes.length > 0 && !supportedCommands.has(selectedCommand)) {
+      setSelectedCommand("");
+      setConfirmDangerous(false);
+      setError(`O canal atual não suporta esse comando para este veículo. Suportados: ${supportedCommandTypes.join(", ")}.`);
+    }
+  }, [selectedCommand, supportedCommandTypes, supportedCommands]);
+
   const createTemplateMut = useMutation({
     mutationFn: (data: Omit<TraccarCommand, "id">) => createSavedCommand(data),
     onSuccess: () => {
@@ -428,7 +411,13 @@ export default function CommandsPage() {
   }, [selectedDevice]);
 
   const addToHistory = useCallback(
-    (deviceId: number, type: string, status: Command["status"]) => {
+    (
+      deviceId: number,
+      type: string,
+      status: Command["status"],
+      textChannel?: boolean,
+      providerResponse?: SmsProviderResponse | null,
+    ) => {
       setHistory((prev) => {
         const entry: Command = {
           id: Date.now(),
@@ -436,6 +425,8 @@ export default function CommandsPage() {
           type,
           sentTime: new Date().toISOString(),
           status,
+          textChannel,
+          providerResponse: providerResponse || null,
         };
         const updated = [entry, ...prev].slice(0, MAX_HISTORY);
         saveHistory(updated);
@@ -457,23 +448,43 @@ export default function CommandsPage() {
       attributes?: Record<string, any>;
       textChannel?: boolean;
     }) => sendCommand(deviceId, type, attributes, textChannel),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       setError(null);
-      addToHistory(variables.deviceId, variables.type, "sent");
+      addToHistory(
+        variables.deviceId,
+        variables.type,
+        "sent",
+        variables.textChannel,
+        data?.providerResponse || null,
+      );
       setSelectedCommand("");
       setCustomText("");
       setConfirmDangerous(false);
     },
     onError: (err: any, variables) => {
+      const details = err?.details;
+      const detailText = typeof details === "string"
+        ? details
+        : details
+          ? JSON.stringify(details)
+          : "";
       const msg =
-        err?.details?.message || err?.message || "Falha ao enviar comando";
+        err?.details?.message ||
+        err?.message ||
+        detailText ||
+        "Falha ao enviar comando";
       setError(msg);
-      addToHistory(variables.deviceId, variables.type, "failed");
+      addToHistory(variables.deviceId, variables.type, "failed", variables.textChannel, null);
     },
   });
 
   const handleSendCommand = () => {
     if (!selectedDeviceId || !selectedCommand) return;
+
+    if (supportedCommandTypes.length > 0 && !supportedCommands.has(selectedCommand)) {
+      setError(`O comando ${selectedCommand} não é suportado para este veículo nesse canal.`);
+      return;
+    }
 
     const cmd = COMMAND_TYPES.find((c) => c.value === selectedCommand);
     if (cmd?.dangerous && !confirmDangerous) {
@@ -498,6 +509,10 @@ export default function CommandsPage() {
 
   const handleSendSavedCommand = (saved: TraccarCommand) => {
     if (!selectedDeviceId) return;
+    if (supportedCommandTypes.length > 0 && !supportedCommands.has(saved.type)) {
+      setError(`O comando salvo ${saved.type} não é suportado para este veículo nesse canal.`);
+      return;
+    }
     setError(null);
     sendCommandMutation.mutate({
       deviceId: parseInt(selectedDeviceId),
@@ -554,8 +569,25 @@ export default function CommandsPage() {
       <PageHeader
         icon={Terminal}
         title="Comandos Remotos"
-        description="Envie comandos para os rastreadores dos veículos. Você também pode enviar pela tela do mapa."
+        description="Passo 2: envie comandos usando a empresa e o canal definidos na tela de Configuração SMS."
       />
+
+      <Card className="backdrop-blur-xl bg-card/90 border-border">
+        <CardContent className="pt-6">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Fluxo da operação</p>
+            <p className="text-xs text-muted-foreground">
+              1. Em Configuração SMS você escolhe a empresa de envio.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              2. Nesta tela você dispara o comando usando essa configuração.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              3. Em Comandos Salvos você pode guardar modelos reutilizáveis para usar aqui depois.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Send Command Panel */}
@@ -581,7 +613,7 @@ export default function CommandsPage() {
               />
             </div>
 
-            {/* Aviso de offline / fila */}
+            {/* Aviso de offline */}
             {selectedDevice && isOffline && (
               <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                 <div className="flex items-start gap-2">
@@ -591,8 +623,9 @@ export default function CommandsPage() {
                       Veículo offline
                     </p>
                     <p className="text-xs text-amber-600 dark:text-amber-300 mt-0.5">
-                      O comando será enfileirado e enviado quando o dispositivo
-                      ficar online.
+                      O envio imediato pode falhar enquanto o dispositivo estiver
+                      offline. O resultado depende do tipo de comando, do canal
+                      configurado e do suporte do rastreador.
                     </p>
                   </div>
                 </div>
@@ -604,12 +637,13 @@ export default function CommandsPage() {
               <div>
                 <label className="text-sm font-medium mb-2 block flex items-center gap-1.5">
                   <BookmarkCheck className="w-4 h-4 text-muted-foreground" />
-                  Templates Salvos
+                  Comandos salvos
                 </label>
                 <div className="space-y-2">
                   {allTemplates.map((tpl) => {
                     const cmdType = COMMAND_TYPES.find((c) => c.value === tpl.type);
                     const Icon = cmdType?.icon || Terminal;
+                    const isSupported = supportedCommandTypes.length === 0 || supportedCommands.has(tpl.type);
                     return (
                       <div
                         key={tpl.id}
@@ -640,7 +674,7 @@ export default function CommandsPage() {
                               setConfirmDangerous(false);
                               setError(null);
                               sendCommandMutation.reset();
-                              toast.success("Template aplicado ao formulário");
+                              toast.success("Comando salvo aplicado ao formulário");
                             }}
                             className="h-8 text-xs"
                           >
@@ -651,7 +685,7 @@ export default function CommandsPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => handleSendSavedCommand(tpl)}
-                            disabled={sendCommandMutation.isPending}
+                            disabled={sendCommandMutation.isPending || !isSupported}
                             className="h-8 text-xs"
                           >
                             <Send className="w-3 h-3 mr-1" />
@@ -663,7 +697,7 @@ export default function CommandsPage() {
                   })}
                 </div>
                 <div className="border-t border-border/50 mt-4 pt-2">
-                  <p className="text-[10px] text-muted-foreground">Ou escolha um comando abaixo:</p>
+                  <p className="text-[10px] text-muted-foreground">Ou escolha um tipo de comando abaixo:</p>
                 </div>
               </div>
             )}
@@ -677,19 +711,24 @@ export default function CommandsPage() {
                 {COMMAND_TYPES.map((cmd) => {
                   const Icon = cmd.icon;
                   const isSelected = selectedCommand === cmd.value;
+                  const isSupported = supportedCommandTypes.length === 0 || supportedCommands.has(cmd.value);
                   return (
                     <button
                       key={cmd.value}
                       onClick={() => {
+                        if (!isSupported) return;
                         setSelectedCommand(cmd.value);
                         setConfirmDangerous(false);
                         setError(null);
                         sendCommandMutation.reset();
                       }}
+                      disabled={!isSupported}
                       className={`p-3 rounded-xl border-2 transition-all text-left ${
                         isSelected
                           ? `bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-transparent shadow-lg scale-[1.02]`
-                          : "border-border hover:border-primary/30"
+                          : isSupported
+                            ? "border-border hover:border-primary/30"
+                            : "border-border opacity-45 cursor-not-allowed"
                       }`}
                     >
                       <Icon
@@ -703,19 +742,24 @@ export default function CommandsPage() {
                       <p
                         className={`text-[10px] mt-0.5 leading-tight ${isSelected ? "text-white/80" : "text-muted-foreground"}`}
                       >
-                        {cmd.description}
+                        {isSupported ? cmd.description : "Não suportado para este veículo nesse canal"}
                       </p>
                     </button>
                   );
                 })}
               </div>
+              {selectedDeviceId && supportedCommandTypes.length > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Tipos suportados neste canal: {supportedCommandTypes.join(", ")}
+                </p>
+              )}
             </div>
 
             {/* Campo de texto para comando personalizado */}
             {selectedCommand === "custom" && (
               <div>
                 <label className="text-sm font-medium mb-2 block">
-                  Texto do comando
+                  Texto do comando personalizado
                 </label>
                 <Input
                   value={customText}
@@ -724,7 +768,7 @@ export default function CommandsPage() {
                   className="font-mono text-sm bg-card"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Use formato de texto para protocolos baseados em texto, ou hexadecimal para protocolos binários.
+                  Use o mesmo texto salvo em Comandos Salvos quando quiser padronizar esse envio.
                 </p>
               </div>
             )}
@@ -736,7 +780,7 @@ export default function CommandsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">Enviar via SMS</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Use SMS se o comando GPRS não funcionar (o dispositivo precisa ter chip com SMS habilitado)
+                    Usa a empresa configurada na tela Configuração SMS. O veículo precisa ter chip com SMS habilitado.
                   </p>
                 </div>
                 <button
@@ -773,6 +817,7 @@ export default function CommandsPage() {
                 !selectedDeviceId ||
                 !selectedCommand ||
                 (selectedCommand === "custom" && !customText.trim()) ||
+                (supportedCommandTypes.length > 0 && !supportedCommands.has(selectedCommand)) ||
                 sendCommandMutation.isPending
               }
               className={`w-full ${
@@ -796,6 +841,14 @@ export default function CommandsPage() {
                   <CheckCircle2 className="w-4 h-4" />
                   Comando enviado com sucesso!
                 </p>
+                {sendCommandMutation.data?.providerResponse && (
+                  <div className="mt-2 text-xs text-green-800 dark:text-green-300 space-y-1">
+                    <p>Situação: {sendCommandMutation.data.providerResponse.situacao}</p>
+                    <p>Código: {sendCommandMutation.data.providerResponse.codigo || "-"}</p>
+                    <p>ID: {sendCommandMutation.data.providerResponse.id || "-"}</p>
+                    <p>Descrição: {sendCommandMutation.data.providerResponse.descricao || "-"}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -877,6 +930,13 @@ export default function CommandsPage() {
                         <p className="text-xs text-muted-foreground/70 mt-0.5">
                           {formatDate(command.sentTime)}
                         </p>
+                        {command.providerResponse && (
+                          <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5">
+                            <p>Situação: {command.providerResponse.situacao}</p>
+                            <p>Código: {command.providerResponse.codigo || "-"} · ID: {command.providerResponse.id || "-"}</p>
+                            <p>{command.providerResponse.descricao || "-"}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -914,8 +974,9 @@ export default function CommandsPage() {
                 Os comandos de bloqueio podem afetar o funcionamento do veículo.
                 Use com cautela e apenas quando necessário. Certifique-se de que
                 o veículo está em local seguro antes de enviar comandos de
-                bloqueio. Se o veículo estiver offline, o comando será
-                enfileirado e enviado assim que reconectar.
+                bloqueio. Se o veículo estiver offline, o envio pode falhar no
+                momento da tentativa e depende do canal configurado e do suporte
+                do rastreador.
               </p>
             </div>
           </div>

@@ -21,6 +21,7 @@ import { BulkPermissionDialog } from "@/components/layout/bulk-permission-dialog
 import { PermissionSheet } from "@/components/layout/permission-sheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { RowActionsMenu, RowActionsMenuItem } from "@/components/ui/row-actions-menu";
 import {
   Search,
   Plus,
@@ -67,14 +69,16 @@ import {
   ShieldCheck,
   LayoutTemplate,
   LogIn,
+  Copy,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/stores/auth";
 
 export default function UsersPage() {
@@ -114,6 +118,20 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([]);
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState("");
+  const [useAccessLink, setUseAccessLink] = useState(true);
+  const [inviteDialog, setInviteDialog] = useState<{
+    open: boolean;
+    link: string;
+    userName: string;
+    userEmail: string;
+    expiresAt: string | null;
+  }>({
+    open: false,
+    link: "",
+    userName: "",
+    userEmail: "",
+    expiresAt: null,
+  });
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -265,6 +283,70 @@ export default function UsersPage() {
     },
   });
 
+  const createTemporaryPassword = () => {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    const values = new Uint32Array(18);
+    crypto.getRandomValues(values);
+    return Array.from(values, (value) => alphabet[value % alphabet.length]).join("");
+  };
+
+  const openInviteDialog = (
+    invite: { link: string; expiresAt: string | null },
+    user: Pick<User, "name" | "email">,
+  ) => {
+    setInviteDialog({
+      open: true,
+      link: invite.link,
+      userName: user.name,
+      userEmail: user.email,
+      expiresAt: invite.expiresAt,
+    });
+  };
+
+  const generateAccessInvite = async (
+    user: Pick<User, "id" | "name" | "email">,
+    tempPassword: string,
+    options?: {
+      openDialog?: boolean;
+      showSuccessToast?: boolean;
+    },
+  ) => {
+    const shouldOpenDialog = options?.openDialog ?? true;
+    const shouldShowSuccessToast = options?.showSuccessToast ?? true;
+    const response = await fetch("/api/access-invite/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        tempPassword,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "Erro ao gerar link de acesso");
+    }
+
+    const invite = {
+      link: `${window.location.origin}/primeiro-acesso/${data.token}`,
+      expiresAt: typeof data?.expiresAt === "string" ? data.expiresAt : null,
+    };
+
+    if (shouldOpenDialog) {
+      openInviteDialog(invite, user);
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["users"] });
+    if (shouldShowSuccessToast) {
+      toast.success("Link de acesso gerado com sucesso!");
+    }
+
+    return invite;
+  };
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -277,6 +359,7 @@ export default function UsersPage() {
       disabled: false,
       expirationTime: "",
     });
+    setUseAccessLink(true);
     setEditingUser(null);
   };
 
@@ -296,7 +379,7 @@ export default function UsersPage() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     console.log("[UI] handleSubmit chamado");
     console.log("[UI] editingUser:", editingUser);
     console.log("[UI] formData:", formData);
@@ -307,7 +390,7 @@ export default function UsersPage() {
       return;
     }
 
-    if (!editingUser && !formData.password) {
+    if (!editingUser && !useAccessLink && !formData.password) {
       toast.error("Senha é obrigatória para novos usuários");
       return;
     }
@@ -333,7 +416,85 @@ export default function UsersPage() {
       });
     } else {
       console.log("[UI] Criando novo usuário");
-      createMutation.mutate(formData);
+      try {
+        const tempPassword = useAccessLink ? createTemporaryPassword() : formData.password;
+        const createdUser = await createMutation.mutateAsync({
+          ...formData,
+          password: tempPassword,
+        });
+
+        if (useAccessLink) {
+          await generateAccessInvite(createdUser, tempPassword);
+        }
+      } catch (error: any) {
+        console.error("[UI] Falha no fluxo de criação do usuário:", error);
+        const message = error?.message || "Erro ao criar usuário";
+        toast.error(message);
+      }
+    }
+  };
+
+  const handleGenerateAccessLink = async (user: User) => {
+    const tempPassword = createTemporaryPassword();
+    try {
+      await generateAccessInvite(user, tempPassword);
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao gerar link de acesso");
+    }
+  };
+
+  const handleSendAccessLinkByEmail = async (user: User) => {
+    const tempPassword = createTemporaryPassword();
+    let invite: { link: string; expiresAt: string | null } | null = null;
+
+    try {
+      invite = await generateAccessInvite(user, tempPassword, {
+        openDialog: false,
+        showSuccessToast: false,
+      });
+      const response = await fetch("/api/access-invite/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          link: invite.link,
+          expiresAt: invite.expiresAt,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Erro ao enviar email com link de acesso");
+      }
+
+      if (data?.deliveryMode === "manual_link") {
+        openInviteDialog(invite, user);
+        toast.success("Email indisponível no momento. O link foi gerado e já está disponível para envio manual.");
+        return;
+      }
+
+      toast.success("Email de acesso enviado com sucesso.");
+    } catch (error: any) {
+      const message = error?.message || "Erro ao enviar email com link de acesso";
+
+      if (invite) {
+        openInviteDialog(invite, user);
+        toast.error(`${message} O link foi gerado e está disponível para cópia manual.`);
+        return;
+      }
+
+      toast.error(message);
+    }
+  };
+
+  const copyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteDialog.link);
+      toast.success("Link copiado para a área de transferência!");
+    } catch {
+      toast.error("Não foi possível copiar o link");
     }
   };
 
@@ -392,12 +553,22 @@ export default function UsersPage() {
   };
 
   const getConnectionStatus = (user: User) => {
+    if (user.accessInvitePending) {
+      return {
+        status: "Acesso pendente",
+        variant: "secondary" as const,
+        icon: KeyRound,
+        className: "border-amber-500/20 bg-amber-500/10 text-amber-400",
+      };
+    }
+
     // Ignorar valores inválidos como "false" ou null
     if (!user.lastLogin || user.lastLogin === "false") {
       return {
         status: "Nunca conectado",
         variant: "secondary" as const,
         icon: WifiOff,
+        className: "",
       };
     }
 
@@ -406,12 +577,13 @@ export default function UsersPage() {
     const hoursSinceLogin = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
 
     if (hoursSinceLogin < 1) {
-      return { status: "Online", variant: "success" as const, icon: Wifi };
+      return { status: "Online", variant: "success" as const, icon: Wifi, className: "" };
     } else if (hoursSinceLogin < 24) {
       return {
         status: `Há ${Math.floor(hoursSinceLogin)}h`,
         variant: "default" as const,
         icon: WifiOff,
+        className: "",
       };
     } else {
       const days = Math.floor(hoursSinceLogin / 24);
@@ -419,6 +591,7 @@ export default function UsersPage() {
         status: `Há ${days}d`,
         variant: "secondary" as const,
         icon: WifiOff,
+        className: "",
       };
     }
   };
@@ -676,6 +849,17 @@ export default function UsersPage() {
                   {/* ── Acesso ── */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acesso</h4>
+                    {!editingUser && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <Label className="text-xs font-medium">Definir senha no primeiro acesso</Label>
+                          <p className="text-[10px] text-muted-foreground">
+                            O sistema gera um link seguro para o cliente criar a própria senha inicial.
+                          </p>
+                        </div>
+                        <Switch checked={useAccessLink} onCheckedChange={setUseAccessLink} />
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="role" className="text-xs">Função</Label>
@@ -697,18 +881,27 @@ export default function UsersPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="password" className="text-xs">
-                          {editingUser ? "Nova Senha" : "Senha *"}
-                        </Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          placeholder={editingUser ? "Deixe vazio para manter" : "••••••••"}
-                        />
-                      </div>
+                      {(editingUser || !useAccessLink) ? (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="password" className="text-xs">
+                            {editingUser ? "Nova Senha" : "Senha *"}
+                          </Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            placeholder={editingUser ? "Deixe vazio para manter" : "••••••••"}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 p-3">
+                          <Label className="text-xs text-amber-300">Senha inicial</Label>
+                          <p className="text-xs text-muted-foreground">
+                            A senha temporária será gerada automaticamente e ficará disponível apenas no link de primeiro acesso.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -1046,16 +1239,8 @@ export default function UsersPage() {
       )}
 
       {/* Users Table */}
-      <Card>
-        <CardContent className="pt-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+        <Table>
               <TableHeader>
                 <TableRow>
                   {isSuperAdmin && (
@@ -1203,7 +1388,7 @@ export default function UsersPage() {
                             );
                           })()}
                         <TableCell>
-                          <Badge variant={connectionStatus.variant} className="gap-1">
+                          <Badge variant={connectionStatus.variant} className={`gap-1 ${connectionStatus.className}`}>
                             <StatusIcon className="w-3 h-3" />
                             {connectionStatus.status}
                           </Badge>
@@ -1212,67 +1397,64 @@ export default function UsersPage() {
                           {formatDate(user.createdAt)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {isSuperAdmin && user.role !== "admin" && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setLoginAsTarget(user);
-                                }}
-                                title={`Entrar como ${user.name}`}
-                                className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                              >
-                                <LogIn className="w-4 h-4" />
-                              </Button>
-                            )}
-                            {isSuperAdmin && user.role !== "admin" && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setPermSheetUser(user);
-                                  setIsPermSheetOpen(true);
-                                }}
-                                title="Controle de acesso"
-                                className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                              >
-                                <ShieldCheck className="w-4 h-4" />
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleEdit(user)}
-                              title="Editar usuário"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleChangePassword(user)}
-                              title="Alterar senha"
-                            >
-                              <KeyRound className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleManageDevices(user)}
-                              title="Gerenciar veículos"
-                            >
-                              <Car className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(user.id)}
-                              className="text-red-500 hover:text-red-600"
-                              title="Excluir usuário"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                          <div className="flex justify-end">
+                            <RowActionsMenu label={`Ações de ${user.name}`}>
+                                <RowActionsMenuItem
+                                  icon={Send}
+                                  onClick={() => handleSendAccessLinkByEmail(user)}
+                                  className="text-sky-400"
+                                >
+                                  Enviar acesso por email
+                                </RowActionsMenuItem>
+                                <RowActionsMenuItem
+                                  icon={Copy}
+                                  onClick={() => handleGenerateAccessLink(user)}
+                                  className="text-amber-400"
+                                >
+                                  Copiar link de acesso
+                                </RowActionsMenuItem>
+                                <DropdownMenuSeparator />
+                                {isSuperAdmin && user.role !== "admin" && (
+                                  <RowActionsMenuItem
+                                    icon={LogIn}
+                                    onClick={() => {
+                                      setLoginAsTarget(user);
+                                    }}
+                                    className="text-emerald-400"
+                                  >
+                                    Entrar como usuário
+                                  </RowActionsMenuItem>
+                                )}
+                                {isSuperAdmin && user.role !== "admin" && (
+                                  <RowActionsMenuItem
+                                    icon={ShieldCheck}
+                                    onClick={() => {
+                                      setPermSheetUser(user);
+                                      setIsPermSheetOpen(true);
+                                    }}
+                                    className="text-purple-400"
+                                  >
+                                    Controle de acesso
+                                  </RowActionsMenuItem>
+                                )}
+                                <RowActionsMenuItem icon={Edit} onClick={() => handleEdit(user)}>
+                                  Editar usuário
+                                </RowActionsMenuItem>
+                                <RowActionsMenuItem icon={KeyRound} onClick={() => handleChangePassword(user)}>
+                                  Alterar senha
+                                </RowActionsMenuItem>
+                                <RowActionsMenuItem icon={Car} onClick={() => handleManageDevices(user)}>
+                                  Gerenciar veículos
+                                </RowActionsMenuItem>
+                                <DropdownMenuSeparator />
+                                <RowActionsMenuItem
+                                  icon={Trash2}
+                                  onClick={() => handleDelete(user.id)}
+                                  className="text-red-500 focus:text-red-500"
+                                >
+                                  Excluir usuário
+                                </RowActionsMenuItem>
+                            </RowActionsMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1281,9 +1463,7 @@ export default function UsersPage() {
                 )}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+      </DataTableCard>
       {/* Permission Sheet - Super Admin only */}
       <PermissionSheet
         mode="user"
@@ -1307,6 +1487,48 @@ export default function UsersPage() {
       )}
 
       {/* Dialog: Entrar como usuário (impersonação local) */}
+      <Dialog
+        open={inviteDialog.open}
+        onOpenChange={(open) => setInviteDialog((current) => ({ ...current, open }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-400">
+              <KeyRound className="w-5 h-5" />
+              Link de primeiro acesso
+            </DialogTitle>
+            <DialogDescription>
+              Envie este link para <strong className="text-foreground">{inviteDialog.userName}</strong> definir a senha inicial da plataforma.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+              O link substitui a criação manual de senha. Ao abrir, o usuário escolhe a própria senha para acessos futuros.
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Link</Label>
+              <Input value={inviteDialog.link} readOnly className="font-mono text-xs" />
+            </div>
+            {inviteDialog.expiresAt && (
+              <p className="text-[11px] text-muted-foreground">
+                Expira em {formatDate(inviteDialog.expiresAt)}
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button onClick={copyInviteLink} className="flex-1 gap-2">
+              <Copy className="w-4 h-4" />
+              Copiar link
+            </Button>
+            <Button variant="outline" onClick={() => setInviteDialog((current) => ({ ...current, open: false }))}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={!!loginAsTarget}
         onOpenChange={(v) => {

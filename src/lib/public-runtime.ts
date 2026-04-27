@@ -1,20 +1,71 @@
+import { getTenantConfig } from "@/config/tenants"
+
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"])
 
 function normalizeBaseUrl(url: string) {
   return url.replace(/\/$/, "")
 }
 
+function isPrivateIpv4Host(hostname: string) {
+  if (/^10\./.test(hostname)) return true
+  if (/^192\.168\./.test(hostname)) return true
+  const match = hostname.match(/^172\.(\d{1,3})\./)
+  if (match) {
+    const secondOctet = Number(match[1])
+    return secondOctet >= 16 && secondOctet <= 31
+  }
+  return false
+}
+
+export function isPrivateNetworkAppUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    return LOCAL_HOSTS.has(parsed.hostname) || isPrivateIpv4Host(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
 export function getPublicAppUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+
+  if (typeof window !== "undefined") {
+    const runtimeOrigin = normalizeBaseUrl(window.location.origin)
+
+    if (!configuredUrl) {
+      return runtimeOrigin
+    }
+
+    const normalizedConfiguredUrl = normalizeBaseUrl(configuredUrl)
+    if (isPrivateNetworkAppUrl(normalizedConfiguredUrl) && !isPrivateNetworkAppUrl(runtimeOrigin)) {
+      return runtimeOrigin
+    }
+
+    return normalizedConfiguredUrl
+  }
+
   if (configuredUrl) {
     return normalizeBaseUrl(configuredUrl)
   }
 
-  if (typeof window !== "undefined") {
-    return normalizeBaseUrl(window.location.origin)
+  return "http://localhost:3000"
+}
+
+export function getPublicGatewayAppUrl() {
+  const appUrl = getPublicAppUrl()
+
+  if (!isPrivateNetworkAppUrl(appUrl)) {
+    return appUrl
   }
 
-  return "http://localhost:3000"
+  if (typeof window !== "undefined") {
+    const tenantWebsite = getTenantConfig(window.location.hostname).metadata?.website?.trim()
+    if (tenantWebsite && !isPrivateNetworkAppUrl(tenantWebsite)) {
+      return normalizeBaseUrl(tenantWebsite)
+    }
+  }
+
+  return appUrl
 }
 
 export function getSocketUrl() {

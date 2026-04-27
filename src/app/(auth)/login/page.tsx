@@ -1,18 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { login } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth";
-import { useTenant } from "@/lib/hooks/useTenant";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Loader2, MapPin, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
 import { getTenantServerUrl } from "@/config/tenants";
 import { isPwaInstalled, markPwaAuthenticated } from "@/lib/pwa-utils";
 
@@ -35,17 +34,19 @@ function saveServer(url: string) {
   } catch {}
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setAuth } = useAuthStore();
   const queryClient = useQueryClient();
-  const { tenant } = useTenant();
   const colors = useTenantColors();
+  const activated = searchParams?.get("activated") === "1";
+  const passwordReset = searchParams?.get("reset") === "1";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,156 +74,64 @@ export default function LoginPage() {
     const serverUrl = getTenantServerUrl();
     saveServer(serverUrl);
 
+    const emailFromQuery = searchParams?.get("email");
     const { email: savedEmail } = useAuthStore.getState().getCredentials();
-    if (savedEmail) {
+    if (emailFromQuery) {
+      setEmail(emailFromQuery);
+      setRememberMe(true);
+    } else if (savedEmail) {
       setEmail(savedEmail);
       setRememberMe(true);
     }
-  }, []);
+  }, [searchParams]);
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Coluna esquerda - Welcome (desktop) */}
-      <div
-        className="hidden lg:flex lg:w-[42%] relative overflow-hidden"
-        style={{
-          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-        }}
-      >
-        <div className="absolute inset-0 flex items-center justify-center opacity-20">
-          <div className="w-72 h-72 rounded-3xl bg-white/30 rotate-12 translate-x-1/4" />
-          <div className="absolute w-56 h-56 rounded-3xl bg-white/20 -rotate-6 -translate-x-1/4 translate-y-1/4" />
+    <AuthShell title="Entrar" description="Informe suas credenciais para acessar">
+      {activated && (
+        <div className="mb-5 rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-500">
+          Senha definida com sucesso. Seu email já foi preenchido para facilitar o login.
         </div>
-        <div className="relative z-10 flex flex-col items-center justify-center px-12 text-left w-full [color:hsl(var(--primary-foreground))]">
-          <div className="w-full max-w-xs flex flex-col items-center">
-            {tenant?.faviconUrl ? (
-              <div className="relative w-40 h-40 mb-8 flex items-center justify-center">
-                {/* Logo central */}
-                <Image
-                  src={tenant.faviconUrl}
-                  alt={tenant.companyName || "Logo"}
-                  width={72}
-                  height={72}
-                  className="object-contain drop-shadow-lg brightness-0 invert relative z-10"
-                  priority
-                />
-                {tenant.slug === "sv02.rastrear.app.br" && (
-                  <>
-                    {/* Anel orbital com brilho */}
-                    <div className="absolute inset-1 rounded-full border border-white/10" />
-                    <div
-                      className="absolute inset-1 rounded-full"
-                      style={{
-                        background:
-                          "conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.08) 25%, transparent 50%)",
-                      }}
-                    />
-
-                    {/* Satélite principal - órbita circular */}
-                    <div className="absolute inset-1 animate-[orbit_10s_linear_infinite]">
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_8px_2px_rgba(255,255,255,0.5)]" />
-                      </div>
-                    </div>
-
-                    {/* Segundo ponto - órbita contrária, maior */}
-                    <div className="absolute -inset-1 animate-[orbit_16s_linear_infinite_reverse]">
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="w-1.5 h-1.5 bg-white/40 rounded-full shadow-[0_0_6px_1px_rgba(255,255,255,0.3)]" />
-                      </div>
-                    </div>
-
-                    {/* Brilho radiante sutil ao redor da logo */}
-                    <div className="absolute inset-6 rounded-full bg-white/5 blur-md animate-pulse" />
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 mb-8">
-                <MapPin className="w-10 h-10 text-inherit" strokeWidth={2} />
-              </div>
-            )}
-            <h1 className="text-3xl font-bold tracking-tight">{tenant.companyName}</h1>
-            <p className="text-white/95 text-base mt-2 font-normal">
-              {tenant?.metadata?.title || "Plataforma de rastreamento"}
-            </p>
-          </div>
+      )}
+      {passwordReset && (
+        <div className="mb-5 rounded-xl border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-500">
+          Senha redefinida com sucesso. Faça login com a nova credencial.
         </div>
-      </div>
+      )}
 
-      {/* Mobile: barra superior com marca */}
-      <div
-        className="lg:hidden flex items-center justify-center gap-2 py-5 px-4 w-full shrink-0 [color:hsl(var(--primary-foreground))]"
-        style={{
-          background: `linear-gradient(135deg, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-        }}
-      >
-        {tenant?.faviconUrl ? (
-          <div className="relative w-32 h-8">
-            <Image
-              src={tenant.faviconUrl}
-              alt={tenant.companyName || "Logo"}
-              fill
-              className="object-contain brightness-0 invert"
-              priority
-            />
-          </div>
-        ) : (
-          <MapPin className="w-8 h-8 text-inherit" strokeWidth={2} />
-        )}
-        <div className="flex flex-col">
-          <span className="text-xl font-bold">{tenant.companyName}</span>
-          <span className="text-xs text-white/80">
-            {tenant?.metadata?.description || "Plataforma de rastreamento"}
-          </span>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
+            Email
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="seu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={loading}
+            className="h-12 rounded-xl bg-muted border-0 placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          />
         </div>
-      </div>
 
-      {/* Coluna direita - Formulário */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-muted/80 min-h-0">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-2xl shadow-xl p-8 sm:p-10 border border-border">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-foreground">Entrar</h2>
-              <p className="text-muted-foreground text-sm mt-1">
-                Informe suas credenciais para acessar
-              </p>
-            </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
+            Senha
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            disabled={loading}
+            className="h-12 rounded-xl bg-muted border-0 placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="h-12 rounded-xl bg-muted border-0 placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
-                  Senha
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="h-12 rounded-xl bg-muted border-0 placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   id="rememberMe"
@@ -230,53 +139,55 @@ export default function LoginPage() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-input bg-background text-primary focus:ring-ring"
                 />
-                <Label
-                  htmlFor="rememberMe"
-                  className="text-sm font-normal cursor-pointer text-muted-foreground"
-                >
-                  Manter-me conectado
-                </Label>
-              </div>
-
-              {error && (
-                <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-xl">
-                  {error}
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                disabled={loading}
-                style={{
-                  background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
-                }}
-                className="w-full h-12 rounded-xl font-semibold text-white hover:shadow-lg transition-shadow focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Entrando...
-                  </>
-                ) : (
-                  <>
-                    ENTRAR
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </>
-                )}
-              </Button>
-
-              <div className="text-center">
-                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                  Esqueceu sua senha?
-                </Link>
-              </div>
-            </form>
-          </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            © {new Date().getFullYear()} Track Core. Todos os direitos reservados.
-          </p>
+          <Label
+            htmlFor="rememberMe"
+            className="text-sm font-normal cursor-pointer text-muted-foreground"
+          >
+            Manter-me conectado
+          </Label>
         </div>
-      </div>
-    </div>
+
+        {error && (
+          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-xl">
+            {error}
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          disabled={loading}
+          style={{
+            background: `linear-gradient(to right, hsl(${colors.primary.light}), hsl(${colors.primary.dark}))`,
+          }}
+          className="w-full h-12 rounded-xl font-semibold text-white hover:shadow-lg transition-shadow focus-visible:ring-2 focus-visible:ring-ring border-0 shadow-md"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Entrando...
+            </>
+          ) : (
+            <>
+              ENTRAR
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </>
+          )}
+        </Button>
+
+        <div className="text-center">
+          <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+            Esqueceu sua senha?
+          </Link>
+        </div>
+      </form>
+    </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-muted/80" />}>
+      <LoginContent />
+    </Suspense>
   );
 }

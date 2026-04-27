@@ -185,8 +185,15 @@ export async function logout(): Promise<void> {
  * Solicita reset de senha (se o Traccar tiver esse endpoint configurado)
  */
 export async function requestPasswordReset(email: string): Promise<void> {
-  // Traccar não tem endpoint padrão de reset de senha
-  // Isso depende da configuração customizada
-  console.log(`Password reset requested for ${email}`);
-  throw new Error("Funcionalidade não disponível no Traccar");
+  const response = await fetch("/api/password-reset/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getServerHeader() },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || "Não foi possível solicitar a redefinição de senha");
+  }
 }

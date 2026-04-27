@@ -80,6 +80,8 @@ export default function ServerConfigPage() {
     return attrs[key] ?? "";
   };
 
+  const isSmsDevProvider = getAttr("sms.provider") === "smsdev";
+
   const handleSave = () => {
     updateMutation.mutate(formData);
   };
@@ -103,7 +105,7 @@ export default function ServerConfigPage() {
         <PageHeader
           icon={Server}
           title="Configuração do Servidor"
-          description="Configure parâmetros globais do servidor Traccar"
+          description="Configure parâmetros globais da plataforma Rastrear"
         />
         <Button
           onClick={handleSave}
@@ -274,8 +276,9 @@ export default function ServerConfigPage() {
               <Input
                 value={getAttr("mail.smtp.host")}
                 onChange={(e) => updateAttribute("mail.smtp.host", e.target.value)}
-                placeholder="smtp.gmail.com"
+                placeholder="smtppro.zoho.com"
               />
+              <p className="text-xs text-muted-foreground mt-1">Zoho SMTP: smtppro.zoho.com com SSL/TLS na porta 465.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -283,7 +286,7 @@ export default function ServerConfigPage() {
                 <Input
                   value={getAttr("mail.smtp.port")}
                   onChange={(e) => updateAttribute("mail.smtp.port", e.target.value)}
-                  placeholder="587"
+                  placeholder="465"
                 />
               </div>
               <div>
@@ -369,6 +372,7 @@ export default function ServerConfigPage() {
                 value={getAttr("sms.http.url")}
                 onChange={(e) => updateAttribute("sms.http.url", e.target.value)}
                 placeholder="https://api.sms.com/send"
+                disabled={isSmsDevProvider}
               />
             </div>
             <div>
@@ -377,7 +381,13 @@ export default function ServerConfigPage() {
                 value={getAttr("sms.http.template")}
                 onChange={(e) => updateAttribute("sms.http.template", e.target.value)}
                 placeholder="{phone} {message}"
+                disabled={isSmsDevProvider}
               />
+              {isSmsDevProvider && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  SMS Dev ativo. Ajuste essa configuração pela tela de Configuração SMS para não sobrescrever o template oficial.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

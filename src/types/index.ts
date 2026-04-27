@@ -54,6 +54,8 @@ export interface User {
   token?: string; // Token de sessão atual
   expirationTime?: string; // Expiracao do token
   lastLogin?: string; // Última conexão
+  accessInvitePending?: boolean;
+  accessInviteExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -227,6 +229,13 @@ export type CommandType =
   | "rebootDevice"
   | "custom";
 
+export interface SmsProviderResponse {
+  situacao: string;
+  codigo?: string;
+  id?: string;
+  descricao?: string;
+}
+
 /** Resposta do Traccar para POST /api/commands/send */
 export interface TraccarCommand {
   id: number;
@@ -235,6 +244,7 @@ export interface TraccarCommand {
   description?: string;
   textChannel?: boolean;
   attributes?: Record<string, any>;
+  providerResponse?: SmsProviderResponse | null;
 }
 
 /** Histórico local de comandos enviados */
@@ -245,6 +255,8 @@ export interface Command {
   sentTime: string;
   status: "pending" | "sent" | "delivered" | "failed";
   attributes?: Record<string, any>;
+  textChannel?: boolean;
+  providerResponse?: SmsProviderResponse | null;
 }
 
 // Client Types

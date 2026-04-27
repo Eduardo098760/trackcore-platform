@@ -58,10 +58,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Command } from "@/types";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 
 export default function VehicleDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { can } = usePermissions();
   const deviceId = Number(params?.id);
 
   const {
@@ -443,14 +445,16 @@ export default function VehicleDetailPage() {
                 Ligar
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/commands?deviceId=${device.id}`)}
-            >
-              <Terminal className="w-4 h-4 mr-1" />
-              Enviar Comando
-            </Button>
+            {can("commands") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/commands?deviceId=${device.id}`)}
+              >
+                <Terminal className="w-4 h-4 mr-1" />
+                Enviar Comando
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -630,6 +634,11 @@ export default function VehicleDetailPage() {
                     <p className="text-[10px] text-muted-foreground">
                       {formatDate(cmd.sentTime)}
                     </p>
+                    {cmd.providerResponse && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {cmd.providerResponse.situacao} · {cmd.providerResponse.codigo || "-"} · {cmd.providerResponse.id || "-"} · {cmd.providerResponse.descricao || "-"}
+                      </p>
+                    )}
                   </div>
                   <Badge
                     variant="secondary"

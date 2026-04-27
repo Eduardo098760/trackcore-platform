@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePermissionsStore } from '@/lib/stores/permissions';
 import { useAuthStore } from '@/lib/stores/auth';
@@ -15,12 +15,19 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Building2, Users, ShieldCheck, ShieldOff,
   CheckCheck, RotateCcw, KeyRound, Info
 } from 'lucide-react';
-import { Organization, User } from '@/types';
+import { Organization, User, UserRole } from '@/types';
 
 type TabId = 'companies' | 'users';
 
@@ -267,6 +274,7 @@ function UsersTab() {
   const [selectedUserId, setSelectedUserId]       = useState<number | null>(null);
   const [inherit, setInherit]                     = useState(true);
   const [draft, setDraft]                         = useState<RoutePermissions | null>(null);
+  const [roleFilter, setRoleFilter]               = useState<'all' | UserRole>('all');
 
   const { data: allUsers = [], isLoading } = useQuery<User[]>({
     queryKey: ['users-perms'],
@@ -296,22 +304,51 @@ function UsersTab() {
   const companyPerms = organization ? companies[organization.id] : undefined;
 
   const selectedUser = allUsers.find((u) => u.id === selectedUserId);
+  const filteredUsers = allUsers.filter((u) => roleFilter === 'all' || u.role === roleFilter);
+
+  useEffect(() => {
+    if (selectedUserId === null) return;
+
+    const isSelectedUserVisible = filteredUsers.some((u) => u.id === selectedUserId);
+    if (!isSelectedUserVisible) {
+      setSelectedUserId(null);
+      setDraft(null);
+      setInherit(true);
+    }
+  }, [filteredUsers, selectedUserId]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Lista de usuários */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Usuários</p>
+        <div className="space-y-3 mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Usuários</p>
+          <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'all' | UserRole)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Função" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas Funções</SelectItem>
+              <SelectItem value="admin">Administrador</SelectItem>
+              <SelectItem value="manager">Gerente</SelectItem>
+              <SelectItem value="user">Usuário</SelectItem>
+              <SelectItem value="readonly">Somente Leitura</SelectItem>
+              <SelectItem value="deviceReadonly">Leit. Dispositivos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-14 rounded-lg bg-muted/50 animate-pulse" />
             ))}
           </div>
-        ) : allUsers.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Nenhum usuário encontrado</p>
+        ) : filteredUsers.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            {allUsers.length === 0 ? 'Nenhum usuário encontrado' : 'Nenhum usuário encontrado para a função selecionada'}
+          </p>
         ) : (
-          allUsers.map((u) => {
+          filteredUsers.map((u) => {
             const entry   = users[u.id];
             const isSuperA = u.role === 'admin';
             return (

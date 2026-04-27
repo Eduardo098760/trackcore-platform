@@ -193,7 +193,7 @@ export default function TestNotificationsPage() {
                 💡 Dica Importante
               </p>
               <p className="text-sm text-muted-foreground">
-                Para receber notificações automáticas de eventos reais do Traccar, certifique-se de:
+                Para receber notificações automáticas de eventos reais da plataforma Rastrear, certifique-se de:
               </p>
               <ul className="list-disc list-inside text-sm text-muted-foreground mt-2 space-y-1">
                 <li>Ter dispositivos cadastrados</li>

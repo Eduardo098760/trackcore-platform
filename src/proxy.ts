@@ -9,22 +9,20 @@ function decodeImpersonationCookie(raw: string): { targetUserId: number; adminId
   try {
     const [encoded] = raw.split('.');
     if (!encoded) return null;
-    // base64url → base64 → JSON
-    const json    = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'));
+    const json = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'));
     const payload = JSON.parse(json);
     if (!payload.isImpersonation || !payload.targetUserId) return null;
-    if (Date.now() > payload.exp) return null; // expirado
+    if (Date.now() > payload.exp) return null;
     return { targetUserId: payload.targetUserId, adminId: payload.adminId, exp: payload.exp };
   } catch {
     return null;
   }
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
 
-  // ── Detectar tenant pelo subdomínio ───────────────────────────────────────
-  const hostname  = request.headers.get('host') || '';
+  const hostname = request.headers.get('host') || '';
   const subdomain = hostname.split('.')[0];
 
   if (
@@ -36,7 +34,6 @@ export function middleware(request: NextRequest) {
     requestHeaders.set('x-tenant-slug', subdomain);
   }
 
-  // ── Propagar impersonação para rotas SSR / API routes ────────────────────
   const impCookie = request.cookies.get('x-trackcore-imp')?.value;
   if (impCookie) {
     const decoded = decodeImpersonationCookie(impCookie);
@@ -51,12 +48,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

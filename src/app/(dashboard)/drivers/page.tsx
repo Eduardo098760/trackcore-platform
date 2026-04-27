@@ -6,6 +6,7 @@ import { Driver } from "@/types";
 import { getDrivers, createDriver, updateDriver, deleteDriver } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DataTableCard } from "@/components/ui/data-table-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,6 +33,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { RowActionsMenu, RowActionsMenuItem } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
@@ -51,7 +56,6 @@ import {
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DriversPage() {
   const queryClient = useQueryClient();
@@ -466,16 +470,8 @@ export default function DriversPage() {
       </Card>
 
       {/* Drivers Table */}
-      <Card>
-        <CardContent className="pt-6">
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+        <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Motorista</TableHead>
@@ -549,18 +545,20 @@ export default function DriversPage() {
                       <TableCell className="text-sm">{driver.phone}</TableCell>
                       <TableCell>{getStatusBadge(driver.status)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => handleEdit(driver)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(driver.id)}
-                            className="text-red-500 hover:text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        <div className="flex justify-end">
+                          <RowActionsMenu label={`Ações de ${driver.name}`}>
+                              <RowActionsMenuItem icon={Edit} onClick={() => handleEdit(driver)}>
+                                Editar motorista
+                              </RowActionsMenuItem>
+                              <DropdownMenuSeparator />
+                              <RowActionsMenuItem
+                                icon={Trash2}
+                                onClick={() => handleDelete(driver.id)}
+                                className="text-red-500 focus:text-red-500"
+                              >
+                                Excluir motorista
+                              </RowActionsMenuItem>
+                          </RowActionsMenu>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -568,9 +566,7 @@ export default function DriversPage() {
                 )}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+      </DataTableCard>
     </div>
   );
 }

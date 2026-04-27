@@ -1,6 +1,10 @@
 import { Device } from "@/types";
 import { api } from "./client";
 
+function normalizePhone(phone?: string | null) {
+  return String(phone || "").replace(/\D/g, "");
+}
+
 /**
  * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
  * Usado para filtrar dados da API Traccar pelo usuário alvo.
@@ -31,6 +35,7 @@ export function normalizeDevice(raw: any): Device {
   return {
     ...raw,
     plate: raw.plate || attrs.licensePlate || attrs.plate || "",
+    phone: normalizePhone(raw.phone),
     year: raw.year || attrs.year,
     color: raw.color || attrs.color,
     speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit * 1.852) : undefined,
@@ -138,7 +143,7 @@ export async function createDevice(
 
   if (name !== undefined) payload.name = name;
   if (uniqueId !== undefined) payload.uniqueId = uniqueId;
-  if (phone !== undefined) payload.phone = phone;
+  if (phone !== undefined) payload.phone = normalizePhone(phone);
   if (model !== undefined) payload.model = model;
   if (contact !== undefined) payload.contact = contact;
   if (category !== undefined) payload.category = category;
@@ -227,7 +232,7 @@ export async function updateDevice(
 
   if (name !== undefined) payload.name = name;
   if (uniqueId !== undefined) payload.uniqueId = uniqueId;
-  if (phone !== undefined) payload.phone = phone;
+  if (phone !== undefined) payload.phone = normalizePhone(phone);
   if (model !== undefined) payload.model = model;
   if (contact !== undefined) payload.contact = contact;
   if (category !== undefined) payload.category = category;
