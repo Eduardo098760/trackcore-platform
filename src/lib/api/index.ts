@@ -11,7 +11,7 @@ import {
 } from "@/types";
 import { api } from "./client";
 import { getDevices as getDevicesFromDevices, getDevice } from "./devices";
-import { deriveDeviceStatus } from "@/lib/utils";
+import { deriveDeviceStatus, normalizeEventType } from "@/lib/utils";
 
 /**
  * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
@@ -217,16 +217,22 @@ export async function getEvents(params?: {
       if (stored) resolvedIds = JSON.parse(stored);
     } catch { /* ignore */ }
 
-    return events.map((event) => ({
-      ...event,
-      resolved: event.resolved || resolvedIds.includes(event.id),
-      attributes: {
-        ...event.attributes,
-        deviceName:
-          deviceMap.get(event.deviceId)?.name ||
-          `Dispositivo #${event.deviceId}`,
-      },
-    }));
+    return events.map((event) => {
+      const normalizedType = normalizeEventType(event);
+
+      return {
+        ...event,
+        type: normalizedType,
+        resolved: event.resolved || resolvedIds.includes(event.id),
+        attributes: {
+          ...event.attributes,
+          originalType: event.type,
+          deviceName:
+            deviceMap.get(event.deviceId)?.name ||
+            `Dispositivo #${event.deviceId}`,
+        },
+      };
+    });
   } catch (error) {
     console.error("Erro ao buscar eventos:", error);
     return [];

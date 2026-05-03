@@ -84,6 +84,11 @@ const LeafletPopup = dynamic(
   { ssr: false },
 );
 
+const LeafletTooltip = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Tooltip),
+  { ssr: false },
+);
+
 // ─── FitAllDevices: ao abrir o mapa, ajusta o zoom para exibir todos os dispositivos ───
 function FitAllDevices({
   positions,
@@ -1094,7 +1099,16 @@ export default function MapPage() {
                     weight: 2.5,
                     opacity: 0.9,
                   }}
-                />
+                >
+                  <LeafletTooltip
+                    permanent
+                    sticky
+                    direction="center"
+                    className="!bg-background/95 !border-border !text-foreground !shadow-md !font-medium"
+                  >
+                    {geofence.name}
+                  </LeafletTooltip>
+                </LeafletPolygon>
               );
             }
             if (parsed.type === "circle" && parsed.center && parsed.radius) {
@@ -1110,7 +1124,16 @@ export default function MapPage() {
                     weight: 2.5,
                     opacity: 0.9,
                   }}
-                />
+                >
+                  <LeafletTooltip
+                    permanent
+                    sticky
+                    direction="center"
+                    className="!bg-background/95 !border-border !text-foreground !shadow-md !font-medium"
+                  >
+                    {geofence.name}
+                  </LeafletTooltip>
+                </LeafletCircle>
               );
             }
             return null;
@@ -1353,6 +1376,10 @@ export default function MapPage() {
         deviceGeofenceIds={deviceGeofenceIds}
         assigningGeofenceId={assigningGeofenceId}
         onToggleGeofence={handleToggleGeofence}
+        onEditGeofence={(geofenceId) => {
+          setGeofenceDialogDevice(null);
+          router.push(`/geofences?geofenceId=${geofenceId}&mode=edit`);
+        }}
       />
     </div>
   );

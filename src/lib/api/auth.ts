@@ -1,6 +1,7 @@
 import { AuthResponse, User, Organization } from "@/types";
 import { api } from "./client";
 import { getOrganizationBySlug } from "./organizations";
+import { trackAuditEvent } from "./audit";
 
 /** Retorna headers extras para multi-tenant (servidor dinâmico) */
 function getServerHeader(): Record<string, string> {
@@ -101,11 +102,26 @@ export async function login(
   });
 
   if (!response.ok) {
+    await trackAuditEvent({
+      userId: 0,
+      userName: email,
+      action: 'FAILED_LOGIN',
+      resource: 'auth',
+      details: 'Tentativa de login com credenciais inválidas',
+    });
     throw new Error("Credenciais inválidas");
   }
 
   const rawUser = await response.json();
   const user: User = applyRole(rawUser);
+
+  await trackAuditEvent({
+    userId: user.id,
+    userName: user.name || user.email || email,
+    action: 'LOGIN',
+    resource: 'auth',
+    details: 'Login realizado com sucesso',
+  });
 
   // Registrar lastLogin nos attributes do Traccar
   try {
@@ -174,10 +190,25 @@ export async function getCurrentUser(): Promise<User> {
  * Faz logout da sessão do Traccar
  */
 export async function logout(): Promise<void> {
+  let currentUser: User | null = null;
+  try {
+    currentUser = await getCurrentUser();
+  } catch {
+    currentUser = null;
+  }
+
   await fetch(`${api.getConfig().baseURL}/session`, {
     method: "DELETE",
     credentials: "include",
     headers: { ...getServerHeader() },
+  });
+
+  await trackAuditEvent({
+    userId: currentUser?.id ?? 0,
+    userName: currentUser?.name || currentUser?.email || 'Sistema',
+    action: 'LOGOUT',
+    resource: 'auth',
+    details: 'Logout realizado com sucesso',
   });
 }
 

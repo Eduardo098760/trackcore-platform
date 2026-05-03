@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type { Event } from "@/types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -42,6 +43,34 @@ export function formatDuration(seconds: number): string {
     return `${hours}h ${minutes}min`;
   }
   return `${minutes}min`;
+}
+
+export function normalizeEventType(event: Event): Event["type"] {
+  if (event.type !== "geofence") {
+    return event.type;
+  }
+
+  const attrs = event.attributes || {};
+  const hints = [
+    attrs.event,
+    attrs.action,
+    attrs.transition,
+    attrs.message,
+    attrs.description,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (/(exit|leave|outside|out|saiu|saida|saída)/.test(hints)) {
+    return "geofenceExit";
+  }
+
+  if (/(enter|inside|in|entrou|entrada)/.test(hints)) {
+    return "geofenceEnter";
+  }
+
+  return "geofenceEnter";
 }
 
 export function getDeviceStatusColor(status: string): string {

@@ -128,6 +128,77 @@ function formatTimestamp(ts: string) {
   } catch { return ts; }
 }
 
+function formatIpAddress(ipAddress: string) {
+  if (!ipAddress) return 'IP não informado';
+  if (ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress === 'localhost') {
+    return 'Localhost';
+  }
+  if (ipAddress.startsWith('::ffff:')) {
+    return ipAddress.replace('::ffff:', '');
+  }
+  return ipAddress;
+}
+
+function parseBrowser(userAgent: string) {
+  if (!userAgent) return null;
+
+  const patterns = [
+    { name: 'Microsoft Edge', regex: /Edg\/([\d.]+)/i },
+    { name: 'Opera', regex: /OPR\/([\d.]+)/i },
+    { name: 'Google Chrome', regex: /Chrome\/([\d.]+)/i },
+    { name: 'Mozilla Firefox', regex: /Firefox\/([\d.]+)/i },
+    { name: 'Safari', regex: /Version\/([\d.]+).*Safari/i },
+  ];
+
+  for (const pattern of patterns) {
+    const match = userAgent.match(pattern.regex);
+    if (match) {
+      const version = match[1]?.split('.')[0];
+      return version ? `${pattern.name} ${version}` : pattern.name;
+    }
+  }
+
+  if (/WindowsPowerShell/i.test(userAgent)) return 'Windows PowerShell';
+  return 'Navegador não identificado';
+}
+
+function parseMachine(userAgent: string) {
+  if (!userAgent) return null;
+
+  const platform = (() => {
+    if (/Windows NT 10\.0/i.test(userAgent)) return 'Windows';
+    if (/Windows NT 6\.3/i.test(userAgent)) return 'Windows 8.1';
+    if (/Windows NT 6\.2/i.test(userAgent)) return 'Windows 8';
+    if (/Windows NT 6\.1/i.test(userAgent)) return 'Windows 7';
+    if (/Android/i.test(userAgent)) return 'Android';
+    if (/iPhone|iOS/i.test(userAgent)) return 'iPhone';
+    if (/iPad/i.test(userAgent)) return 'iPad';
+    if (/Mac OS X|Macintosh/i.test(userAgent)) return 'macOS';
+    if (/Linux/i.test(userAgent)) return 'Linux';
+    return null;
+  })();
+
+  const device = (() => {
+    if (/Mobile|iPhone|Android/i.test(userAgent)) return 'Mobile';
+    if (/iPad|Tablet/i.test(userAgent)) return 'Tablet';
+    return 'Desktop';
+  })();
+
+  if (!platform) return device;
+  return `${platform} • ${device}`;
+}
+
+function describeClient(userAgent: string) {
+  if (!userAgent) return null;
+  if (userAgent === 'Traccar Server') return 'Traccar Server';
+
+  const browser = parseBrowser(userAgent);
+  const machine = parseMachine(userAgent);
+
+  if (browser && machine) return `${browser} • ${machine}`;
+  return browser || machine || userAgent;
+}
+
 // ── Fetchers ──────────────────────────────────────────────────────────────────
 async function fetchMeta() {
   const r = await fetch('/api/audit?meta=1&syncTraccar=1');
@@ -310,6 +381,7 @@ export default function AuditPage() {
                 {(data?.logs ?? []).map((log) => {
                   const ActionIcon = ACTION_ICONS[log.action] ?? Settings;
                   const color = ACTION_COLORS[log.action] ?? 'bg-slate-400';
+                  const clientDescription = describeClient(log.userAgent);
                   return (
                     <div
                       key={log.id}
@@ -343,14 +415,14 @@ export default function AuditPage() {
                           {log.details}
                         </p>
 
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
-                            {log.ipAddress}
+                            {formatIpAddress(log.ipAddress)}
                           </span>
-                          {log.userAgent && log.userAgent !== 'Traccar Server' && (
+                          {clientDescription && (
                             <span className="truncate max-w-xs" title={log.userAgent}>
-                              {log.userAgent.split(' ')[0]}
+                              {clientDescription}
                             </span>
                           )}
                         </div>

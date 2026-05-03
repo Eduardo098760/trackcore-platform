@@ -1,8 +1,11 @@
 import type { AuditLog } from '@/types';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { dirname, resolve } from 'path';
 
 // ── In-memory store (persists for the lifetime of the Node process) ──────────
 let nextId = 1;
 const store: AuditLog[] = [];
+const AUDIT_STORE_FILE = resolve(process.cwd(), 'data', 'audit-logs.json');
 
 // ── Seed com eventos realistas para não começar vazio ────────────────────────
 const now = Date.now();
@@ -39,9 +42,48 @@ const seed: Omit<AuditLog, 'id'>[] = [
   },
 ];
 
-for (const entry of seed) {
-  store.push({ ...entry, id: nextId++ });
+function getLogSignature(log: Omit<AuditLog, 'id'>) {
+  return [
+    log.userId,
+    log.userName,
+    log.action,
+    log.resource,
+    log.resourceId ?? '',
+    log.details,
+    log.ipAddress,
+    log.userAgent,
+    log.timestamp,
+  ].join('|');
 }
+
+function persistStore() {
+  mkdirSync(dirname(AUDIT_STORE_FILE), { recursive: true });
+  writeFileSync(AUDIT_STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
+}
+
+function loadInitialStore() {
+  if (existsSync(AUDIT_STORE_FILE)) {
+    try {
+      const raw = readFileSync(AUDIT_STORE_FILE, 'utf8');
+      const parsed = JSON.parse(raw) as AuditLog[];
+      if (Array.isArray(parsed)) {
+        store.splice(0, store.length, ...parsed);
+        const maxId = parsed.reduce((acc, log) => Math.max(acc, log.id || 0), 0);
+        nextId = maxId + 1;
+        return;
+      }
+    } catch {
+      // fallback para seed abaixo
+    }
+  }
+
+  for (const entry of seed) {
+    store.push({ ...entry, id: nextId++ });
+  }
+  persistStore();
+}
+
+loadInitialStore();
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 export interface AuditFilters {
@@ -64,10 +106,14 @@ export interface AuditPage {
 
 // ── Funções públicas ──────────────────────────────────────────────────────────
 export function addAuditLog(entry: Omit<AuditLog, 'id'>): AuditLog {
+  const existing = store.find((log) => getLogSignature(log) === getLogSignature(entry));
+  if (existing) return existing;
+
   const log: AuditLog = { ...entry, id: nextId++ };
   store.unshift(log); // mais recente primeiro
   // Limitar a 5000 entradas para evitar crescimento ilimitado
   if (store.length > 5000) store.splice(5000);
+  persistStore();
   return log;
 }
 

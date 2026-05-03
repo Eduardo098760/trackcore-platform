@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/lib/stores/auth';
+import { logout } from '@/lib/api/auth';
 
 import { ConnectionStatus } from '@/components/ui/connection-status';
 import { NotificationBadge } from '@/components/ui/notification-badge';
@@ -101,7 +102,12 @@ export function Header() {
     };
   }, [queryClient]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // limpeza local deve acontecer mesmo se o logout remoto falhar
+    }
     queryClient.clear(); // limpa todo o cache ao sair
     clearAuth();
     router.push('/login');

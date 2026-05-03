@@ -6,7 +6,8 @@ import { Device, Position } from "@/types";
 import { getPositions } from "@/lib/api";
 import { normalizeDevice } from "@/lib/api/devices";
 import { getWebSocketClient } from "@/lib/websocket";
-import { distanceKm } from "@/lib/utils";
+import { distanceKm, normalizeEventType } from "@/lib/utils";
+import type { Event } from "@/types";
 
 interface UseMapWebSocketOptions {
   onWsConnectionChange: (connected: boolean) => void;
@@ -204,7 +205,15 @@ export function useMapWebSocket({
       } else if (message.type === "events") {
         message.data.forEach(
           (event: { id: number; type: string; deviceId: number; serverTime: string; attributes: Record<string, any> }) => {
-            window.dispatchEvent(new CustomEvent('traccar-ws-event', { detail: event }));
+            const normalizedEvent = {
+              ...event,
+              type: normalizeEventType(event as Event),
+              attributes: {
+                ...event.attributes,
+                originalType: event.type,
+              },
+            };
+            window.dispatchEvent(new CustomEvent('traccar-ws-event', { detail: normalizedEvent }));
           },
         );
       }

@@ -18,6 +18,7 @@ interface GeofenceManageDialogProps {
   deviceGeofenceIds: Set<number>;
   assigningGeofenceId: number | null;
   onToggleGeofence: (geofenceId: number) => void;
+  onEditGeofence?: (geofenceId: number) => void;
 }
 
 export function GeofenceManageDialog({
@@ -27,7 +28,20 @@ export function GeofenceManageDialog({
   deviceGeofenceIds,
   assigningGeofenceId,
   onToggleGeofence,
+  onEditGeofence,
 }: GeofenceManageDialogProps) {
+  const getGeofenceTypeLabel = (type: Geofence["type"]) => {
+    switch (type) {
+      case "circle":
+        return "Círculo";
+      case "rectangle":
+        return "Retângulo";
+      case "polygon":
+      default:
+        return "Polígono";
+    }
+  };
+
   return (
     <Dialog
       open={!!device}
@@ -75,25 +89,35 @@ export function GeofenceManageDialog({
                         {geofence.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {geofence.type}
+                        {getGeofenceTypeLabel(geofence.type)}
                       </p>
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={isLinked ? "destructive" : "default"}
-                    disabled={isLoading}
-                    onClick={() => onToggleGeofence(geofence.id)}
-                    className="flex-shrink-0 ml-2"
-                  >
-                    {isLoading ? (
-                      <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    ) : isLinked ? (
-                      "Remover"
-                    ) : (
-                      "Aplicar"
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {onEditGeofence && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEditGeofence(geofence.id)}
+                      >
+                        Editar
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant={isLinked ? "destructive" : "default"}
+                      disabled={isLoading}
+                      onClick={() => onToggleGeofence(geofence.id)}
+                    >
+                      {isLoading ? (
+                        <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : isLinked ? (
+                        "Remover"
+                      ) : (
+                        "Aplicar"
+                      )}
+                    </Button>
+                  </div>
                 </div>
               );
             })}

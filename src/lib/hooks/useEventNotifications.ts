@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getEvents, getDevices, getPositions } from "@/lib/api";
 import { notificationManager } from "@/lib/notifications";
 import { Device, Event, SpeedAlert } from "@/types";
+import { normalizeEventType } from "@/lib/utils";
 
 /**
  * Hook que monitora eventos do Traccar e dispara notificações automaticamente
@@ -208,6 +209,8 @@ async function processEvent(event: Event, devices: Device[] = []) {
   }
 
   // ── Notificação in-app: respeita o filtro de "Tipos de Eventos" ──
+  const normalizedEventType = normalizeEventType(event);
+
   const eventTypeMap: Record<string, string> = {
     ignitionOn: "ignitionOn",
     ignitionOff: "ignitionOff",
@@ -215,6 +218,7 @@ async function processEvent(event: Event, devices: Device[] = []) {
     deviceOffline: "deviceOffline",
     geofenceEnter: "geofenceEnter",
     geofenceExit: "geofenceExit",
+    geofence: "geofenceEnter",
     alarm: "sos",
     deviceOverspeed: "speedLimit",
     speedLimit: "speedLimit",
@@ -232,7 +236,7 @@ async function processEvent(event: Event, devices: Device[] = []) {
     fuelIncrease: "fuelIncrease",
   };
 
-  const internalType = eventTypeMap[event.type] || event.type;
+  const internalType = eventTypeMap[normalizedEventType] || normalizedEventType;
 
   // Valores padrão para todos os tipos de evento
   const DEFAULT_EVENTS: Record<string, boolean> = {
@@ -308,6 +312,7 @@ async function processEvent(event: Event, devices: Device[] = []) {
     event,
     displayName,
     matchedDevice?.speedLimit,
+    normalizedEventType,
   );
   if (!notificationData) return;
 
@@ -328,8 +333,14 @@ async function processEvent(event: Event, devices: Device[] = []) {
 /**
  * Gera dados de notificação baseado no tipo de evento
  */
-function getNotificationDataForEvent(event: Event, displayName: string, deviceSpeedLimit?: number) {
+function getNotificationDataForEvent(
+  event: Event,
+  displayName: string,
+  deviceSpeedLimit?: number,
+  normalizedEventType?: string,
+) {
   const deviceName = displayName;
+  const effectiveEventType = normalizedEventType || event.type;
 
   const eventNotifications: Record<
     string,
@@ -470,14 +481,14 @@ function getNotificationDataForEvent(event: Event, displayName: string, deviceSp
     },
   };
 
-  const notification = eventNotifications[event.type];
+  const notification = eventNotifications[effectiveEventType];
 
   if (!notification) {
     // Notificação genérica para tipos desconhecidos
     return {
       type: "info" as const,
-      title: `📢 ${event.type}`,
-      message: `${deviceName} - ${event.type}`,
+      title: `📢 ${effectiveEventType}`,
+      message: `${deviceName} - ${effectiveEventType}`,
     };
   }
 
