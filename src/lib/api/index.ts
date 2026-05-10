@@ -13,6 +13,10 @@ import { api } from "./client";
 import { getDevices as getDevicesFromDevices, getDevice } from "./devices";
 import { deriveDeviceStatus, normalizeEventType } from "@/lib/utils";
 
+// Cache simples de posições por ID para reduzir chamadas repetidas ao proxy
+const POSITION_CACHE_TTL = 60_000; // 60s
+const positionCache: Map<number, { ts: number; pos: Position | null }> = new Map();
+
 /**
  * Retorna o userId do usuário impersonado, ou undefined se não estiver em impersonação.
  */
@@ -160,10 +164,18 @@ export async function getPositionByDevice(deviceId: number): Promise<Position> {
 // Busca uma posição histórica específica pelo seu ID (útil para eventos com positionId)
 export async function getPositionById(id: number): Promise<Position | null> {
   try {
-    const positions = await api.get<Position[]>("/positions", { id });
+    const cached = positionCache.get(id);
+    const now = Date.now();
+    if (cached && now - cached.ts < POSITION_CACHE_TTL) {
+      return cached.pos ? normalizePositionSpeed(cached.pos) : null;
+    }
+
+    const positions = await api.get<Position[]>('/positions', { id });
     const pos = positions?.[0] ?? null;
+    positionCache.set(id, { ts: now, pos });
     return pos ? normalizePositionSpeed(pos) : null;
   } catch {
+    positionCache.set(id, { ts: Date.now(), pos: null });
     return null;
   }
 }
@@ -202,13 +214,32 @@ export async function getEvents(params?: {
 
     const events = await api.get<Event[]>("/reports/events", requestParams);
 
-    // Enriquecer eventos com nome do dispositivo (usando mesmo filtro de userId se impersonando)
+    // Depuração: logar eventos de cerca brutos para investigar perdas
+    try {
+      if (typeof window !== "undefined") {
+        events.forEach((ev) => {
+          if (ev.type === "geofence" || ev.type?.toLowerCase?.()?.includes("geofence")) {
+            // Log leve — mostra id, deviceId e atributos para investigação
+            // eslint-disable-next-line no-console
+            console.debug("[getEvents] geofence raw event:", { id: ev.id, deviceId: ev.deviceId, type: ev.type, attributes: ev.attributes });
+          }
+        });
+      }
+    } catch (e) {
+      // no-op
+    }
+
+    // Enriquecer eventos com dados úteis: nome do dispositivo e posição (address)
     const impUid = getImpersonatingUserId();
     const allDevices = await api.get<Device[]>(
       "/devices",
       impUid ? { userId: impUid } : undefined,
     );
     const deviceMap = new Map(allDevices.map((d) => [d.id, d]));
+
+    // Atenção: não resolver endereço a partir de positionId aqui —
+    // isso gerava muitas requisições ao proxy. Apenas manteremos
+    // o `serverTime` do evento (ou timestamp atual como fallback).
 
     // Mesclar estado de resolução local (localStorage) com dados do Traccar
     let resolvedIds: number[] = [];
@@ -219,9 +250,12 @@ export async function getEvents(params?: {
 
     return events.map((event) => {
       const normalizedType = normalizeEventType(event);
-
       return {
         ...event,
+        // Não resolver endereço por posição: usamos apenas o address já presente
+        address: event.address || undefined,
+        // Preferir serverTime do evento; se ausente, usar timestamp atual
+        serverTime: event.serverTime || new Date().toISOString(),
         type: normalizedType,
         resolved: event.resolved || resolvedIds.includes(event.id),
         attributes: {
@@ -231,7 +265,7 @@ export async function getEvents(params?: {
             deviceMap.get(event.deviceId)?.name ||
             `Dispositivo #${event.deviceId}`,
         },
-      };
+      } as Event;
     });
   } catch (error) {
     console.error("Erro ao buscar eventos:", error);

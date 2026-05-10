@@ -118,6 +118,17 @@ function loadLocalSettings(): LocalNotifSettings {
 
 function saveLocalSettings(s: LocalNotifSettings) {
   localStorage.setItem("notificationClientSettings", JSON.stringify(s));
+  try {
+    const raw = localStorage.getItem("notificationSettings");
+    const settings = raw ? JSON.parse(raw) : {};
+    settings.inApp = settings.inApp || {};
+    settings.inApp.enabled = true;
+    settings.inApp.sound = s.sound;
+    settings.inApp.desktop = s.desktop;
+    localStorage.setItem("notificationSettings", JSON.stringify(settings));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── Dropdown de veículos por regra ─────────────

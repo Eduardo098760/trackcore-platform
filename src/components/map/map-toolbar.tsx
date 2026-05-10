@@ -77,6 +77,7 @@ export function MapToolbar({
         <Tag className="w-3.5 h-3.5" />
         Placas
       </button>
+
     </>
   );
 }

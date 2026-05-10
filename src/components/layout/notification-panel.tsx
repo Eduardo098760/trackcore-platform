@@ -29,6 +29,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { notificationManager } from "@/lib/notifications";
+import { Volume2 } from "lucide-react";
 
 export interface InAppNotification {
   id: string;
@@ -272,6 +274,53 @@ export function NotificationPanel({
     router.push("/notifications");
   };
 
+  const readNotificationSettings = () => {
+    try {
+      const raw = localStorage.getItem("notificationSettings");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const toggleSound = async () => {
+    try {
+      const settings = readNotificationSettings();
+      settings.inApp = settings.inApp || {};
+      const nextSound = !Boolean(settings.inApp.sound);
+      settings.inApp.sound = nextSound;
+      if (nextSound) {
+        settings.inApp.enabled = settings.inApp.enabled ?? true;
+      }
+      localStorage.setItem("notificationSettings", JSON.stringify(settings));
+      try {
+        const clientSettings = {
+          sound: nextSound,
+          desktop: Boolean(settings.inApp.desktop ?? true),
+        };
+        localStorage.setItem("notificationClientSettings", JSON.stringify(clientSettings));
+      } catch {
+        /* ignore */
+      }
+      // Tentar desbloquear AudioContext global se existir
+      const globalKey = "__trackcoreAudioContext";
+      const ctx = (window as any)[globalKey] as AudioContext | undefined;
+      if (ctx && ctx.state === "suspended") {
+        await ctx.resume().catch(() => undefined);
+      }
+      // Disparar um teste de som (gera notificação breve)
+      try {
+        await notificationManager.simulateEvent("geofenceEnter", "Teste Som", 0, "teste");
+      } catch {}
+      // Atualizar queries/UI
+      queryClient.invalidateQueries({ queryKey: ["inAppNotifications"] });
+      toast.success(settings.inApp.sound ? "Som ativado" : "Som desativado");
+    } catch (e) {
+      console.error("Erro ao alternar som de notificação", e);
+      toast.error("Falha ao atualizar configuração de som");
+    }
+  };
+
   // Salvar notificações no localStorage quando mudar
   useEffect(() => {
     if (notifications.length > 0) {
@@ -293,14 +342,24 @@ export function NotificationPanel({
                 </Badge>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleGoToSettings}
-              title="Configurações de notificações"
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSound}
+                  title="Ativar / Desativar som de notificação"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleGoToSettings}
+                  title="Configurações de notificações"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </div>
           </SheetTitle>
           <SheetDescription>
             Acompanhe alertas e eventos dos seus veículos

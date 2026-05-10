@@ -185,6 +185,21 @@ export default function SavedCommandsPage() {
     return desc.includes(q) || type.includes(q);
   });
 
+  const exportColumns = [
+    { header: "Descrição", key: "description" },
+    { header: "Tipo", key: "type" },
+    { header: "Canal", key: "channel" },
+    { header: "Dados", key: "data" },
+  ];
+
+  const exportData = filteredCommands.map((c) => ({
+    id: c.id,
+    description: c.description || "",
+    type: getCommandTypeLabel(c.type),
+    channel: c.textChannel ? "SMS" : "GPRS",
+    data: c.attributes?.data || "",
+  }));
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -276,6 +291,10 @@ export default function SavedCommandsPage() {
             <p className="text-sm">Crie comandos salvos para reutilizar o mesmo padrão de envio nos seus veículos</p>
           </div>
         }
+        exportData={exportData}
+        exportColumns={exportColumns}
+        filenamePrefix="comandos-salvos"
+        requireSelectionForExport={true}
       >
         <Table>
               <TableHeader>

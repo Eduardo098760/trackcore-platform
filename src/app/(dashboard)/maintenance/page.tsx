@@ -560,7 +560,7 @@ export default function MaintenancePage() {
       </Card>
 
       {/* Tabela */}
-      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6" exportData={filteredMaintenances.map(m=>({ id: m.id, deviceName: m.deviceName, type: m.type, description: m.description, scheduledDate: m.scheduledDate, odometer: m.odometer, cost: m.cost, status: m.status }))} exportColumns={[{header:'Veículo', key:'deviceName'},{header:'Tipo', key:'type'},{header:'Descrição', key:'description'},{header:'Agendada Para', key:'scheduledDate'},{header:'KM', key:'odometer'},{header:'Custo', key:'cost'},{header:'Status', key:'status'}]} filenamePrefix="manutencoes" requireSelectionForExport={true}>
         <MaintenanceTable
           maintenances={filteredMaintenances}
           onEdit={handleEdit}

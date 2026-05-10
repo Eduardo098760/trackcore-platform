@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getEventTypeLabel, getEventTypeColor, formatDate } from "@/lib/utils";
+import { getEventDisplayLabel, getEventTypeColor, formatDate } from "@/lib/utils";
 import { ALARM_SUBTYPES } from "./event-constants";
 import {
   AlertTriangle,
@@ -74,8 +74,10 @@ function getEventIcon(type: string, alarmType?: string) {
     case "fuelIncrease":
       return <TrendingUp className="w-5 h-5" />;
     case "alarm":
-      if (alarmType === "sos") return <Siren className="w-5 h-5" />;
-      return <AlertTriangle className="w-5 h-5" />;
+        if (alarmType === "sos") return <Siren className="w-5 h-5" />;
+        const sub = alarmType ? String(alarmType).toLowerCase() : "";
+        if (sub === "vibration" || sub === "shock" || sub === "impact") return <Zap className="w-5 h-5" />;
+        return <AlertTriangle className="w-5 h-5" />;
     case "driverChanged":
       return <UserCheck className="w-5 h-5" />;
     case "commandResult":
@@ -90,9 +92,18 @@ function getEventIcon(type: string, alarmType?: string) {
 }
 
 /** Retorna a cor da borda esquerda conforme severidade */
-function getEventSeverityBorder(type: string): string {
+function getEventSeverityBorder(type: string, alarmSubtype?: string): string {
+  // Tratamento especial para alarmes: sos = crítico, outros = aviso
+  if (type === "alarm") {
+    const sub = alarmSubtype ? String(alarmSubtype).toLowerCase() : "";
+    if (sub === "sos" || sub.includes("sos") || sub === "panic" || sub.includes("panic")) {
+      return "border-l-red-500";
+    }
+    // Vibração, impacto, etc. → menos severo
+    return "border-l-amber-500";
+  }
+
   switch (type) {
-    case "alarm":
     case "deviceOffline":
     case "connectionLost":
     case "fuelDrop":
@@ -162,32 +173,17 @@ export const EventCard = React.memo(function EventCard({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h3 className="text-sm font-semibold text-foreground">
-                  {getEventTypeLabel(event.type)}
-                </h3>
-                {event.type === "alarm" && event.attributes?.alarm && (
-                  <Badge variant="outline" className="text-[10px] font-normal">
-                    {ALARM_SUBTYPES[event.attributes.alarm] || event.attributes.alarm}
-                  </Badge>
-                )}
-                <Badge
-                  variant="secondary"
-                  className={`text-[10px] ${
-                    event.resolved
-                      ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                      : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                  }`}
-                >
-                  {event.resolved ? (
-                    <>
-                      <CheckCircle className="w-3 h-3 mr-0.5" /> Resolvido
-                    </>
-                  ) : (
-                    <>
-                      <AlertTriangle className="w-3 h-3 mr-0.5" /> Ativo
-                    </>
-                  )}
-                </Badge>
+                  <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-foreground truncate group-hover:text-primary">
+                                {getEventDisplayLabel(event)}
+                              </p>
+                              <Badge
+                                variant="secondary"
+                                className={`shrink-0 ${getEventTypeColor(event.type)}`}
+                              >
+                                {event.resolved ? 'Resolvido' : 'Ativo'}
+                              </Badge>
+                            </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span
@@ -212,6 +208,12 @@ export const EventCard = React.memo(function EventCard({
                   <Calendar className="w-3 h-3" />
                   {formatDate(event.serverTime)}
                 </span>
+                { (event.address || event.attributes?.address) && (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground truncate" title={event.address || event.attributes?.address}>
+                    <MapPin className="w-3 h-3" />
+                    <span className="truncate">{event.address || event.attributes?.address}</span>
+                  </span>
+                )}
               </div>
               <EventDetails event={event} device={device} />
             </div>

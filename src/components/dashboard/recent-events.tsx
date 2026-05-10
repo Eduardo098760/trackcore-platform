@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Event, Device, Client } from '@/types';
-import { getEventTypeLabel, getEventTypeColor, formatDate } from '@/lib/utils';
+import { getEventDisplayLabel, getEventTypeColor, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MapPin } from 'lucide-react';
@@ -49,7 +49,7 @@ export function RecentEvents({ events, devices, clients = [] }: RecentEventsProp
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-medium text-foreground truncate group-hover:text-primary">
-                            {getEventTypeLabel(event.type)}
+                            {getEventDisplayLabel(event)}
                           </p>
                           <Badge
                             variant="secondary"

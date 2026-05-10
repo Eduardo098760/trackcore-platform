@@ -210,6 +210,25 @@ export default function OrganizationsPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const exportColumns = [
+    { header: "Nome", key: "name" },
+    { header: "Slug", key: "slug" },
+    { header: "Domínio", key: "domain" },
+    { header: "Plano", key: "plan" },
+    { header: "Status", key: "status" },
+    { header: "Criado em", key: "createdAt" },
+  ];
+
+  const exportData = filteredOrgs.map((o) => ({
+    id: o.id,
+    name: o.name,
+    slug: o.slug,
+    domain: o.domain,
+    plan: o.plan,
+    status: o.status,
+    createdAt: o.createdAt,
+  }));
+
   const getStatusBadge = (status: string) => {
     const variants = {
       active: (
@@ -510,7 +529,7 @@ export default function OrganizationsPage() {
           </div>
 
           {/* Table */}
-          <DataTableCard isLoading={isLoading} contentClassName="pt-6" withCard={false}>
+          <DataTableCard isLoading={isLoading} contentClassName="pt-6" withCard={false} exportData={exportData} exportColumns={exportColumns} filenamePrefix="organizacoes" requireSelectionForExport={true}>
             <Table>
               <TableHeader>
                 <TableRow>

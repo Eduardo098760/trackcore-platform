@@ -47,29 +47,82 @@ export function formatDuration(seconds: number): string {
 
 export function normalizeEventType(event: Event): Event["type"] {
   if (event.type !== "geofence") {
+    if (event.type !== "alarm") {
+      return event.type;
+    }
+
+    const attrs = event.attributes || {};
+    const rawParts = [
+      attrs.alarm,
+      attrs.alarmType,
+      attrs.subtype,
+      attrs.message,
+      attrs.description,
+      attrs.event,
+      attrs.type,
+    ]
+      .filter((v) => v !== undefined && v !== null)
+      .map((v) => (typeof v === "object" ? JSON.stringify(v) : String(v)))
+      .join(" ")
+      .toLowerCase();
+
+    if (/\b(geofenceenter|enter.*geofence|enter.*cerca|entrada.*cerca|entered)\b/.test(rawParts)) {
+      return "geofenceEnter";
+    }
+    if (/\b(geofenceexit|exit.*geofence|leave.*geofence|saida.*cerca|saída.*cerca|saiu|left)\b/.test(rawParts)) {
+      return "geofenceExit";
+    }
+
     return event.type;
   }
 
   const attrs = event.attributes || {};
-  const hints = [
+
+  // Reunir múltiplos campos que dispositivos/Traccar usam para descrever
+  // transições em cercas: nomes variados, códigos numéricos, mensagens.
+  const candidateFields = [
     attrs.event,
     attrs.action,
     attrs.transition,
     attrs.message,
     attrs.description,
-  ]
-    .filter((value): value is string => typeof value === "string")
+    attrs.status,
+    attrs.type,
+    attrs.name,
+    attrs.geofence,
+    attrs.eventType,
+    attrs.state,
+  ];
+
+  const rawParts = candidateFields
+    .filter((v) => v !== undefined && v !== null)
+    .map((v) => (typeof v === "object" ? JSON.stringify(v) : String(v)))
     .join(" ")
     .toLowerCase();
 
-  if (/(exit|leave|outside|out|saiu|saida|saída)/.test(hints)) {
+  // Traccar / dispositivos às vezes usam códigos numéricos para transition
+  // 1 = enter, 2 = exit (varia por implementação). Tratar explicitamente.
+  const transition = attrs.transition ?? attrs.action ?? attrs.eventType ?? attrs.type ?? attrs.state;
+
+  // Detectar saída primeiro (mais específico)
+  if (
+    transition === 2 ||
+    transition === "2" ||
+    /\b(exit|leave|outside|out|saiu|saida|saída|left)\b/.test(rawParts)
+  ) {
     return "geofenceExit";
   }
 
-  if (/(enter|inside|in|entrou|entrada)/.test(hints)) {
+  // Detectar entrada
+  if (
+    transition === 1 ||
+    transition === "1" ||
+    /\b(enter|inside|in|entrou|entrada|entered)\b/.test(rawParts)
+  ) {
     return "geofenceEnter";
   }
 
+  // Fallback: assumir entrada (mais segura para alertas)
   return "geofenceEnter";
 }
 
@@ -189,6 +242,26 @@ export function getEventTypeLabel(type: string): string {
     media: 'Mídia recebida',
   };
   return labels[type] || type;
+}
+
+export function getEventDisplayLabel(event: Event): string {
+  if (event.type !== "deviceMoving" && event.type !== "deviceStopped") {
+    return getEventTypeLabel(event.type);
+  }
+
+  const attrs = event.attributes || {};
+  const motion = attrs.motion;
+  const rawSpeed = attrs.speed;
+  const speedKmh = Number.isFinite(Number(rawSpeed)) ? Number(rawSpeed) * 1.852 : 0;
+
+  if (motion === true || speedKmh > 2) {
+    return "Em movimento";
+  }
+  if (motion === false || speedKmh <= 2) {
+    return "Parado";
+  }
+
+  return getEventTypeLabel(event.type);
 }
 
 export function getEventTypeColor(type: string): string {

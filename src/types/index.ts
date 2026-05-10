@@ -186,6 +186,7 @@ export interface Event {
   type: EventType;
   deviceId: number;
   positionId?: number;
+  address?: string;
   serverTime: string;
   attributes: Record<string, any>;
   resolved: boolean;

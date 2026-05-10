@@ -40,6 +40,10 @@ import { VehicleDetailsPanel } from "@/components/dashboard/vehicle-details-pane
 import { useMapState } from "@/lib/hooks/useMapState";
 import { useMapWebSocket } from "@/lib/hooks/useMapWebSocket";
 import {
+  emitGeofenceAssignmentsChanged,
+  useGeofenceSync,
+} from "@/lib/hooks/useGeofenceSync";
+import {
   TILE_LAYERS,
   getMarkerColor,
 } from "@/components/map/map-constants";
@@ -250,6 +254,7 @@ function MapFollowHandler({
 }
 
 export default function MapPage() {
+  useGeofenceSync();
   const queryClient = useQueryClient();
   const router = useRouter();
   const mapState = useMapState();
@@ -399,6 +404,14 @@ export default function MapPage() {
     staleTime: 5_000, // WS atualiza via cache — query só refetcha se stale
   });
 
+  const geofenceDialogDevicePosition = useMemo(
+    () =>
+      geofenceDialogDevice
+        ? positions.find((position) => position.deviceId === geofenceDialogDevice.id) ?? null
+        : null,
+    [geofenceDialogDevice, positions],
+  );
+
   // Todas as cercas disponíveis
   const { data: allGeofences = [] } = useQuery({
     queryKey: ["geofences"],
@@ -428,6 +441,11 @@ export default function MapPage() {
         await assignGeofenceToDevice(geofenceDialogDevice.id, geofenceId);
         toast.success("Cerca aplicada ao veículo");
       }
+      emitGeofenceAssignmentsChanged({
+        geofenceId,
+        deviceId: geofenceDialogDevice.id,
+        source: "map-page",
+      });
       refetchDeviceGeofences();
     } catch (err: unknown) {
       const msg =
@@ -437,7 +455,6 @@ export default function MapPage() {
       setAssigningGeofenceId(null);
     }
   };
-
 
   const { data: plannedRoute } = useQuery({
     queryKey: ["planned-route", routeIdFromUrl],
@@ -1380,6 +1397,7 @@ export default function MapPage() {
           setGeofenceDialogDevice(null);
           router.push(`/geofences?geofenceId=${geofenceId}&mode=edit`);
         }}
+        devicePosition={geofenceDialogDevicePosition}
       />
     </div>
   );

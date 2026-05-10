@@ -132,6 +132,15 @@ export default function UsersPage() {
     userEmail: "",
     expiresAt: null,
   });
+
+  const exportColumns = [
+    { header: "Nome", key: "name" },
+    { header: "Email", key: "email" },
+    { header: "Telefone", key: "phone" },
+    { header: "Função", key: "role" },
+    { header: "Criado em", key: "createdAt" },
+  ];
+  
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -670,6 +679,15 @@ export default function UsersPage() {
         return <Badge variant="secondary">{role}</Badge>;
     }
   };
+
+  const exportData = filteredUsers.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    role: u.role,
+    createdAt: u.createdAt,
+  }));
 
   const getRoleLabel = (role: UserRole) => {
     switch (role) {
@@ -1239,7 +1257,7 @@ export default function UsersPage() {
       )}
 
       {/* Users Table */}
-      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6" exportData={exportData} exportColumns={exportColumns} filenamePrefix="usuarios" requireSelectionForExport={true}>
         <Table>
               <TableHeader>
                 <TableRow>

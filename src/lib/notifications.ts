@@ -83,31 +83,84 @@ export class NotificationManager {
     ]).catch((err) => console.error("Erro ao processar notificação:", err));
   }
 
+  private getNotificationPreferences() {
+    const defaultPrefs = {
+      inAppEnabled: true,
+      soundEnabled: true,
+      desktopEnabled: true,
+    };
+
+    try {
+      const appSettingsRaw = localStorage.getItem("notificationSettings");
+      const clientSettingsRaw = localStorage.getItem("notificationClientSettings");
+      const appSettings = appSettingsRaw ? JSON.parse(appSettingsRaw) : {};
+      const clientSettings = clientSettingsRaw ? JSON.parse(clientSettingsRaw) : {};
+
+      return {
+        inAppEnabled: appSettings.inApp?.enabled ?? defaultPrefs.inAppEnabled,
+        soundEnabled:
+          appSettings.inApp?.sound ?? clientSettings.sound ?? defaultPrefs.soundEnabled,
+        desktopEnabled:
+          appSettings.inApp?.desktop ?? clientSettings.desktop ?? defaultPrefs.desktopEnabled,
+      };
+    } catch {
+      return defaultPrefs;
+    }
+  }
+
   /**
    * Toca som de notificação se habilitado
    */
   private async playNotificationSound(): Promise<void> {
-    const settings = localStorage.getItem("notificationSettings");
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      if (parsed.inApp?.enabled && parsed.inApp?.sound) {
-        // Criar e tocar som
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+    const prefs = this.getNotificationPreferences();
+    if (prefs.inAppEnabled && prefs.soundEnabled) {
+        try {
+          // Reusar um AudioContext global para evitar criar muitos contexts
+          const globalKey = "__trackcoreAudioContext";
+          let audioContext: AudioContext | undefined = (window as any)[globalKey];
+          if (!audioContext) {
+            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            try {
+              // Algumas plataformas exigem interação do usuário antes de permitir áudio.
+              if (audioContext.state === "suspended") {
+                // tentativa de desbloqueio: resume pode falhar se não houver gesto do usuário
+                await audioContext.resume().catch(() => undefined);
+              }
+            } catch {}
+            (window as any)[globalKey] = audioContext;
+          }
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+          if (audioContext.state === "suspended") {
+            // Não foi possível desbloquear — registrar para debug
+            console.debug("[notifications] AudioContext está Suspenso; reprodução pode ser bloqueada até interação do usuário");
+          }
 
-        oscillator.frequency.value = 800;
-        oscillator.type = "sine";
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
 
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
 
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-      }
+          oscillator.frequency.value = 800;
+          oscillator.type = "sine";
+
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.5);
+        } catch (err) {
+          console.warn("[notifications] playNotificationSound failed, tentando fallback com HTMLAudio:", err);
+          try {
+            // Fallback: tocar um pequeno beep via HTMLAudio (pode também ser bloqueado sem interação)
+            const beepData = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YRAAAAAA";
+            const a = new Audio(beepData);
+            a.volume = 0.25;
+            await a.play().catch(() => undefined);
+          } catch (e) {
+            console.debug("[notifications] fallback audio também falhou:", e);
+          }
+        }
     }
   }
 
@@ -117,12 +170,11 @@ export class NotificationManager {
    * Fallback para Notification API se o SW não estiver disponível.
    */
   private async showBrowserNotification(notification: InAppNotification): Promise<void> {
-    const settings = localStorage.getItem("notificationSettings");
-    const parsed = settings ? JSON.parse(settings) : {};
+    const prefs = this.getNotificationPreferences();
 
     // Notificações nativas habilitadas por padrão se tiver permissão
     // Só bloqueia se o usuário explicitamente desabilitou
-    if (parsed.inApp?.enabled === false || parsed.inApp?.desktop === false) return;
+    if (!prefs.inAppEnabled || !prefs.desktopEnabled) return;
 
     // Verificar permissão
     if (!("Notification" in window)) {

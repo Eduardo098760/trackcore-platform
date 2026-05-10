@@ -19,7 +19,10 @@ const STATE_EVENT_TYPES = new Set([
 
 export function useEventNotifications(enabled: boolean = true) {
   const processedEvents = useRef(new Set<number>());
-  const lastCheckTime = useRef<Date>(new Date());
+  // Inicializa o último check para alguns minutos atrás (5 minutos + margem)
+  // Assim o primeiro fetch processará eventos recentes e não será ignorado por
+  // ter `serverTime` anterior ao momento de montagem do hook.
+  const lastCheckTime = useRef<Date>(new Date(Date.now() - 6 * 60 * 1000));
   // Rastreia o último estado notificado por dispositivo para eventos de estado.
   // Ex: { 42: 'deviceBlocked' } → já notificamos que o device 42 está bloqueado.
   const deviceStateNotified = useRef<Map<number, string>>(new Map());
@@ -58,15 +61,13 @@ export function useEventNotifications(enabled: boolean = true) {
   useEffect(() => {
     if (!events || events.length === 0) return;
 
-    // Filtrar apenas eventos novos (não processados)
+    // Filtrar apenas eventos novos (não processados).
+    // OBS: não filtrar por `serverTime` aqui porque alguns eventos
+    // podem chegar com timestamp anterior ao `lastCheckTime` (retransmissões
+    // ou relógio do rastreador). Confiamos em `processedEvents` para evitar
+    // duplicatas em memória.
     const newEvents = events.filter((event) => {
-      // Verificar se já foi processado
       if (processedEvents.current.has(event.id)) return false;
-
-      // Verificar se é realmente novo (depois do último check)
-      const eventTime = new Date(event.serverTime);
-      if (eventTime < lastCheckTime.current) return false;
-
       return true;
     });
 
@@ -219,7 +220,7 @@ async function processEvent(event: Event, devices: Device[] = []) {
     geofenceEnter: "geofenceEnter",
     geofenceExit: "geofenceExit",
     geofence: "geofenceEnter",
-    alarm: "sos",
+    alarm: "alarm",
     deviceOverspeed: "speedLimit",
     speedLimit: "speedLimit",
     maintenance: "maintenance",
@@ -236,13 +237,24 @@ async function processEvent(event: Event, devices: Device[] = []) {
     fuelIncrease: "fuelIncrease",
   };
 
-  const internalType = eventTypeMap[normalizedEventType] || normalizedEventType;
+  // Map to internal type, but treat `alarm` specially based on attributes
+  let internalType = eventTypeMap[normalizedEventType] || normalizedEventType;
+  if (normalizedEventType === "alarm") {
+    const rawAlarm = event.attributes?.alarm || event.attributes?.alarmType || event.attributes?.subtype || event.attributes?.type;
+    const alarmStr = rawAlarm != null ? String(rawAlarm).toLowerCase() : "";
+    if (alarmStr === "sos" || alarmStr.includes("sos") || alarmStr === "panic" || alarmStr.includes("panic")) {
+      internalType = "sos";
+    } else {
+      internalType = "alarm";
+    }
+  }
 
   // Valores padrão para todos os tipos de evento
   const DEFAULT_EVENTS: Record<string, boolean> = {
     speedLimit: true,
     geofenceEnter: true,
     geofenceExit: true,
+    alarm: true,
     ignitionOn: false,
     ignitionOff: false,
     deviceOffline: true,
@@ -265,6 +277,12 @@ async function processEvent(event: Event, devices: Device[] = []) {
   // Verificar se o tipo de evento está habilitado nas configurações do usuário.
   // Mescla defaults com o que está salvo → tipos novos nunca "escapam" por falta de chave.
   try {
+    const isGeofenceTransition = internalType === "geofenceEnter" || internalType === "geofenceExit";
+
+    // Entrada e saída de cerca são eventos operacionais críticos.
+    // Não passam pelos filtros de configuração por tipo/veículo para evitar
+    // bloqueio acidental quando a cerca já está centralizada em outro contexto.
+    if (!isGeofenceTransition) {
     const settingsStr = localStorage.getItem("notificationSettings");
     const saved = settingsStr ? JSON.parse(settingsStr) : {};
     const eventsConfig: Record<string, boolean> = { ...DEFAULT_EVENTS, ...(saved.events || {}) };
@@ -275,18 +293,10 @@ async function processEvent(event: Event, devices: Device[] = []) {
       ? JSON.parse(vehicleRulesStr)
       : {};
     const deviceRules = vehicleRulesAll[String(event.deviceId)];
+    const hasDeviceRuleForType =
+      !!deviceRules && deviceRules.length > 0 && deviceRules.some((r) => r.eventType === internalType);
 
-    if (deviceRules && deviceRules.length > 0) {
-      // Dispositivo tem regras específicas — só disparar se o tipo consta nelas
-      const hasRule = deviceRules.some((r) => r.eventType === internalType);
-      if (!hasRule) {
-        console.debug(
-          `[Notificações] Veículo #${event.deviceId}: tipo "${internalType}" não está nas regras do veículo — ignorado`,
-        );
-        return;
-      }
-      // Tipo está permitido nas regras do veículo → prosseguir com notificação
-    } else {
+    if (!hasDeviceRuleForType) {
       // 2) Sem regras por veículo — usar configuração global
       const isEnabled = eventsConfig[internalType] ?? false;
       if (!isEnabled) {
@@ -303,6 +313,11 @@ async function processEvent(event: Event, devices: Device[] = []) {
         );
         return;
       }
+    } else {
+      console.debug(
+        `[Notificações] Veículo #${event.deviceId}: tipo "${internalType}" permitido pelas regras específicas do veículo`,
+      );
+    }
     }
   } catch {
     /* se não conseguir ler, bloqueia por segurança */ return;
@@ -341,6 +356,15 @@ function getNotificationDataForEvent(
 ) {
   const deviceName = displayName;
   const effectiveEventType = normalizedEventType || event.type;
+  const geofenceName =
+    String(
+      event.attributes?.geofenceName ??
+        event.attributes?.geofence ??
+        event.attributes?.description ??
+        event.attributes?.name ??
+        "",
+    ).trim();
+  const geofenceLabel = geofenceName || "uma cerca monitorada";
 
   const eventNotifications: Record<
     string,
@@ -373,17 +397,34 @@ function getNotificationDataForEvent(
     geofenceEnter: {
       type: "info",
       title: "📍 Entrada em Cerca",
-      message: `${deviceName} entrou em ${event.attributes?.geofenceId ? "cerca geográfica" : "uma área monitorada"}`,
+      message: `${deviceName} entrou na cerca: ${geofenceLabel}`,
     },
     geofenceExit: {
       type: "warning",
       title: "📍 Saída de Cerca",
-      message: `${deviceName} saiu de ${event.attributes?.geofenceId ? "cerca geográfica" : "uma área monitorada"}`,
+      message: `${deviceName} saiu da cerca: ${geofenceLabel}`,
+    },
+    sos: {
+      type: "error",
+      title: "🚨 SOS / Pânico",
+      message: `${deviceName} acionou o botão de pânico / SOS`,
     },
     alarm: {
-      type: "error",
-      title: "🚨 SOS / Alarme",
-      message: `${deviceName} acionou o alarme de emergência`,
+      type: "warning",
+      title: (() => {
+        const raw = event.attributes?.alarm || event.attributes?.alarmType || event.attributes?.subtype || "";
+        const s = raw != null ? String(raw).toLowerCase() : "";
+        if (s === "vibration" || s === "shock" || s === "impact") return "⚠️ Alerta de Vibração";
+        return "🔔 Alarme";
+      })(),
+      message: (() => {
+        const raw = event.attributes?.alarm || event.attributes?.alarmType || event.attributes?.subtype || "";
+        const s = raw != null ? String(raw).toLowerCase() : "";
+        if (s === "vibration" || s === "shock" || s === "impact") {
+          return `${deviceName} detectou vibração/impacto — pode ser buraco, colisão ou batida.`;
+        }
+        return `${deviceName} acionou um alarme: ${event.attributes?.alarm || "alarme"}`;
+      })(),
     },
     deviceOverspeed: {
       type: "warning",

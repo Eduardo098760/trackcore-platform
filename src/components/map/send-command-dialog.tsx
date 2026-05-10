@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getSupportedCommandTypes, sendCommand } from "@/lib/api";
+import { getSupportedCommandTypes, sendCommand, getPositionByDevice } from "@/lib/api";
 import { Device, Command, SmsProviderResponse } from "@/types";
 import {
   Dialog,
@@ -73,6 +73,13 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     const status = deriveDeviceStatus(device.status);
     return status === "offline" || status === "unknown";
   }, [device]);
+
+  const { data: lastPosition } = useQuery({
+    queryKey: ["position", device?.id],
+    queryFn: () => (device ? getPositionByDevice(device.id) : Promise.reject()),
+    enabled: !!device?.id,
+    staleTime: 30_000,
+  });
 
   const { data: supportedCommandTypes = [] } = useQuery({
     queryKey: ["device-command-types", device?.id, useSms],
@@ -181,6 +188,9 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
           <p className="text-sm text-muted-foreground mt-1">
             {device.name}{device.plate ? ` · ${device.plate}` : ""}
           </p>
+          {lastPosition?.address && (
+            <p className="text-xs text-muted-foreground mt-1">{lastPosition.address}</p>
+          )}
         </DialogHeader>
 
         <div className="space-y-3 mt-2">

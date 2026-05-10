@@ -35,6 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import TableRowCheckbox from "@/components/ui/table-row-checkbox";
+import { useTableSelection } from "@/components/ui/table-selection-context";
 import {
   Select,
   SelectContent,
@@ -581,6 +583,46 @@ export default function VehiclesPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
+  const exportColumns = [
+    { header: "Placa", key: "plate" },
+    { header: "Endereço", key: "address" },
+    { header: "Nome", key: "name" },
+    { header: "IMEI", key: "uniqueId" },
+    { header: "Chip", key: "phone" },
+    { header: "Status", key: "status" },
+    { header: "Hodômetro (km)", key: "odometerKm" },
+    { header: "Última Atualização", key: "lastUpdate" },
+  ];
+
+  const exportData = filteredDevices.map((d) => ({
+    id: d.id,
+    plate: d.plate,
+    address: positionsMap.get(d.id)?.address || (positionsMap.get(d.id) ? `${positionsMap.get(d.id)!.latitude.toFixed(5)}, ${positionsMap.get(d.id)!.longitude.toFixed(5)}` : ""),
+    name: d.name,
+    uniqueId: d.uniqueId,
+    phone: d.phone,
+    status: d.status,
+    odometerKm: positionsMap.get(d.id)?.attributes?.totalDistance
+      ? (positionsMap.get(d.id)!.attributes.totalDistance / 1000).toFixed(1)
+      : "0",
+    lastUpdate: d.lastUpdate,
+  }));
+
+  const HeaderSelectAll: React.FC = () => {
+    const { selectedIds, selectAll } = useTableSelection();
+    const allSelected = exportData.length > 0 && selectedIds.size === exportData.length;
+    return (
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={(e) => selectAll(e.target.checked)}
+          className="w-4 h-4"
+        />
+      </label>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Mensagem de erro se houver */}
@@ -1078,6 +1120,10 @@ export default function VehiclesPage() {
         isEmpty={filteredDevices.length === 0}
         cardClassName="backdrop-blur-xl bg-card/90 border-border"
         contentClassName="pt-6"
+        exportData={exportData}
+        exportColumns={exportColumns}
+        filenamePrefix="veiculos"
+        requireSelectionForExport={true}
         loadingRows={5}
         skeletonClassName="h-16 w-full"
         emptyState={
@@ -1092,8 +1138,12 @@ export default function VehiclesPage() {
         <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className="w-12">
+                    <HeaderSelectAll />
+                  </TableHead>
                   <TableHead className="font-bold">Placa</TableHead>
                   <TableHead className="font-bold">Nome</TableHead>
+                  <TableHead className="font-bold">Endereço</TableHead>
                   <TableHead className="font-bold">IMEI / ID</TableHead>
                   <TableHead className="font-bold">Chip (SIM)</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
@@ -1114,6 +1164,9 @@ export default function VehiclesPage() {
                   return (
                     <Fragment key={device.id}>
                       <TableRow className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-950/20 dark:hover:to-purple-950/20 transition-all">
+                        <TableCell>
+                          <TableRowCheckbox id={device.id} />
+                        </TableCell>
                         <TableCell className="font-bold">
                           {device.plate}
                         </TableCell>
@@ -1124,6 +1177,22 @@ export default function VehiclesPage() {
                               {device.model}
                             </p>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const addr = position?.address;
+                            if (addr) {
+                              return <p className="text-xs text-muted-foreground truncate max-w-[220px]">{addr}</p>;
+                            }
+                            if (position) {
+                              return (
+                                <p className="text-xs text-muted-foreground">
+                                  {`${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`}
+                                </p>
+                              );
+                            }
+                            return <span className="text-xs text-muted-foreground">-</span>;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <code className="text-xs bg-muted px-2 py-1 rounded">
@@ -1271,7 +1340,7 @@ export default function VehiclesPage() {
                           key={`share-${device.id}`}
                           className="bg-green-500/[0.03] hover:bg-green-500/[0.05]"
                         >
-                          <TableCell colSpan={9} className="py-0">
+                          <TableCell colSpan={10} className="py-0">
                             <div className="py-2 px-3 space-y-1.5">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-[11px] font-semibold text-green-500 flex items-center gap-1.5">

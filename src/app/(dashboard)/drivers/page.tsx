@@ -26,6 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import TableRowCheckbox from "@/components/ui/table-row-checkbox";
+import { useTableSelection } from "@/components/ui/table-selection-context";
 import {
   Select,
   SelectContent,
@@ -170,6 +172,37 @@ export default function DriversPage() {
 
     return matchesSearch && matchesStatus;
   });
+
+  const exportColumns = [
+    { header: "Nome", key: "name" },
+    { header: "CPF", key: "document" },
+    { header: "CNH", key: "licenseNumber" },
+    { header: "Categoria", key: "licenseCategory" },
+    { header: "Validade CNH", key: "licenseExpiry" },
+    { header: "Telefone", key: "phone" },
+    { header: "Status", key: "status" },
+  ];
+
+  const exportData = filteredDrivers.map((d) => ({
+    id: d.id,
+    name: d.name,
+    document: d.document,
+    licenseNumber: d.licenseNumber,
+    licenseCategory: d.licenseCategory,
+    licenseExpiry: d.licenseExpiry,
+    phone: d.phone,
+    status: d.status,
+  }));
+
+  const HeaderSelectAll: React.FC = () => {
+    const { selectedIds, selectAll } = useTableSelection();
+    const allSelected = exportData.length > 0 && selectedIds.size === exportData.length;
+    return (
+      <label className="inline-flex items-center">
+        <input type="checkbox" checked={allSelected} onChange={(e) => selectAll(e.target.checked)} className="w-4 h-4" />
+      </label>
+    );
+  };
 
   const getStatusBadge = (status: Driver["status"]) => {
     switch (status) {
@@ -470,10 +503,13 @@ export default function DriversPage() {
       </Card>
 
       {/* Drivers Table */}
-      <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+      <DataTableCard isLoading={isLoading} contentClassName="pt-6" exportData={exportData} exportColumns={exportColumns} filenamePrefix="motoristas" requireSelectionForExport={true}>
         <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <HeaderSelectAll />
+                  </TableHead>
                   <TableHead>Motorista</TableHead>
                   <TableHead>CPF</TableHead>
                   <TableHead>CNH</TableHead>
@@ -487,13 +523,16 @@ export default function DriversPage() {
               <TableBody>
                 {filteredDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Nenhum motorista encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredDrivers.map((driver) => (
                     <TableRow key={driver.id}>
+                      <TableCell>
+                        <TableRowCheckbox id={driver.id} />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">

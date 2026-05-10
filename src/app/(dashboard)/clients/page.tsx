@@ -20,6 +20,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/page-header";
+import TableControls from "@/components/ui/table-controls";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -66,6 +68,7 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isPermSheetOpen, setIsPermSheetOpen] = useState(false);
   const [permSheetClient, setPermSheetClient] = useState<Client | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [formData, setFormData] = useState({
     name: "",
     document: "",
@@ -170,6 +173,45 @@ export default function ClientsPage() {
 
     return matchesSearch && matchesStatus && matchesPlan;
   });
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = (checked: boolean) => {
+    if (checked) setSelectedIds(new Set(filteredClients.map((c) => c.id)));
+    else setSelectedIds(new Set());
+  };
+
+  const exportColumns = [
+    { header: "Nome", key: "name" },
+    { header: "Documento", key: "document" },
+    { header: "Email", key: "email" },
+    { header: "Telefone", key: "phone" },
+    { header: "Plano", key: "plan" },
+    { header: "Status", key: "status" },
+    { header: "Veículos", key: "devicesCount" },
+    { header: "Cadastro", key: "createdAt" },
+  ];
+
+  const exportData = (Array.from(selectedIds).length > 0
+    ? filteredClients.filter((c) => selectedIds.has(c.id))
+    : filteredClients
+  ).map((c) => ({
+    name: c.name,
+    document: c.document,
+    email: c.email,
+    phone: c.phone,
+    plan: c.plan,
+    status: c.status,
+    devicesCount: c.devicesCount,
+    createdAt: formatDate(c.createdAt),
+  }));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -459,9 +501,24 @@ export default function ClientsPage() {
 
       {/* Clients Table */}
       <DataTableCard isLoading={isLoading} contentClassName="pt-6">
+        <TableControls
+          data={exportData}
+          columns={exportColumns}
+          allSelected={filteredClients.length > 0 && selectedIds.size === filteredClients.length}
+          onSelectAll={selectAll}
+          filenamePrefix="clientes"
+          requireSelection={true}
+          selectedCount={selectedIds.size}
+        />
         <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={filteredClients.length > 0 && selectedIds.size === filteredClients.length}
+                      onCheckedChange={(v) => selectAll(!!v)}
+                    />
+                  </TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Documento</TableHead>
                   <TableHead>Contato</TableHead>
@@ -475,13 +532,16 @@ export default function ClientsPage() {
               <TableBody>
                 {filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredClients.map((client) => (
-                    <TableRow key={client.id}>
+                    <TableRow key={client.id} data-state={selectedIds.has(client.id) ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox checked={selectedIds.has(client.id)} onCheckedChange={() => toggleSelect(client.id)} />
+                      </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{client.name}</div>

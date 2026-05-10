@@ -74,7 +74,8 @@ function getEventStyle(eventType: string): { color: string; gradient: string; ic
       return { color: "#8b5cf6", gradient: "linear-gradient(135deg, #8b5cf6, #7c3aed)", iconKey: "logOut" };
     case "deviceAlarm":
     case "alarm":
-      return { color: "#ef4444", gradient: "linear-gradient(135deg, #ef4444, #dc2626)", iconKey: "alertTriangle" };
+      // Use a less critical color for generic alarms; specific SOS will be handled elsewhere.
+      return { color: "#f59e0b", gradient: "linear-gradient(135deg, #f59e0b, #d97706)", iconKey: "alertTriangle" };
     case "ignitionOn":
       return { color: "#22c55e", gradient: "linear-gradient(135deg, #22c55e, #16a34a)", iconKey: "power" };
     case "ignitionOff":

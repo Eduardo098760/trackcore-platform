@@ -469,6 +469,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             body: text,
             targetUrl,
           };
+
+          // Caso específico: POST /notifications/test/{id} pode retornar 405
+          // dependendo da versão do Traccar. Tentar alternativas antes de falhar.
+          if (
+            upstream.status === 405 &&
+            req.method === "POST" &&
+            forwardPath.startsWith("notifications/test")
+          ) {
+            try {
+              const parts = forwardPath.split("/").filter(Boolean);
+              // parts e.g. ["notifications","test","228"]
+              const id = parts[2] || parts[1];
+              const altUrls: string[] = [];
+              if (id) {
+                // Try /notifications/{id}/test
+                altUrls.push(makeUrl(true, publicApiBase).replace(/\/api\//, "api/") + "" );
+                // we'll build explicit URL below
+                altUrls.length = 0; // reset to build custom
+                altUrls.push(`${publicApiBase}/notifications/${id}/test`);
+                if (internalApiBase) altUrls.push(`${internalApiBase}/notifications/${id}/test`);
+                // Also try GET on the original path
+                altUrls.push(`${publicApiBase}/notifications/test/${id}`);
+                if (internalApiBase) altUrls.push(`${internalApiBase}/notifications/test/${id}`);
+              }
+
+              for (const alt of altUrls) {
+                try {
+                  console.log("[traccar-proxy] trying alternative notification test URL:", alt);
+                  const altRes = await fetch(alt, { method: req.method, headers, body: requestBodyText });
+                  const altText = await altRes.text();
+                  if (altRes.status < 400) {
+                    res.status(altRes.status);
+                    res.setHeader("content-type", altRes.headers.get("content-type") || "application/json");
+                    return res.send(altText);
+                  }
+                } catch (altErr) {
+                  console.warn("[traccar-proxy] alternative attempt failed", alt, altErr?.message || altErr);
+                }
+              }
+            } catch (e) {
+              /* ignore and continue to original error flow */
+            }
+          }
+
           // 405 ainda pode ser apenas variante de rota incorreta.
           // Em commands/send, qualquer outro erro ja representa a validacao real do servidor.
           if (req.method === "POST" && forwardPath === "commands/send" && upstream.status !== 405) {

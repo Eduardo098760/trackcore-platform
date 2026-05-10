@@ -14,6 +14,28 @@ function parseOrganizationId(value: string | string[] | undefined) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const scope = await getRequestAccessScope(req);
 
+  // Debug helper: retorna informações limitadas sobre o usuário Traccar e o scope
+  if (req.query.debug === '1') {
+    try {
+      // obter usuário Traccar para diagnóstico (campos limitados)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getCurrentTraccarUser } = require('@/lib/server/traccar-server');
+      const user = await getCurrentTraccarUser(req as any).catch(() => null);
+      const minimal = user
+        ? {
+            id: user.id,
+            clientId: user.clientId || null,
+            organizationId: user.organizationId || null,
+            role: user.attributes?.role || null,
+          }
+        : null;
+
+      return res.status(200).json({ debug: true, scope, user: minimal });
+    } catch (e) {
+      return res.status(500).json({ error: 'Erro ao coletar debug', detail: String(e) });
+    }
+  }
+
   if (req.method === 'GET') {
     const requestedOrganizationId = parseOrganizationId(req.query.organizationId);
     const organizationId = scope.isAdmin && scope.organizationId == null

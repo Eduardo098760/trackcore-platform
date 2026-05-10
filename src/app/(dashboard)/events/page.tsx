@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { Event, Device } from "@/types";
 import { toast } from "sonner";
-import { getEventTypeLabel } from "@/lib/utils";
+import { getEventDisplayLabel, getEventTypeLabel } from "@/lib/utils";
 import {
   EventFilters,
   EventList,
@@ -174,7 +174,7 @@ export default function EventsPage() {
             currentLatitude: currentLat,
             currentLongitude: currentLng,
             timestamp: event.serverTime,
-            label: getEventTypeLabel(event.type),
+            label: getEventDisplayLabel(event),
           };
 
           try {

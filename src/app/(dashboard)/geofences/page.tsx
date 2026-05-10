@@ -32,6 +32,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/ui/page-header";
 import {
+  emitGeofenceAssignmentsChanged,
+  emitGeofenceCollectionChanged,
+  useGeofenceSync,
+} from "@/lib/hooks/useGeofenceSync";
+import {
   Trash2,
   Edit,
   Plus,
@@ -74,6 +79,7 @@ const GeofenceDrawMap = dynamic(() => import("./geofence-draw-map"), {
 });
 
 export default function GeofencesPage() {
+  useGeofenceSync();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -133,6 +139,21 @@ export default function GeofencesPage() {
   const { data: positions = [] } = useQuery<Position[]>({
     queryKey: ["positions"],
     queryFn: () => getPositions(),
+  });
+
+  const { data: geofenceDeviceCounts = {} } = useQuery<Record<number, number>>({
+    queryKey: ["geofence-device-counts", geofences.map((geofence) => geofence.id).join(",")],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        geofences.map(async (geofence) => {
+          const deviceIds = await getDevicesForGeofence(geofence.id);
+          return [geofence.id, deviceIds.length] as const;
+        }),
+      );
+      return Object.fromEntries(entries);
+    },
+    enabled: geofences.length > 0,
+    staleTime: 30_000,
   });
 
   const previewVehicles = (selectedDeviceIds.length > 0
@@ -213,12 +234,9 @@ export default function GeofencesPage() {
     };
   };
 
-  // Calcula contagem de veículos por cerca a partir dos attributes (sem chamada extra à API)
+  // Calcula contagem real de vínculos por cerca a partir do Traccar
   const getGeofenceVehicleCount = (geofence: Geofence): number => {
-    if (geofence.attributes?.assignToAll === true) return devices.length;
-    const ids = geofence.attributes?.linkedDeviceIds;
-    if (Array.isArray(ids)) return ids.length;
-    return 0;
+    return geofenceDeviceCounts[geofence.id] ?? 0;
   };
 
   const getGeofenceTypeLabel = (type: GeofenceType) => {
@@ -331,6 +349,7 @@ export default function GeofencesPage() {
       ...toAdd.map((did) => assignGeofenceToDevice(did, geofenceId)),
       ...toRemove.map((did) => removeGeofenceFromDevice(did, geofenceId)),
     ]);
+    emitGeofenceAssignmentsChanged({ geofenceId, source: "geofences-page" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -407,6 +426,10 @@ export default function GeofencesPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["geofences"] });
       queryClient.invalidateQueries({ queryKey: ["geofence-device-counts"] });
+      emitGeofenceCollectionChanged({
+        geofenceId: savedGeofence.id,
+        source: "geofences-page",
+      });
       resetForm();
       setIsEditorOpen(false);
       focusGeofence(savedGeofence);
@@ -485,6 +508,7 @@ export default function GeofencesPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["geofences"] });
       queryClient.invalidateQueries({ queryKey: ["geofence-device-counts"] });
+      emitGeofenceCollectionChanged({ geofenceId: id, source: "geofences-page" });
       toast.success("Cerca removida com sucesso!");
     } catch {
       toast.error("Erro ao remover cerca");
@@ -737,7 +761,7 @@ export default function GeofencesPage() {
             ) : (
               geofences.map((geofence) => {
                 const vehicleCount = getGeofenceVehicleCount(geofence);
-                const isAll = geofence.attributes?.assignToAll === true;
+                const isAll = devices.length > 0 && vehicleCount >= devices.length;
                 const isSelected = selectedGeofenceId === geofence.id;
 
                 return (
@@ -780,17 +804,12 @@ export default function GeofencesPage() {
                               Inativa
                             </span>
                           )}
-                          <span
-                            className={`text-xs flex items-center gap-1 font-medium ${
-                              isAll || vehicleCount > 0
-                                ? "text-blue-400"
-                                : "text-muted-foreground"
-                            }`}
-                          >
+                          <span className={`text-xs flex items-center gap-1 font-medium ${isAll || vehicleCount > 0 ? "text-blue-400" : "text-muted-foreground"}`}>
                             <Car className="w-3 h-3" />
-                            {isAll
-                              ? `${devices.length} / ${devices.length}`
-                              : `${vehicleCount} / ${devices.length}`}
+                            <span>Vínculos</span>
+                            <span>
+                              {isAll ? `${devices.length} / ${devices.length}` : `${vehicleCount} / ${devices.length}`}
+                            </span>
                           </span>
                         </div>
                       </div>

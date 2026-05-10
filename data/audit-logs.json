@@ -1,5 +1,82 @@
 [
   {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-09T20:28:46.713Z",
+    "id": 32
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "timestamp": "2026-05-08T22:38:36.506Z",
+    "id": 31
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGOUT",
+    "resource": "auth",
+    "details": "Logout realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "timestamp": "2026-05-08T22:38:30.089Z",
+    "id": 30
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "timestamp": "2026-05-08T22:38:05.487Z",
+    "id": 29
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGOUT",
+    "resource": "auth",
+    "details": "Logout realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "timestamp": "2026-05-08T22:37:50.201Z",
+    "id": 28
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-08T22:33:16.073Z",
+    "id": 27
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-08T00:23:29.026Z",
+    "id": 26
+  },
+  {
     "userId": 1,
     "userName": "Marcos Moraes Silva",
     "action": "LOGIN",

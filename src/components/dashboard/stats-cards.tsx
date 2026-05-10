@@ -138,8 +138,8 @@ export function StatsCards({ stats, showPrimary = true, showSecondary = true }: 
           className={`absolute top-0 right-0 w-24 h-24 ${!card.dynamic ? `bg-gradient-to-br ${card.gradient}` : ""} opacity-10 blur-2xl group-hover:opacity-20 transition-opacity`}
           style={card.dynamic ? gradientStyle : {}}
         ></div>
-        <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4 relative z-10">
-          <CardTitle className="text-xs font-medium text-muted-foreground">
+        <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4 relative z-10 min-w-0">
+          <CardTitle className="text-xs font-medium text-muted-foreground truncate">
             {card.title}
           </CardTitle>
           {(() => {
@@ -161,7 +161,7 @@ export function StatsCards({ stats, showPrimary = true, showSecondary = true }: 
         </CardHeader>
         <CardContent className="relative z-10 pb-4 px-4 pt-0">
           <div
-            className={`text-2xl font-bold ${!card.dynamic ? `bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent` : "text-foreground"}`}
+            className={`text-2xl font-bold break-words truncate ${!card.dynamic ? `bg-gradient-to-r ${card.gradient} bg-clip-text text-transparent` : "text-foreground"}`}
             style={card.dynamic ? { color: `hsl(${colors.primary.light})` } : {}}
           >
             {card.value}
