@@ -10,6 +10,11 @@
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
+    "types": [
+      "node",
+      "react",
+      "react-dom"
+    ],
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

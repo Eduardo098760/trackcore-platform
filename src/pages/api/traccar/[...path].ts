@@ -505,7 +505,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     return res.send(altText);
                   }
                 } catch (altErr) {
-                  console.warn("[traccar-proxy] alternative attempt failed", alt, altErr?.message || altErr);
+                  const altErrMessage = altErr instanceof Error ? altErr.message : String(altErr);
+                  console.warn("[traccar-proxy] alternative attempt failed", alt, altErrMessage);
                 }
               }
             } catch (e) {

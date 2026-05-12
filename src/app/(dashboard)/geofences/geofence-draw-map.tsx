@@ -60,6 +60,12 @@ interface MapViewportTarget {
   requestKey?: number;
 }
 
+type MarkerDragEndEvent = {
+  target: {
+    getLatLng: () => { lat: number; lng: number };
+  };
+};
+
 export interface ParsedGeofenceItem {
   id: number;
   name: string;
@@ -239,15 +245,15 @@ function MapSearchBar() {
         maxWidth: 420,
         margin: '0 auto',
       }}
-      onKeyDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+      onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+      onDoubleClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
     >
       <div style={{ position: 'relative' }}>
         <input
           type="text"
           value={query}
-          onChange={(e) => handleInput(e.target.value)}
+          onChange={(e: { target: { value: string } }) => handleInput(e.target.value)}
           onFocus={() => results.length > 0 && setShowResults(true)}
           placeholder="Buscar local no mapa..."
           style={{
@@ -288,8 +294,9 @@ function MapSearchBar() {
           overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
         }}>
-          {results.map((r, i) => (
+          {results.map((r: SearchResult, i: number) => (
             <button
+              type="button"
               key={i}
               onClick={() => handleSelect(r)}
               style={{
@@ -304,8 +311,8 @@ function MapSearchBar() {
                 cursor: 'pointer',
                 lineHeight: 1.4,
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#374151'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+              onMouseEnter={(e: { currentTarget: HTMLButtonElement }) => { e.currentTarget.style.background = '#374151'; }}
+              onMouseLeave={(e: { currentTarget: HTMLButtonElement }) => { e.currentTarget.style.background = 'transparent'; }}
             >
               <div style={{ fontWeight: 600, color: '#e5e7eb', marginBottom: 2 }}>
                 {r.display_name.split(',')[0]}
@@ -348,9 +355,9 @@ function VehicleVisibilityControl({
         gap: 8,
         width: 280,
       }}
-      onKeyDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+      onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+      onDoubleClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
     >
       <button
         type="button"
@@ -664,7 +671,7 @@ export default function GeofenceDrawMap({
     } catch {}
   }, []);
 
-  const selectedLayer = TILE_LAYERS[mapStyle];
+  const selectedLayer = TILE_LAYERS[mapStyle as TileLayerKey] ?? TILE_LAYERS.dark;
   const circleRadiusHandlePosition =
     type === 'circle' && circleCenter && circleRadius > 0
       ? getCircleRadiusHandlePosition(circleCenter, circleRadius)
@@ -674,6 +681,7 @@ export default function GeofenceDrawMap({
     <MapContainer
       center={[-23.5505, -46.6333]}
       zoom={13}
+      maxZoom={20}
       style={{ height: '100%', width: '100%' }}
       className="z-0"
       ref={mapRef}
@@ -681,8 +689,8 @@ export default function GeofenceDrawMap({
       <TileLayer
         attribution={selectedLayer.attribution}
         url={selectedLayer.url}
-        subdomains={selectedLayer.subdomains}
         maxNativeZoom={selectedLayer.maxNativeZoom}
+        {...(selectedLayer.subdomains ? { subdomains: selectedLayer.subdomains } : {})}
       />
       <InitialViewportController target={initialViewportTarget} />
 
@@ -712,7 +720,7 @@ export default function GeofenceDrawMap({
         showVehicles={showVehicles}
         vehicleCount={vehicles.length}
         prioritizeSelectedVehicles={prioritizeSelectedVehicles}
-        onToggle={() => setShowVehicles((current) => !current)}
+        onToggle={() => setShowVehicles((current: boolean) => !current)}
         onFocusVehicles={() => {
           if (!mapRef.current) return;
           focusMapOnVehicles(mapRef.current, vehicles);
@@ -728,7 +736,7 @@ export default function GeofenceDrawMap({
           position={point}
           draggable
           eventHandlers={{
-            dragend: (event) => {
+            dragend: (event: MarkerDragEndEvent) => {
               const latlng = event.target.getLatLng();
               onPointDrag(idx, [latlng.lat, latlng.lng]);
             },
@@ -767,7 +775,7 @@ export default function GeofenceDrawMap({
           position={circleCenter}
           draggable
           eventHandlers={{
-            dragend: (event) => {
+            dragend: (event: MarkerDragEndEvent) => {
               const latlng = event.target.getLatLng();
               onCircleCenterDrag([latlng.lat, latlng.lng]);
             },
@@ -780,7 +788,7 @@ export default function GeofenceDrawMap({
           position={circleCenter}
           draggable
           eventHandlers={{
-            dragend: (event) => {
+            dragend: (event: MarkerDragEndEvent) => {
               const latlng = event.target.getLatLng();
               onCircleCenterDrag([latlng.lat, latlng.lng]);
             },
@@ -793,7 +801,7 @@ export default function GeofenceDrawMap({
           position={circleRadiusHandlePosition}
           draggable
           eventHandlers={{
-            dragend: (event) => {
+            dragend: (event: MarkerDragEndEvent) => {
               const latlng = event.target.getLatLng();
               onCircleRadiusDrag([latlng.lat, latlng.lng]);
             },

@@ -209,6 +209,37 @@ export default function GeofencesPage() {
       ? coordinates.slice(0, -1)
       : coordinates;
 
+  const buildPolygonAreaFromPoints = (points: [number, number][]) => {
+    const normalizedPoints = normalizePolygonCoordinates(points);
+    if (normalizedPoints.length < 3) return null;
+
+    const wktPoints = normalizedPoints
+      .map((point) => `${point[0]} ${point[1]}`)
+      .join(", ");
+    const firstPoint = normalizedPoints[0];
+    return `POLYGON((${wktPoints}, ${firstPoint[0]} ${firstPoint[1]}))`;
+  };
+
+  const buildCircleAreaFromGeometry = (
+    center: [number, number] | null,
+    radius: number,
+  ) => {
+    if (!center || radius <= 0) return null;
+    return `CIRCLE((${center[0]} ${center[1]}),${radius.toFixed(2)})`;
+  };
+
+  const buildCanonicalAreaFromGeometry = () => {
+    if (formData.type === "circle") {
+      return buildCircleAreaFromGeometry(circleCenter, circleRadius);
+    }
+
+    if (formData.type === "rectangle" || formData.type === "polygon") {
+      return buildPolygonAreaFromPoints(drawingPoints);
+    }
+
+    return null;
+  };
+
   const buildViewportTargetFromArea = (
     area: string,
   ): MapViewportTarget | null => {
@@ -316,6 +347,7 @@ export default function GeofencesPage() {
         type: "circle",
         center: parsed.center,
         radius: parsed.radius,
+        requestKey: ++focusRequestRef.current,
       });
       return;
     }
@@ -372,16 +404,14 @@ export default function GeofencesPage() {
       return;
     }
 
-    if (!formData.area && drawingPoints.length === 0 && !circleCenter) {
+    const canonicalArea = buildCanonicalAreaFromGeometry();
+
+    if (!canonicalArea) {
       toast.error("Desenhe uma area no mapa primeiro");
       return;
     }
-    if (formData.type === "polygon" && drawingPoints.length > 0 && !formData.area) {
+    if (formData.type === "polygon" && drawingPoints.length < 3) {
       toast.error("Adicione pelo menos 3 pontos para formar o poligono");
-      return;
-    }
-    if (formData.type === "circle" && circleCenter && !formData.area) {
-      toast.error("Clique novamente no mapa para definir o raio");
       return;
     }
     if (formData.type === "rectangle" && drawingPoints.length === 1) {
@@ -400,6 +430,7 @@ export default function GeofencesPage() {
       const geofencePayload = {
         ...formData,
         name: trimmedName,
+        area: canonicalArea,
         clientId: 1,
         assignToAll,
         linkedDeviceIds: assignToAll ? [] : selectedDeviceIds,
@@ -534,9 +565,10 @@ export default function GeofencesPage() {
           Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
         const radius = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         setCircleRadius(radius);
+        const area = buildCircleAreaFromGeometry(circleCenter, radius);
         setFormData((prev) => ({
           ...prev,
-          area: `CIRCLE((${circleCenter[1]} ${circleCenter[0]}),${radius.toFixed(2)})`,
+          area: area || prev.area,
         }));
         toast.success(`Circulo criado com raio de ${radius.toFixed(0)}m`);
       }
@@ -554,10 +586,10 @@ export default function GeofencesPage() {
           [p2[0], p1[1]],
         ];
         setDrawingPoints(rect);
-        const wktPoints = rect.map((p) => `${p[1]} ${p[0]}`).join(", ");
+        const area = buildPolygonAreaFromPoints(rect);
         setFormData((prev) => ({
           ...prev,
-          area: `POLYGON((${wktPoints}, ${rect[0][1]} ${rect[0][0]}))`,
+          area: area || prev.area,
         }));
         toast.success("Retangulo criado");
       }
@@ -586,12 +618,12 @@ export default function GeofencesPage() {
 
   const updatePolygonArea = (points: [number, number][]) => {
     setDrawingPoints(points);
-    if (points.length < 3) return;
+    const area = buildPolygonAreaFromPoints(points);
+    if (!area) return;
 
-    const wktPoints = points.map((p) => `${p[1]} ${p[0]}`).join(", ");
     setFormData((prev) => ({
       ...prev,
-      area: `POLYGON((${wktPoints}, ${points[0][1]} ${points[0][0]}))`,
+      area,
     }));
   };
 
@@ -610,10 +642,10 @@ export default function GeofencesPage() {
     ];
     setDrawingPoints(rect);
 
-    const wktPoints = rect.map((p) => `${p[1]} ${p[0]}`).join(", ");
+    const area = buildPolygonAreaFromPoints(rect);
     setFormData((prev) => ({
       ...prev,
-      area: `POLYGON((${wktPoints}, ${rect[0][1]} ${rect[0][0]}))`,
+      area: area || prev.area,
     }));
   };
 
@@ -634,9 +666,10 @@ export default function GeofencesPage() {
     setCircleCenter(point);
     if (!circleRadius) return;
 
+    const area = buildCircleAreaFromGeometry(point, circleRadius);
     setFormData((prev) => ({
       ...prev,
-      area: `CIRCLE((${point[1]} ${point[0]}),${circleRadius.toFixed(2)})`,
+      area: area || prev.area,
     }));
   };
 
@@ -657,9 +690,10 @@ export default function GeofencesPage() {
     );
 
     setCircleRadius(radius);
+    const area = buildCircleAreaFromGeometry(circleCenter, radius);
     setFormData((prev) => ({
       ...prev,
-      area: `CIRCLE((${circleCenter[1]} ${circleCenter[0]}),${radius.toFixed(2)})`,
+      area: area || prev.area,
     }));
   };
 
@@ -873,6 +907,7 @@ export default function GeofencesPage() {
               {!isEditorOpen && selectedGeofence && (
                 <Button
                   variant="outline"
+                  className="shrink-0 min-w-fit"
                   onClick={() => void handleEdit(selectedGeofence)}
                 >
                   <Edit className="h-4 w-4 mr-2" />
@@ -882,6 +917,7 @@ export default function GeofencesPage() {
               {isEditorOpen ? (
                 <Button
                   variant="outline"
+                  className="shrink-0 min-w-fit"
                   onClick={() => {
                     resetForm();
                     setIsEditorOpen(false);

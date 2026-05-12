@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getEvents, getDevices, getPositions } from "@/lib/api";
+import { getEvents, getDevices, getPositions, getPositionById } from "@/lib/api";
+import { getGeofences } from "@/lib/api/geofences";
 import { notificationManager } from "@/lib/notifications";
-import { Device, Event, SpeedAlert } from "@/types";
-import { normalizeEventType } from "@/lib/utils";
+import { Device, Event, Geofence, Position, SpeedAlert } from "@/types";
+import { parseWKT } from "@/lib/parse-wkt";
+import { getEventDisplayLabel, normalizeEventType } from "@/lib/utils";
 
 /**
  * Hook que monitora eventos do Traccar e dispara notificações automaticamente
@@ -26,6 +28,7 @@ export function useEventNotifications(enabled: boolean = true) {
   // Rastreia o último estado notificado por dispositivo para eventos de estado.
   // Ex: { 42: 'deviceBlocked' } → já notificamos que o device 42 está bloqueado.
   const deviceStateNotified = useRef<Map<number, string>>(new Map());
+  const geofenceStateByDeviceRef = useRef<Map<string, boolean>>(new Map());
 
   // Buscar lista de dispositivos para resolver nome + placa
   const { data: devices = [] } = useQuery<Device[]>({
@@ -55,6 +58,23 @@ export function useEventNotifications(enabled: boolean = true) {
     },
     enabled,
     refetchInterval: 30_000, // Verificar a cada 30 segundos
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: positions = [] } = useQuery<Position[]>({
+    queryKey: ["positions", "recent-for-notifications"],
+    queryFn: () => getPositions(),
+    enabled,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: geofences = [] } = useQuery<Geofence[]>({
+    queryKey: ["geofences", "recent-for-notifications"],
+    queryFn: () => getGeofences(),
+    enabled,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -102,6 +122,59 @@ export function useEventNotifications(enabled: boolean = true) {
       processedEvents.current = new Set(eventsArray.slice(-200));
     }
   }, [events, devices]);
+
+  // Detector local de transição em cerca: cobre o caso em que o evento do Traccar
+  // não chega ou chega sem o subtipo correto.
+  useEffect(() => {
+    if (!enabled || positions.length === 0 || geofences.length === 0 || devices.length === 0) return;
+
+    const positionByDeviceId = new Map(positions.map((position) => [position.deviceId, position]));
+    const deviceIdSet = new Set(devices.map((device) => device.id));
+
+    const syntheticEvents: Event[] = [];
+
+    for (const geofence of geofences) {
+      if (geofence.active === false) continue;
+
+      const linkedDeviceIds = getLinkedDeviceIdsForGeofence(geofence, deviceIdSet);
+      if (linkedDeviceIds.length === 0) continue;
+
+      for (const deviceId of linkedDeviceIds) {
+        const position = positionByDeviceId.get(deviceId);
+        if (!position) continue;
+
+        const isInside = isPositionInsideGeofence(position, geofence);
+        const stateKey = `${deviceId}:${geofence.id}`;
+        const previousState = geofenceStateByDeviceRef.current.get(stateKey);
+
+        geofenceStateByDeviceRef.current.set(stateKey, isInside);
+
+        if (previousState === undefined || previousState === isInside) continue;
+
+        syntheticEvents.push({
+          id: -Math.abs(Date.now() + deviceId * 1000 + geofence.id),
+          type: isInside ? "geofenceEnter" : "geofenceExit",
+          deviceId,
+          positionId: position.id,
+          address: position.address,
+          serverTime: position.serverTime || position.fixTime || new Date().toISOString(),
+          attributes: {
+            geofenceId: geofence.id,
+            geofenceName: geofence.name,
+            geofence: geofence.name,
+            originalType: "geofence",
+          },
+          resolved: false,
+        });
+      }
+    }
+
+    if (syntheticEvents.length === 0) return;
+
+    syntheticEvents.forEach((event) => {
+      void processEvent(event, devices);
+    });
+  }, [enabled, positions, geofences, devices]);
 
   // ── WebSocket real-time: processar eventos imediatamente ──
   useEffect(() => {
@@ -331,6 +404,10 @@ async function processEvent(event: Event, devices: Device[] = []) {
   );
   if (!notificationData) return;
 
+  if (normalizedEventType === "geofenceEnter" || normalizedEventType === "geofenceExit") {
+    await registerGeofenceEventAlert(event, devices, displayName, normalizedEventType);
+  }
+
   notificationManager.addNotification({
     type: notificationData.type,
     title: notificationData.title,
@@ -343,6 +420,107 @@ async function processEvent(event: Event, devices: Device[] = []) {
     longitude,
     speedAlertId,
   });
+}
+
+async function registerGeofenceEventAlert(
+  event: Event,
+  devices: Device[],
+  displayName: string,
+  normalizedEventType: "geofenceEnter" | "geofenceExit",
+) {
+  try {
+    const matchedDevice = devices.find((d) => d.id === event.deviceId);
+    const position = event.positionId
+      ? await getPositionById(event.positionId)
+      : null;
+    const fallbackPosition = position || (await getPositions({ deviceId: event.deviceId })).at(0) || null;
+    if (!fallbackPosition) return;
+
+    const eventMarker = {
+      id: `event-${event.id}`,
+      eventType: normalizedEventType,
+      deviceId: event.deviceId,
+      deviceName: matchedDevice?.plate || matchedDevice?.uniqueId || displayName,
+      vehicleName: matchedDevice?.name,
+      latitude: fallbackPosition.latitude,
+      longitude: fallbackPosition.longitude,
+      currentLatitude: fallbackPosition.latitude,
+      currentLongitude: fallbackPosition.longitude,
+      timestamp: event.serverTime,
+      label: getEventDisplayLabel(event),
+    };
+
+    try {
+      const stored = localStorage.getItem("eventAlerts");
+      const alerts = stored ? JSON.parse(stored) : [];
+      const filtered = alerts.filter((a: { id: string }) => a.id !== eventMarker.id);
+      filtered.unshift(eventMarker);
+      localStorage.setItem("eventAlerts", JSON.stringify(filtered.slice(0, 50)));
+      window.dispatchEvent(new CustomEvent("eventAlertAdded", { detail: eventMarker }));
+    } catch (storageErr) {
+      console.error("[GeofenceAlert] Erro ao salvar no localStorage:", storageErr);
+    }
+  } catch (error) {
+    console.error("[GeofenceAlert] Erro ao registrar alerta de cerca:", error);
+  }
+}
+
+function getLinkedDeviceIdsForGeofence(geofence: Geofence, knownDeviceIds: Set<number>): number[] {
+  if (geofence.assignToAll) {
+    return Array.from(knownDeviceIds);
+  }
+
+  const explicitIds = Array.isArray(geofence.linkedDeviceIds) ? geofence.linkedDeviceIds : [];
+  if (explicitIds.length > 0) {
+    return explicitIds.filter((deviceId) => knownDeviceIds.has(deviceId));
+  }
+
+  const attrIds = geofence.attributes?.linkedDeviceIds;
+  if (Array.isArray(attrIds) && attrIds.length > 0) {
+    return (attrIds as number[]).filter((deviceId) => knownDeviceIds.has(deviceId));
+  }
+
+  return [];
+}
+
+function isPositionInsideGeofence(position: Position, geofence: Geofence): boolean {
+  const parsed = parseWKT(geofence.area);
+  if (!parsed) return false;
+
+  if (parsed.type === "circle" && parsed.center && parsed.radius) {
+    const earthRadius = 6_371_000;
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const lat1 = toRad(position.latitude);
+    const lat2 = toRad(parsed.center[0]);
+    const deltaLat = toRad(parsed.center[0] - position.latitude);
+    const deltaLng = toRad(parsed.center[1] - position.longitude);
+    const a =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+    const distance = 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return distance <= parsed.radius;
+  }
+
+  if (parsed.type === "polygon" && parsed.coordinates && parsed.coordinates.length >= 3) {
+    const x = position.longitude;
+    const y = position.latitude;
+    let inside = false;
+
+    for (let i = 0, j = parsed.coordinates.length - 1; i < parsed.coordinates.length; j = i++) {
+      const xi = parsed.coordinates[i][1];
+      const yi = parsed.coordinates[i][0];
+      const xj = parsed.coordinates[j][1];
+      const yj = parsed.coordinates[j][0];
+      const intersects =
+        yi > y !== yj > y &&
+        x < ((xj - xi) * (y - yi)) / (yj - yi || 1e-12) + xi;
+      if (intersects) inside = !inside;
+    }
+
+    return inside;
+  }
+
+  return false;
 }
 
 /**

@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TrendingUp, Gauge, Route, AlertTriangle, Fuel, MapPin, Activity, Zap } from "lucide-react";
-import type { Device, Position, Event } from "@/types";
+import type { Device, Position, Event, EventAlert } from "@/types";
 
 interface FleetKpiProps {
   devices: Device[];
@@ -39,8 +39,21 @@ const PERIOD_OPTIONS: Array<{ value: FleetKpiPeriod; label: string; ms: number }
   { value: "30d", label: "Últimos 30 dias", ms: 30 * 24 * 60 * 60 * 1000 },
 ];
 
+function loadStoredEventAlerts(): EventAlert[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem("eventAlerts");
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as EventAlert[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<FleetKpiPeriod>("7d");
+  const [localEventAlerts, setLocalEventAlerts] = useState<EventAlert[]>(() => loadStoredEventAlerts());
 
   useEffect(() => {
     try {
@@ -56,12 +69,40 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
     [selectedPeriod],
   );
 
+  useEffect(() => {
+    const syncEventAlerts = () => {
+      setLocalEventAlerts(loadStoredEventAlerts());
+    };
+
+    window.addEventListener("eventAlertAdded", syncEventAlerts);
+    window.addEventListener("eventAlertsCleared", syncEventAlerts);
+    window.addEventListener("storage", syncEventAlerts);
+
+    return () => {
+      window.removeEventListener("eventAlertAdded", syncEventAlerts);
+      window.removeEventListener("eventAlertsCleared", syncEventAlerts);
+      window.removeEventListener("storage", syncEventAlerts);
+    };
+  }, []);
+
   const kpis = useMemo<KpiItem[]>(() => {
     const periodStart = Date.now() - periodMeta.ms;
     const filteredEvents = events.filter((event) => {
       const eventTime = new Date(event.serverTime).getTime();
       return Number.isFinite(eventTime) && eventTime >= periodStart;
     });
+
+    const localGeofenceEvents = localEventAlerts.filter((alert: EventAlert) => {
+      const alertTime = new Date(alert.timestamp).getTime();
+      if (!Number.isFinite(alertTime) || alertTime < periodStart) return false;
+      return (
+        alert.eventType === "geofenceEnter" ||
+        alert.eventType === "geofenceExit" ||
+        alert.eventType === "geofence"
+      );
+    });
+
+    const localDeviceIds = new Set(devices.map((device) => device.id));
 
     // Fleet utilization: devices that are online or moving / total
     const activeDevices = devices.filter(
@@ -100,6 +141,9 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
     const geofenceEvents = filteredEvents.filter(
       (e) => e.type === "geofenceEnter" || e.type === "geofenceExit" || e.type === "geofence",
     ).length;
+
+    const localGeofenceEventsCount = localGeofenceEvents.filter((alert: EventAlert) => localDeviceIds.has(alert.deviceId)).length;
+    const totalGeofenceEvents = geofenceEvents + localGeofenceEventsCount;
 
     const fuelAlerts = filteredEvents.filter(
       (e) => e.type === "fuelDrop" || e.type === "fuelIncrease",
@@ -147,9 +191,9 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
       },
       {
         label: "Eventos Geocerca",
-        value: `${geofenceEvents}`,
+        value: `${totalGeofenceEvents}`,
         subtext: "Entradas e saídas",
-        basis: `Base: eventos filtrados em ${periodMeta.label.toLowerCase()}`,
+        basis: `Base: eventos filtrados em ${periodMeta.label.toLowerCase()} + alertas locais`,
         icon: MapPin,
         color: "text-cyan-500",
         bgColor: "bg-cyan-500/10",
@@ -182,7 +226,7 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
         bgColor: "bg-green-500/10",
       },
     ];
-  }, [devices, positions, events, periodMeta]);
+  }, [devices, positions, events, periodMeta, localEventAlerts]);
 
   const handlePeriodChange = (value: string) => {
     const nextValue = value as FleetKpiPeriod;
@@ -221,7 +265,7 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {kpis.map((kpi) => {
+          {kpis.map((kpi: KpiItem) => {
             const Icon = kpi.icon;
             return (
               <div

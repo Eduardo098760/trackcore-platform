@@ -250,12 +250,17 @@ export async function getEvents(params?: {
 
     return events.map((event) => {
       const normalizedType = normalizeEventType(event);
+      const rawTimestamp =
+        event.serverTime ||
+        (event as { eventTime?: string }).eventTime ||
+        (event as { createdAt?: string }).createdAt ||
+        (event as { time?: string }).time;
       return {
         ...event,
         // Não resolver endereço por posição: usamos apenas o address já presente
         address: event.address || undefined,
-        // Preferir serverTime do evento; se ausente, usar timestamp atual
-        serverTime: event.serverTime || new Date().toISOString(),
+        // Preferir o timestamp real do evento; se ausente, usar timestamp atual como último fallback
+        serverTime: rawTimestamp || new Date().toISOString(),
         type: normalizedType,
         resolved: event.resolved || resolvedIds.includes(event.id),
         attributes: {

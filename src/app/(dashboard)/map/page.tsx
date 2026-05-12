@@ -1224,9 +1224,9 @@ export default function MapPage() {
                     positions={smooth}
                     pathOptions={{
                       color: trailColor,
-                      weight: 4,
+                      weight: 4.5,
                       opacity: 0.95,
-                      dashArray: "6, 8",
+                      dashArray: "8, 4",
                       lineCap: "round",
                       lineJoin: "round",
                     }}

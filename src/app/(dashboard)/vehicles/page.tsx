@@ -594,19 +594,27 @@ export default function VehiclesPage() {
     { header: "Última Atualização", key: "lastUpdate" },
   ];
 
-  const exportData = filteredDevices.map((d) => ({
-    id: d.id,
-    plate: d.plate,
-    address: positionsMap.get(d.id)?.address || (positionsMap.get(d.id) ? `${positionsMap.get(d.id)!.latitude.toFixed(5)}, ${positionsMap.get(d.id)!.longitude.toFixed(5)}` : ""),
-    name: d.name,
-    uniqueId: d.uniqueId,
-    phone: d.phone,
-    status: d.status,
-    odometerKm: positionsMap.get(d.id)?.attributes?.totalDistance
-      ? (positionsMap.get(d.id)!.attributes.totalDistance / 1000).toFixed(1)
-      : "0",
-    lastUpdate: d.lastUpdate,
-  }));
+  const exportData = filteredDevices.map((d) => {
+    const vehiclePosition = positionsMap.get(d.id);
+
+    return {
+      id: d.id,
+      plate: d.plate,
+      address:
+        vehiclePosition?.address ||
+        (vehiclePosition
+          ? `${vehiclePosition.latitude.toFixed(5)}, ${vehiclePosition.longitude.toFixed(5)}`
+          : ""),
+      name: d.name,
+      uniqueId: d.uniqueId,
+      phone: d.phone,
+      status: d.status,
+      odometerKm: vehiclePosition?.attributes?.totalDistance
+        ? (vehiclePosition.attributes.totalDistance / 1000).toFixed(1)
+        : "0",
+      lastUpdate: d.lastUpdate,
+    };
+  });
 
   const HeaderSelectAll: React.FC = () => {
     const { selectedIds, selectAll } = useTableSelection();

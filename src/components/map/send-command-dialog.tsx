@@ -30,6 +30,18 @@ const COMMAND_TYPES = BASE_COMMAND_TYPES;
 const STORAGE_KEY = "commandHistory";
 const MAX_HISTORY = 50;
 
+type SendCommandVariables = {
+  deviceId: number;
+  type: string;
+  attributes?: Record<string, unknown>;
+  textChannel?: boolean;
+};
+
+type CommandError = {
+  message?: string;
+  details?: string | { message?: string };
+};
+
 function addToLocalHistory(
   deviceId: number,
   type: string,
@@ -76,7 +88,12 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
 
   const { data: lastPosition } = useQuery({
     queryKey: ["position", device?.id],
-    queryFn: () => (device ? getPositionByDevice(device.id) : Promise.reject()),
+    queryFn: () => {
+      if (!device) {
+        throw new Error("Device not available");
+      }
+      return getPositionByDevice(device.id);
+    },
     enabled: !!device?.id,
     staleTime: 30_000,
   });
@@ -87,7 +104,10 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     enabled: !!device?.id,
   });
 
-  const supportedCommands = useMemo(() => new Set(supportedCommandTypes), [supportedCommandTypes]);
+  const supportedCommands = useMemo(
+    () => new Set<string>(supportedCommandTypes),
+    [supportedCommandTypes],
+  );
 
   useEffect(() => {
     if (selected && supportedCommandTypes.length > 0 && !supportedCommands.has(selected)) {
@@ -100,8 +120,8 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
     }
   }, [selected, supportedCommandTypes, supportedCommands]);
 
-  const mutation = useMutation({
-    mutationFn: ({ deviceId, type, attributes, textChannel }: { deviceId: number; type: string; attributes?: Record<string, any>; textChannel?: boolean }) =>
+  const mutation = useMutation<Awaited<ReturnType<typeof sendCommand>>, CommandError, SendCommandVariables>({
+    mutationFn: ({ deviceId, type, attributes, textChannel }) =>
       sendCommand(deviceId, type, attributes, textChannel),
     onSuccess: (data, variables) => {
       addToLocalHistory(
@@ -127,15 +147,16 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
         onOpenChange(false);
       }, 1500);
     },
-    onError: (err: any, variables) => {
-      addToLocalHistory(variables.deviceId, variables.type, "failed", variables.textChannel, null);
-      const details = err?.details;
+    onError: (err) => {
+      const details = err.details;
       const detailText = typeof details === "string"
         ? details
         : details
           ? JSON.stringify(details)
           : "";
-      const msg = err?.details?.message || err?.message || detailText || "Falha ao enviar comando";
+      const msg = typeof details === "string"
+        ? details
+        : details?.message || err.message || detailText || "Falha ao enviar comando";
       setResult({ success: false, message: msg });
     },
   });
@@ -154,7 +175,7 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
       setConfirmDangerous(true);
       return;
     }
-    const attributes: Record<string, any> = {};
+    const attributes: Record<string, unknown> = {};
     if (selected === "custom" && customText.trim()) {
       attributes.data = customText.trim();
     }
@@ -227,6 +248,7 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
               const isSupported = supportedCommandTypes.length === 0 || supportedCommands.has(cmd.value);
               return (
                 <button
+                  type="button"
                   key={cmd.value}
                   onClick={() => {
                     if (!isSupported) return;
@@ -267,7 +289,7 @@ export function SendCommandDialog({ device, open, onOpenChange }: SendCommandDia
             <div>
               <Input
                 value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
+                onChange={(e: { target: { value: string } }) => setCustomText(e.target.value)}
                 placeholder="Ex: relay,1#"
                 className="font-mono text-sm"
               />

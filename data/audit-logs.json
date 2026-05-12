@@ -6,6 +6,28 @@
     "resource": "auth",
     "details": "Login realizado com sucesso",
     "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36",
+    "timestamp": "2026-05-11T21:15:40.066Z",
+    "id": 34
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-11T20:54:15.736Z",
+    "id": 33
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
     "timestamp": "2026-05-09T20:28:46.713Z",
     "id": 32
