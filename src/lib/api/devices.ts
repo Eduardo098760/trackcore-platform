@@ -34,12 +34,17 @@ export function normalizeDevice(raw: any): Device {
   // enquanto o valor real está em attributes.plate — ?? não filtra strings vazias.
   return {
     ...raw,
+    expirationTime: raw.expirationTime || attrs.expirationTime,
     plate: raw.plate || attrs.licensePlate || attrs.plate || "",
     phone: normalizePhone(raw.phone),
     year: raw.year || attrs.year,
     color: raw.color || attrs.color,
     speedLimit: rawSpeedLimit ? Math.round(rawSpeedLimit * 1.852) : undefined,
     clientId: raw.clientId || attrs.clientId,
+    attributes: {
+      ...attrs,
+      activationDate: attrs.activationDate,
+    },
   } as Device;
 }
 
@@ -121,6 +126,7 @@ export async function createDevice(
     speedLimit,
     // expiryDate do form → expirationTime do Traccar
     expiryDate,
+    activationDate,
     // ignorar campos internos da plataforma:
     clientId: _clientId,
     geofenceIds: _geofenceIds,
@@ -130,6 +136,7 @@ export async function createDevice(
   const mergedAttributes: Record<string, any> = {
     ...(incomingAttributes || {}),
     ...(organizationId !== undefined ? { organizationId } : {}),
+    ...(activationDate !== undefined ? { activationDate } : {}),
     ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),
@@ -203,6 +210,7 @@ export async function updateDevice(
     speedLimit,
     // expiryDate do form → expirationTime do Traccar
     expiryDate,
+    activationDate,
     // ignorar campos internos da plataforma:
     clientId: _clientId,
     geofenceIds: _geofenceIds,
@@ -217,6 +225,7 @@ export async function updateDevice(
     ...currentAttributes,
     ...(incomingAttributes || {}),
     // campos customizados da plataforma
+    ...(activationDate !== undefined ? { activationDate } : {}),
     ...(plate !== undefined ? { plate, licensePlate: plate } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(color !== undefined ? { color } : {}),

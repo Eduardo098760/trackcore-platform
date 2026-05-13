@@ -1,5 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+import { listGeofenceEvents } from '@/lib/server/geofence-event-store';
+import { resolveTraccarBase } from '@/lib/server/traccar-server';
+
+function parseDeviceIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => Number(item)).filter((item) => Number.isFinite(item));
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -15,6 +23,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!from || !to) {
       return res.status(400).json({ message: 'from and to dates are required' });
     }
+
+    const tenantKey = resolveTraccarBase(req);
+    const storedEvents = listGeofenceEvents(tenantKey, { from, to, deviceIds: parseDeviceIds(deviceIds) });
 
     const proto = req.headers['x-forwarded-proto'] || 'http';
     const host = req.headers.host || 'localhost:3000';
@@ -48,8 +59,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     );
 
-    // Flatten e retornar todos os eventos
-    const flatEvents = allEvents.flat();
+    // Flatten, mesclar histórico persistido e retornar todos os eventos
+    const flatEvents = [...allEvents.flat(), ...storedEvents].sort((left, right) => {
+      const leftTime = new Date(left.serverTime || left.eventTime || 0).getTime();
+      const rightTime = new Date(right.serverTime || right.eventTime || 0).getTime();
+      return leftTime - rightTime;
+    });
 
     return res.status(200).json(flatEvents);
   } catch (error) {

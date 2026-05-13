@@ -7,6 +7,8 @@ import { Device, Event, Geofence, Position, SpeedAlert } from "@/types";
 import { parseWKT } from "@/lib/parse-wkt";
 import { getEventDisplayLabel, normalizeEventType } from "@/lib/utils";
 
+const EVENT_ALERT_TTL_MS = 5 * 60 * 1000;
+
 /**
  * Hook que monitora eventos do Traccar e dispara notificações automaticamente
  */
@@ -453,13 +455,26 @@ async function registerGeofenceEventAlert(
     try {
       const stored = localStorage.getItem("eventAlerts");
       const alerts = stored ? JSON.parse(stored) : [];
-      const filtered = alerts.filter((a: { id: string }) => a.id !== eventMarker.id);
+      const filtered = pruneRecentEventAlerts(alerts).filter((a: { id: string }) => a.id !== eventMarker.id);
       filtered.unshift(eventMarker);
-      localStorage.setItem("eventAlerts", JSON.stringify(filtered.slice(0, 50)));
+      const recentAlerts = pruneRecentEventAlerts(filtered).slice(0, 50);
+      localStorage.setItem("eventAlerts", JSON.stringify(recentAlerts));
       window.dispatchEvent(new CustomEvent("eventAlertAdded", { detail: eventMarker }));
     } catch (storageErr) {
       console.error("[GeofenceAlert] Erro ao salvar no localStorage:", storageErr);
     }
+
+    void fetch("/api/geofence-events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...event,
+        type: normalizedEventType,
+        sourceKey: `ui:${event.id}`,
+      }),
+    }).catch(() => undefined);
   } catch (error) {
     console.error("[GeofenceAlert] Erro ao registrar alerta de cerca:", error);
   }
@@ -521,6 +536,14 @@ function isPositionInsideGeofence(position: Position, geofence: Geofence): boole
   }
 
   return false;
+}
+
+function pruneRecentEventAlerts(alerts: Array<{ id: string; timestamp?: string }>) {
+  const cutoff = Date.now() - EVENT_ALERT_TTL_MS;
+  return alerts.filter((alert) => {
+    const timestamp = alert.timestamp ? new Date(alert.timestamp).getTime() : 0;
+    return Number.isFinite(timestamp) && timestamp >= cutoff;
+  });
 }
 
 /**
@@ -609,8 +632,6 @@ function getNotificationDataForEvent(
       title: "⚡ Excesso de Velocidade",
       message: (() => {
         const speed = event.attributes?.speed ? Math.round(event.attributes.speed * 1.852) : 0;
-        // Prioriza o limite configurado pelo usuário (km/h).
-        // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
         const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
         const limit = deviceSpeedLimit || (rawEvtLimit > 0 ? Math.round(rawEvtLimit * 1.852) : 0);
         if (speed && limit) {
@@ -624,8 +645,6 @@ function getNotificationDataForEvent(
       title: "⚡ Excesso de Velocidade",
       message: (() => {
         const speed = event.attributes?.speed ? Math.round(event.attributes.speed * 1.852) : 0;
-        // Prioriza o limite configurado pelo usuário (km/h).
-        // Valor do evento Traccar vem em knots → converte * 1.852 apenas como fallback.
         const rawEvtLimit = event.attributes?.speedLimit || event.attributes?.limit || 0;
         const limit = deviceSpeedLimit || (rawEvtLimit > 0 ? Math.round(rawEvtLimit * 1.852) : 0);
         if (speed && limit) {

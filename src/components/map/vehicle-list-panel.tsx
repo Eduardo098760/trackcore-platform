@@ -20,6 +20,7 @@ import {
   List,
   Lock,
   Settings2,
+  Gauge,
 } from "lucide-react";
 import { useRelativeTime } from "@/lib/hooks/useRelativeTime";
 
@@ -28,15 +29,40 @@ type PanelSize = "sm" | "md" | "lg";
 
 const SIZE_CONFIG = {
   sm: {
-    width: 300,
+    width: 280,
     label: "P",
-    icon: { outer: "w-8 h-8", inner: "w-4 h-4", dot: "w-2.5 h-2.5" },
-    name: "text-xs",
+    icon: { outer: "w-7 h-7", inner: "w-3.5 h-3.5", dot: "w-2 h-2" },
+    name: "text-[11px]",
+    speed: "text-[9px] px-1.5",
+    plate: "text-[8px]",
+    meta: { icon: "w-2.5 h-2.5", text: "text-[8px]", gap: "gap-1.5 mt-0.5" },
+    battery: { icon: "w-2.5 h-2.5", text: "text-[8px]" },
+    lastSeen: { icon: "w-2 h-2", text: "text-[8px]", mt: "mt-0.5" },
+    address: "text-[8px] mt-0.5",
+    cardPx: "px-1.5",
+    cardPy: "py-1.5",
+    cardGap: "gap-1.5",
+    cardRound: "rounded-lg",
+    listGap: "space-y-1",
+    header: "text-xs",
+    headerIcon: "w-3.5 h-3.5",
+    badge: "text-[9px] px-1.5",
+    input: "h-7 pl-7 pr-7 text-[11px]",
+    searchIcon: "w-2.5 h-2.5",
+    filter: "text-[9px] px-1.5 py-0.5 gap-1",
+    filterDot: "w-1 h-1",
+    filterCount: "text-[8px]",
+  },
+  md: {
+    width: 300,
+    label: "M",
+    icon: { outer: "w-8 h-8", inner: "w-4 h-4", dot: "w-2 h-2" },
+    name: "text-[12px]",
     speed: "text-[10px] px-1.5",
     plate: "text-[9px]",
-    meta: { icon: "w-3 h-3", text: "text-[9px]", gap: "gap-2 mt-0.5" },
-    battery: { icon: "w-3 h-3", text: "text-[9px]" },
-    lastSeen: { icon: "w-2.5 h-2.5", text: "text-[9px]", mt: "mt-0.5" },
+    meta: { icon: "w-2.5 h-2.5", text: "text-[9px]", gap: "gap-1.5 mt-0.5" },
+    battery: { icon: "w-2.5 h-2.5", text: "text-[9px]" },
+    lastSeen: { icon: "w-2 h-2", text: "text-[9px]", mt: "mt-0.5" },
     address: "text-[9px] mt-0.5",
     cardPx: "px-2",
     cardPy: "py-2",
@@ -46,15 +72,15 @@ const SIZE_CONFIG = {
     header: "text-sm",
     headerIcon: "w-4 h-4",
     badge: "text-[10px] px-1.5",
-    input: "h-8 pl-8 pr-8 text-xs",
+    input: "h-7 pl-7 pr-7 text-xs",
     searchIcon: "w-3 h-3",
-    filter: "text-[10px] px-2 py-0.5 gap-1",
+    filter: "text-[10px] px-1.5 py-0.5 gap-1",
     filterDot: "w-1.5 h-1.5",
     filterCount: "text-[9px]",
   },
-  md: {
-    width: 340,
-    label: "M",
+  lg: {
+    width: 320,
+    label: "G",
     icon: { outer: "w-9 h-9", inner: "w-4.5 h-4.5", dot: "w-2.5 h-2.5" },
     name: "text-[13px]",
     speed: "text-[11px] px-1.5",
@@ -66,31 +92,6 @@ const SIZE_CONFIG = {
     cardPx: "px-2.5",
     cardPy: "py-2.5",
     cardGap: "gap-2.5",
-    cardRound: "rounded-lg",
-    listGap: "space-y-1",
-    header: "text-base",
-    headerIcon: "w-5 h-5",
-    badge: "text-[11px] px-1.5",
-    input: "h-8 pl-9 pr-8 text-sm",
-    searchIcon: "w-3.5 h-3.5",
-    filter: "text-[11px] px-2 py-0.5 gap-1",
-    filterDot: "w-1.5 h-1.5",
-    filterCount: "text-[10px]",
-  },
-  lg: {
-    width: 380,
-    label: "G",
-    icon: { outer: "w-10 h-10", inner: "w-5 h-5", dot: "w-3 h-3" },
-    name: "text-sm",
-    speed: "text-xs px-2",
-    plate: "text-[11px]",
-    meta: { icon: "w-3.5 h-3.5", text: "text-[11px]", gap: "gap-2.5 mt-1" },
-    battery: { icon: "w-3.5 h-3.5", text: "text-[11px]" },
-    lastSeen: { icon: "w-3 h-3", text: "text-[11px]", mt: "mt-1" },
-    address: "text-[11px] mt-1",
-    cardPx: "px-3",
-    cardPy: "py-3",
-    cardGap: "gap-3",
     cardRound: "rounded-xl",
     listGap: "space-y-1.5",
     header: "text-base",
@@ -152,11 +153,11 @@ function BatteryIndicator({ level, sz }: { level: number; sz: typeof SIZE_CONFIG
   );
 }
 
-function LastSeenLabel({ lastUpdate, sz }: { lastUpdate?: string | null; sz: typeof SIZE_CONFIG[PanelSize] }) {
+function LastSeenLabel({ lastUpdate, sz, inline = false }: { lastUpdate?: string | null; sz: typeof SIZE_CONFIG[PanelSize]; inline?: boolean }) {
   const relTime = useRelativeTime(lastUpdate);
   if (!relTime) return null;
   return (
-    <div className={`flex items-center gap-1 ${sz.lastSeen.mt} ${sz.lastSeen.text} text-muted-foreground`}>
+    <div className={`flex items-center gap-1 ${inline ? "shrink-0 whitespace-nowrap" : sz.lastSeen.mt} ${sz.lastSeen.text} text-muted-foreground`}>
       <Radio className={sz.lastSeen.icon} />
       <span>{relTime}</span>
     </div>
@@ -278,14 +279,14 @@ export function VehicleListPanel({
           className="absolute left-0 top-1/2 -translate-y-1/2 z-[1001] group"
           title="Abrir lista de veículos"
         >
-          <div className="flex items-center bg-popover/80 backdrop-blur-xl border border-border border-l-0 rounded-r-xl px-1.5 py-4 shadow-2xl transition-all hover:bg-popover/90 hover:px-2.5 group-hover:border-blue-500/30">
-            <ChevronRight className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+            <div className="flex items-center bg-popover/80 backdrop-blur-xl border border-border border-l-0 rounded-r-xl px-1 py-3 shadow-2xl transition-all hover:bg-popover/90 hover:px-2 group-hover:border-blue-500/30">
+            <ChevronRight className="w-3 h-3 text-blue-400 flex-shrink-0" />
             <div className="flex flex-col items-center ml-0.5">
-              <List className="w-3.5 h-3.5 text-blue-400 mb-1" />
-              <span className="text-[10px] font-bold text-blue-300 tracking-widest [writing-mode:vertical-lr] rotate-180">
+              <List className="w-3 h-3 text-blue-400 mb-1" />
+              <span className="text-[9px] font-bold text-blue-300 tracking-widest [writing-mode:vertical-lr] rotate-180">
                 VEÍCULOS
               </span>
-              <span className="mt-1 text-[9px] font-mono text-blue-400 bg-blue-500/15 px-1 py-0.5 rounded">
+              <span className="mt-1 text-[8px] font-mono text-blue-400 bg-blue-500/15 px-1 py-0.5 rounded">
                 {devices.length}
               </span>
             </div>
@@ -302,17 +303,17 @@ export function VehicleListPanel({
       >
         <Card className={`h-full rounded-none rounded-r-2xl backdrop-blur-2xl bg-card/90 border-y-0 border-l-0 border-r border-border shadow-2xl flex flex-col overflow-hidden ${firstOpen ? 'ring-2 ring-blue-500/60 ring-offset-0 animate-pulse' : ''}`}>
           {/* Header */}
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <div className="flex items-center justify-between px-3 pt-3 pb-2 gap-2">
             <h3 className={`font-semibold ${sz.header} text-foreground flex items-center gap-2`}>
               <Navigation2 className={`${sz.headerIcon} text-blue-400`} />
               Veículos
               <span className={`${sz.badge} font-mono text-blue-400 bg-blue-500/10 py-0.5 rounded`}>
-                {filteredDevices.length !== devices.length
-                  ? `${filteredDevices.length}/${devices.length}`
+                {sortedDevices.length !== devices.length
+                  ? `${sortedDevices.length}/${devices.length}`
                   : devices.length}
               </span>
             </h3>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap justify-end">
               <div className="relative" ref={sizeMenuRef}>
                 <button
                   type="button"
@@ -356,7 +357,7 @@ export function VehicleListPanel({
           </div>
 
           {/* Search */}
-          <div className="px-4 pb-2">
+          <div className="px-3 pb-2">
             <div className="relative">
               <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${sz.searchIcon} text-gray-500`} />
               <Input
@@ -380,7 +381,7 @@ export function VehicleListPanel({
           </div>
 
           {/* Status filter pills */}
-          <div className="grid grid-cols-4 gap-1 px-4 pb-3">
+          <div className="grid grid-cols-4 gap-1 px-3 pb-2.5">
             {STATUS_FILTERS.map((f) => {
               const count = statusCounts[f.key];
               const isActive = statusFilter === f.key;
@@ -411,7 +412,7 @@ export function VehicleListPanel({
           </div>
 
           {/* Vehicle list — scrollable */}
-          <div className={`flex-1 overflow-y-auto px-3 pb-3 ${sz.listGap} scrollbar-thin scrollbar-thumb-blue-600/30 scrollbar-track-transparent`}>
+          <div className={`flex-1 overflow-y-auto px-2.5 pb-2.5 ${sz.listGap} scrollbar-thin scrollbar-thumb-blue-600/30 scrollbar-track-transparent`}>
             {sortedDevices.length === 0 && (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                 <Search className="w-6 h-6 mb-2 opacity-30" />
@@ -437,6 +438,30 @@ export function VehicleListPanel({
                 ?? (position?.attributes?.power != null && position.attributes.power <= 100 ? position.attributes.power : undefined);
               const batteryLevel = rawBattery != null ? Math.min(Math.round(rawBattery), 100) : undefined;
               const IconComponent = getVehicleIcon(device.category);
+              const currentSpeed = position?.speed ?? 0;
+              const speedTone = device.speedLimit && currentSpeed > device.speedLimit
+                ? {
+                    outer: "border-red-400/35 bg-red-500/12 text-red-100 shadow-[0_0_0_1px_rgba(248,113,113,0.12)]",
+                    meter: "bg-red-400/15 text-red-300 border-red-400/25",
+                    icon: "text-red-300",
+                  }
+                : currentSpeed >= 80
+                  ? {
+                      outer: "border-amber-400/35 bg-amber-500/12 text-amber-50 shadow-[0_0_0_1px_rgba(251,191,36,0.10)]",
+                      meter: "bg-amber-400/15 text-amber-300 border-amber-400/25",
+                      icon: "text-amber-300",
+                    }
+                  : currentSpeed > 0
+                    ? {
+                        outer: "border-emerald-400/35 bg-emerald-500/12 text-emerald-50 shadow-[0_0_0_1px_rgba(52,211,153,0.10)]",
+                        meter: "bg-emerald-400/15 text-emerald-300 border-emerald-400/25",
+                        icon: "text-emerald-300",
+                      }
+                    : {
+                        outer: "border-blue-400/35 bg-blue-500/12 text-blue-50 shadow-[0_0_0_1px_rgba(96,165,250,0.10)]",
+                        meter: "bg-blue-400/15 text-blue-300 border-blue-400/25",
+                        icon: "text-blue-300",
+                      };
 
               return (
                 <button
@@ -475,27 +500,31 @@ export function VehicleListPanel({
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className={`font-semibold truncate ${sz.name} leading-tight`}>
-                          {device.name || device.plate}
-                        </span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 pr-2">
+                          <span className={`block font-semibold truncate ${sz.name} leading-tight`}>
+                            {device.name || device.plate}
+                          </span>
+                        </div>
+
                         {position && position.speed > 0 && (
                           <span
-                            className={`${sz.speed} font-bold flex-shrink-0 py-0.5 rounded ${
-                              device.speedLimit &&
-                              position.speed > device.speedLimit
-                                ? "bg-red-500/20 text-red-400"
-                                : "bg-blue-500/15 text-blue-300"
-                            }`}
+                            className={`inline-flex items-center gap-1.5 shrink-0 rounded-full border px-2 py-1 ${sz.speed} font-semibold ${speedTone.outer}`}
+                            title={device.speedLimit && currentSpeed > device.speedLimit ? "Acima do limite configurado" : "Velocidade atual"}
                           >
-                            {Math.round(position.speed)} km/h
+                            <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full border ${speedTone.meter}`}>
+                              <Gauge className={`h-2.5 w-2.5 ${speedTone.icon}`} />
+                            </span>
+                            <span className="tabular-nums leading-none whitespace-nowrap">
+                              {Math.round(currentSpeed)} km/h
+                            </span>
                           </span>
                         )}
                       </div>
 
-                      <div className={`flex items-center ${sz.meta.gap}`}>
+                      <div className={`flex items-center flex-wrap ${sz.meta.gap}`}>
                         {device.plate && (
-                          <span className={`${sz.plate} text-muted-foreground font-mono tracking-wide`}>
+                          <span className={`${sz.plate} inline-flex items-center rounded-md border border-slate-500/30 bg-slate-900/70 px-1.5 py-0.5 font-mono font-semibold tracking-[0.18em] text-slate-100 shadow-sm`}>
                             {device.plate}
                           </span>
                         )}
@@ -524,23 +553,19 @@ export function VehicleListPanel({
                             <BatteryIndicator level={batteryLevel} sz={sz} />
                           )}
 
-                        {/* Blocked */}
-                        {device.attributes?.blocked && (
-                          <div
-                            className="flex items-center text-red-400"
-                            title="Veículo bloqueado"
-                          >
-                            <Lock className={sz.meta.icon} />
-                          </div>
-                        )}
-                      </div>
+                        <LastSeenLabel lastUpdate={device.lastUpdate} sz={sz} inline />
 
-                      {/* Last seen */}
-                      <LastSeenLabel lastUpdate={device.lastUpdate} sz={sz} />
+                        {/* Blocked indicator removed to save space */}
+                      </div>
 
                       {/* Address */}
                       {position?.address && (
-                        <p className={`${sz.address} text-muted-foreground truncate leading-tight`} title={position.address}>
+                        <p
+                          className={`${sz.address} text-muted-foreground leading-tight ${
+                            isSelected ? "whitespace-normal break-words" : "truncate"
+                          }`}
+                          title={position.address}
+                        >
                           {position.address}
                         </p>
                       )}

@@ -97,6 +97,7 @@ export interface Device {
   plate: string;
   status: DeviceStatus;
   lastUpdate: string;
+  expirationTime?: string;
   positionId?: number;
   clientId?: number;
   category: VehicleCategory;
@@ -111,6 +112,7 @@ export interface Device {
     ignition?: boolean;
     blocked?: boolean;
     batteryLevel?: number;
+    activationDate?: string;
   };
 }
 

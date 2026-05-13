@@ -1,0 +1,23 @@
+[
+  {
+    "id": -1778625719712,
+    "type": "geofenceEnter",
+    "deviceId": 194,
+    "positionId": 8572911,
+    "serverTime": "2026-05-12T22:38:24.000+00:00",
+    "address": "Rua Barão de Monte Cedro, Quissamã, Rio de Janeiro, BR",
+    "attributes": {
+      "geofenceId": 165,
+      "geofenceName": "Barracão",
+      "geofence": "Barracão",
+      "originalType": "geofenceEnter",
+      "source": "geofence-store",
+      "sourceKey": "ui:-1778625719712",
+      "tenantKey": "http://sv01.rastrear.app.br/api",
+      "deviceName": "MASTER MARIM PAS SSB-6E73"
+    },
+    "resolved": false,
+    "sourceKey": "ui:-1778625719712",
+    "tenantKey": "http://sv01.rastrear.app.br/api"
+  }
+]

@@ -92,6 +92,26 @@ interface ActiveShare {
   expiresAt: number;
 }
 
+function formatDeviceDate(value?: string | null) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function isDeviceExpired(value?: string | null) {
+  if (!value) return false;
+
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.getTime() < Date.now();
+}
+
 function getGuidedScanStatus(uniqueId?: string, phone?: string) {
   const hasImei = Boolean(uniqueId?.trim());
   const hasIccid = Boolean(phone?.trim());
@@ -133,9 +153,10 @@ function ShareCountdown({ expiresAt }: { expiresAt: number }) {
 
 export default function VehiclesPage() {
   const normalizePhone = useCallback((phone?: string) => String(phone || "").replace(/\D/g, ""), []);
-  const { can } = usePermissions();
+  const { can, isSuperAdmin } = usePermissions();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const canEditLifecycleDates = isSuperAdmin;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -219,6 +240,8 @@ export default function VehiclesPage() {
     contact: "",
     category: "car" as VehicleCategory,
     plate: "",
+    activationDate: "",
+    expiryDate: "",
     speedLimit: 80,
     odometer: 0,
     attributes: {} as Record<string, any>,
@@ -281,6 +304,15 @@ export default function VehiclesPage() {
           color: (variables as any).color ?? (createdDevice as any).color ?? "",
           contact:
             (variables as any).contact ?? (createdDevice as any).contact ?? "",
+          activationDate:
+            (variables as any).activationDate ??
+            (createdDevice as any).attributes?.activationDate ??
+            (createdDevice as any).activationDate ??
+            "",
+          expirationTime:
+            (variables as any).expiryDate ??
+            (createdDevice as any).expirationTime ??
+            "",
           category:
             (variables as any).category ??
             (createdDevice as any).category ??
@@ -335,6 +367,17 @@ export default function VehiclesPage() {
               (variables.data as any).contact ??
               (updatedDevice as any).contact ??
               d.contact,
+            activationDate:
+              (variables.data as any).activationDate ??
+              (updatedDevice as any).attributes?.activationDate ??
+              (updatedDevice as any).activationDate ??
+              d.attributes?.activationDate ??
+              "",
+            expirationTime:
+              (variables.data as any).expiryDate ??
+              (updatedDevice as any).expirationTime ??
+              d.expirationTime ??
+              "",
             category:
               (variables.data as any).category ??
               (updatedDevice as any).category ??
@@ -378,6 +421,8 @@ export default function VehiclesPage() {
       contact: "",
       category: "car",
       plate: "",
+      activationDate: "",
+      expiryDate: "",
       speedLimit: 80,
       odometer: 0,
       attributes: {},
@@ -553,6 +598,8 @@ export default function VehiclesPage() {
       contact: device.contact ?? "",
       category: device.category ?? "car",
       plate: device.plate ?? "",
+      activationDate: device.attributes?.activationDate ?? "",
+      expiryDate: device.expirationTime ? device.expirationTime.split("T")[0] : "",
       speedLimit: device.speedLimit ?? 80,
       odometer: currentOdoKm,
       attributes: device.attributes ?? {},
@@ -589,6 +636,8 @@ export default function VehiclesPage() {
     { header: "Nome", key: "name" },
     { header: "IMEI", key: "uniqueId" },
     { header: "Chip", key: "phone" },
+    { header: "Ativação", key: "activationDate" },
+    { header: "Validade", key: "expiryDate" },
     { header: "Status", key: "status" },
     { header: "Hodômetro (km)", key: "odometerKm" },
     { header: "Última Atualização", key: "lastUpdate" },
@@ -608,6 +657,12 @@ export default function VehiclesPage() {
       name: d.name,
       uniqueId: d.uniqueId,
       phone: d.phone,
+      activationDate: d.attributes?.activationDate
+        ? new Date(d.attributes.activationDate).toLocaleDateString("pt-BR")
+        : "",
+      expiryDate: d.expirationTime
+        ? new Date(d.expirationTime).toLocaleDateString("pt-BR")
+        : "",
       status: d.status,
       odometerKm: vehiclePosition?.attributes?.totalDistance
         ? (vehiclePosition.attributes.totalDistance / 1000).toFixed(1)
@@ -940,6 +995,43 @@ export default function VehiclesPage() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="activationDate">Data de Ativação</Label>
+                    <Input
+                      id="activationDate"
+                      type="date"
+                      value={formData.activationDate}
+                      disabled={!canEditLifecycleDates}
+                      onChange={(e) =>
+                        setFormData({ ...formData, activationDate: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {canEditLifecycleDates
+                        ? "Data inicial da referência do dispositivo"
+                        : "Apenas administradores podem alterar esta data"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="expiryDate">Validade</Label>
+                    <Input
+                      id="expiryDate"
+                      type="date"
+                      value={formData.expiryDate}
+                      disabled={!canEditLifecycleDates}
+                      onChange={(e) =>
+                        setFormData({ ...formData, expiryDate: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {canEditLifecycleDates
+                        ? "Quando vencido, o dispositivo fica marcado na listagem"
+                        : "Somente o administrador pode alterar esta validade"}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex gap-2 pt-4">
                   <Button type="submit" className="flex-1">
                     {editingDevice ? "Atualizar Veículo" : "Criar Veículo"}
@@ -1154,6 +1246,7 @@ export default function VehiclesPage() {
                   <TableHead className="font-bold">Endereço</TableHead>
                   <TableHead className="font-bold">IMEI / ID</TableHead>
                   <TableHead className="font-bold">Chip (SIM)</TableHead>
+                  <TableHead className="font-bold text-xs whitespace-nowrap">Ativação / Validade</TableHead>
                   <TableHead className="font-bold">Status</TableHead>
                   <TableHead className="font-bold">Hodômetro</TableHead>
                   <TableHead className="font-bold">Sensores</TableHead>
@@ -1169,6 +1262,9 @@ export default function VehiclesPage() {
                   const deviceShares = activeSharesMap.get(device.id) || [];
                   const hasShares = deviceShares.length > 0;
                   const isExpanded = expandedShares.has(device.id);
+                  const activationDate = formatDeviceDate(device.attributes?.activationDate);
+                  const expirationDate = formatDeviceDate(device.expirationTime);
+                  const deviceExpired = isDeviceExpired(device.expirationTime);
                   return (
                     <Fragment key={device.id}>
                       <TableRow className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-950/20 dark:hover:to-purple-950/20 transition-all">
@@ -1210,6 +1306,23 @@ export default function VehiclesPage() {
                         <TableCell>
                           {device.phone ? (
                             <span className="text-xs">{device.phone}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {(activationDate || expirationDate) ? (
+                            <div
+                              className={`text-[11px] leading-4 whitespace-nowrap ${deviceExpired ? "text-red-500" : "text-muted-foreground"}`}
+                              title={[
+                                activationDate ? `Ativação: ${activationDate}` : "Ativação: -",
+                                expirationDate ? `Validade: ${expirationDate}${deviceExpired ? " - vencido" : ""}` : "Validade: -",
+                              ].join(" | ")}
+                            >
+                              <span>{activationDate ? activationDate : "-"}</span>
+                              <span className="mx-1 opacity-50">•</span>
+                              <span>{expirationDate ? `${expirationDate}${deviceExpired ? " (vencido)" : ""}` : "-"}</span>
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
                           )}

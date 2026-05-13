@@ -6,6 +6,72 @@
     "resource": "auth",
     "details": "Login realizado com sucesso",
     "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T23:15:16.602Z",
+    "id": 40
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGOUT",
+    "resource": "auth",
+    "details": "Logout realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T23:15:11.472Z",
+    "id": 39
+  },
+  {
+    "userId": 1,
+    "userName": "Marcos Moraes Silva",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T22:40:25.548Z",
+    "id": 38
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGOUT",
+    "resource": "auth",
+    "details": "Logout realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T22:40:19.481Z",
+    "id": 37
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T21:14:54.449Z",
+    "id": 36
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+    "timestamp": "2026-05-12T20:38:41.856Z",
+    "id": 35
+  },
+  {
+    "userId": 1038,
+    "userName": "setra transporte",
+    "action": "LOGIN",
+    "resource": "auth",
+    "details": "Login realizado com sucesso",
+    "ipAddress": "::1",
     "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36",
     "timestamp": "2026-05-11T21:15:40.066Z",
     "id": 34

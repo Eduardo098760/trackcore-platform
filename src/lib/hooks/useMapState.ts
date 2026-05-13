@@ -5,6 +5,16 @@ import { useSearchParams } from "next/navigation";
 import { Device, Position, VehicleCategory, SpeedAlert, EventAlert } from "@/types";
 import type { TileLayerKey } from "@/components/map/map-constants";
 
+const EVENT_ALERT_TTL_MS = 5 * 60 * 1000;
+
+function pruneRecentEventAlerts(alerts: EventAlert[]) {
+  const cutoff = Date.now() - EVENT_ALERT_TTL_MS;
+  return alerts.filter((alert) => {
+    const timestamp = alert.timestamp ? new Date(alert.timestamp).getTime() : 0;
+    return Number.isFinite(timestamp) && timestamp >= cutoff;
+  });
+}
+
 export interface MapEditForm {
   name: string;
   uniqueId: string;
@@ -17,6 +27,7 @@ export interface MapEditForm {
   contact: string;
   speedLimit: number;
   groupId: number;
+  activationDate: string;
   expiryDate: string;
 }
 
@@ -32,6 +43,7 @@ const defaultEditForm: MapEditForm = {
   contact: "",
   speedLimit: 80,
   groupId: 0,
+  activationDate: "",
   expiryDate: "",
 };
 
@@ -97,7 +109,7 @@ export function useMapState() {
     try {
       const stored = localStorage.getItem("eventAlerts");
       if (!stored) return [];
-      const alerts: EventAlert[] = JSON.parse(stored);
+      const alerts: EventAlert[] = pruneRecentEventAlerts(JSON.parse(stored));
 
       // Filtrar alertas de eventos já resolvidos
       let resolvedIds: number[] = [];
@@ -112,10 +124,11 @@ export function useMapState() {
         return !resolvedIds.includes(numId);
       });
       // Persistir a lista limpa
-      if (cleaned.length !== alerts.length) {
-        localStorage.setItem("eventAlerts", JSON.stringify(cleaned));
+      const recent = pruneRecentEventAlerts(cleaned);
+      if (recent.length !== alerts.length) {
+        localStorage.setItem("eventAlerts", JSON.stringify(recent));
       }
-      return cleaned;
+      return recent;
     } catch {
       return [];
     }
@@ -206,7 +219,7 @@ export function useMapState() {
       const alert = (e as CustomEvent<EventAlert>).detail;
       setEventAlerts((prev) => {
         if (prev.some((a) => a.id === alert.id)) return prev;
-        return [alert, ...prev].slice(0, 50);
+        return pruneRecentEventAlerts([alert, ...prev]).slice(0, 50);
       });
     };
 
@@ -226,7 +239,7 @@ export function useMapState() {
     try {
       const stored = localStorage.getItem("eventAlerts");
       if (stored) {
-        const parsed: EventAlert[] = JSON.parse(stored);
+        const parsed: EventAlert[] = pruneRecentEventAlerts(JSON.parse(stored));
         if (parsed.length > 0) {
           setEventAlerts(parsed);
         }
@@ -254,7 +267,8 @@ export function useMapState() {
       contact: device.contact || "",
       speedLimit: Math.round(device.speedLimit || 80),
       groupId: 0,
-      expiryDate: "",
+      activationDate: device.attributes?.activationDate || "",
+      expiryDate: device.expirationTime ? device.expirationTime.split("T")[0] : "",
     });
     setIsEditDialogOpen(true);
   }, []);

@@ -30,13 +30,13 @@ export function MapToolbar({
         type="button"
         onClick={onToggleGeofences}
         title={showGeofences ? "Ocultar cercas" : "Mostrar cercas"}
-        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showGeofences
             ? "bg-orange-500/80 border-orange-400/50 text-white"
             : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
-        <ShieldCheck className="w-3.5 h-3.5" />
+        <ShieldCheck className="w-3 h-3" />
         Cercas {geofenceCount > 0 && `(${geofenceCount})`}
       </button>
 
@@ -49,13 +49,13 @@ export function MapToolbar({
             ? "Ocultar alertas de velocidade"
             : "Mostrar alertas de velocidade"
         }
-        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showSpeedAlerts && speedAlertCount > 0
             ? "bg-amber-500/80 border-amber-400/50 text-white"
             : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
-        <Zap className="w-3.5 h-3.5" />
+        <Zap className="w-3 h-3" />
         Excessos {speedAlertCount > 0 && `(${speedAlertCount})`}
       </button>
 
@@ -68,13 +68,13 @@ export function MapToolbar({
             ? "Ocultar placas nos marcadores"
             : "Mostrar placas nos marcadores"
         }
-        className={`flex items-center gap-1 xl:gap-1.5 px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg text-[11px] xl:text-xs font-medium transition-colors shadow-lg backdrop-blur-xl border ${
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors shadow-lg backdrop-blur-xl border ${
           showVehicleLabels
             ? "bg-sky-500/80 border-sky-400/50 text-white"
             : "bg-popover/60 border-border text-muted-foreground hover:bg-accent"
         }`}
       >
-        <Tag className="w-3.5 h-3.5" />
+        <Tag className="w-3 h-3" />
         Placas
       </button>
 

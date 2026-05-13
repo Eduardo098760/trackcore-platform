@@ -681,29 +681,55 @@ export default function MapPage() {
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
   };
 
-  // Remove outliers GPS (teleportações impossíveis — saltos > 2km entre pontos consecutivos)
-  const filterOutliers = (coords: [number, number][]) => {
-    if (coords.length < 2) return coords;
-    const result: [number, number][] = [coords[0]];
-    for (let i = 1; i < coords.length; i++) {
-      const d = quickDistM(result[result.length - 1], coords[i]);
-      if (d < 2000) result.push(coords[i]); // 2km threshold
+  // Remove outliers GPS (teleportações impossíveis — saltos muito grandes ou com velocidade absurda)
+  const filterOutliers = (points: { lat: number; lng: number; ts: number }[]) => {
+    if (points.length < 2) return points;
+    const result: { lat: number; lng: number; ts: number }[] = [points[0]];
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = result[result.length - 1];
+      const current = points[i];
+      const distanceMeters = quickDistM([prev.lat, prev.lng], [current.lat, current.lng]);
+      const deltaHours = Math.max((current.ts - prev.ts) / 3_600_000, 1 / 3600);
+      const impliedSpeedKmh = distanceMeters / 1000 / deltaHours;
+
+      if (distanceMeters > 2500) continue;
+      if (impliedSpeedKmh > 180) continue;
+
+      result.push(current);
     }
+
     return result;
   };
 
-  // Divide trilha em segmentos onde há salto > 500m (evita linhas retas entre gaps GPS)
-  const splitTrailSegments = (coords: [number, number][]) => {
-    if (coords.length < 2) return [coords];
+  // Divide a trilha em segmentos quando houver salto muito grande, lacuna de tempo
+  // ou velocidade implícita incompatível com movimento real.
+  const splitTrailSegments = (points: { lat: number; lng: number; ts: number }[]) => {
+    if (points.length < 2) return [] as [number, number][][];
+
     const segments: [number, number][][] = [];
-    let current: [number, number][] = [coords[0]];
-    for (let i = 1; i < coords.length; i++) {
-      if (quickDistM(current[current.length - 1], coords[i]) > 500) {
+    let current: [number, number][] = [[points[0].lat, points[0].lng]];
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const currentPoint = points[i];
+      const distanceMeters = quickDistM([prev.lat, prev.lng], [currentPoint.lat, currentPoint.lng]);
+      const deltaMs = currentPoint.ts - prev.ts;
+      const deltaHours = Math.max(deltaMs / 3_600_000, 1 / 3600);
+      const impliedSpeedKmh = distanceMeters / 1000 / deltaHours;
+      const hasLargeGap = deltaMs > 2 * 60 * 1000;
+      const hasLongJump = distanceMeters > 1500;
+      const hasImpossibleSpeed = impliedSpeedKmh > 180;
+
+      if (hasLargeGap || hasLongJump || hasImpossibleSpeed) {
         if (current.length >= 2) segments.push(current);
-        current = [];
+        current = [[currentPoint.lat, currentPoint.lng]];
+        continue;
       }
-      current.push(coords[i]);
+
+      current.push([currentPoint.lat, currentPoint.lng]);
     }
+
     if (current.length >= 2) segments.push(current);
     return segments;
   };
@@ -1002,39 +1028,39 @@ export default function MapPage() {
 
       {/* Botão lista de veículos - só aparece quando fechado */}
       {!isVehicleListOpen && (
-        <div className="absolute top-3 left-3 z-[1000]">
+        <div className="absolute top-2.5 left-2.5 z-[1000]">
           <button
             type="button"
             onClick={() => setIsVehicleListOpen(true)}
-            className="flex items-center gap-1.5 xl:gap-2 px-3 xl:px-4 py-2 xl:py-2.5 rounded-xl text-xs xl:text-sm font-semibold transition-all shadow-lg backdrop-blur-xl border bg-popover/80 border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all shadow-lg backdrop-blur-xl border bg-popover/80 border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             title="Abrir lista de veículos"
           >
-            <List className="w-4 h-4" />
+            <List className="w-3.5 h-3.5" />
             <span>Veículos</span>
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] xl:min-w-[22px] xl:h-[22px] rounded-full bg-muted text-[10px] xl:text-[11px] font-bold px-1">
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-muted text-[9px] font-bold px-1">
               {devices.length}
             </span>
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           </button>
         </div>
       )}
 
       {/* Toolbar superior centralizada */}
       <div
-        className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-2 transition-all duration-300"
+        className="absolute top-2.5 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center gap-1.5 transition-all duration-300"
       >
         {plannedRouteName &&
           plannedRouteGeometry.length >= 2 &&
           showPlannedRouteLabel && (
-            <Card className="backdrop-blur-xl bg-violet-900/80 border-violet-500/30 shadow-lg px-3 py-2 flex items-center gap-2 w-fit">
-              <Route className="w-4 h-4 text-violet-300 shrink-0" />
-              <span className="text-sm text-foreground truncate max-w-[180px]">
+            <Card className="backdrop-blur-xl bg-violet-900/80 border-violet-500/30 shadow-lg px-2.5 py-1.5 flex items-center gap-1.5 w-fit">
+              <Route className="w-3.5 h-3.5 text-violet-300 shrink-0" />
+              <span className="text-[11px] text-foreground truncate max-w-[160px]">
                 Rota: {plannedRouteName}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-foreground/80 hover:text-foreground shrink-0"
+                className="h-5 w-5 text-foreground/80 hover:text-foreground shrink-0"
                 onClick={() => {
                   router.push("/map");
                   setShowPlannedRouteLabel(false);
@@ -1205,11 +1231,8 @@ export default function MapPage() {
         {devicesForTrails.map((device) => {
           const trail = deviceTrails.get(device.id) || [];
           if (trail.length < 2) return null;
-          const rawCoords = trail.map(
-            (p) => [p.lat, p.lng] as [number, number],
-          );
-          const filtered = filterOutliers(rawCoords);
-          const segments = splitTrailSegments(filtered);
+          const filteredTrail = filterOutliers(trail);
+          const segments = splitTrailSegments(filteredTrail);
           if (segments.length === 0) return null;
           const pos = positionsMap.get(device.id);
           const trailColor = getMarkerColor(deriveDeviceStatus(device.status, pos, device.lastUpdate));

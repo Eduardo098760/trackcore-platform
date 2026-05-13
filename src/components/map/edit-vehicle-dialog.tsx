@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,9 @@ export function EditVehicleDialog({
   onSave,
   isPending,
 }: EditVehicleDialogProps) {
+  const { isSuperAdmin } = usePermissions();
+  const canEditLifecycleDates = isSuperAdmin;
+
   const updateField = <K extends keyof MapEditForm>(
     key: K,
     value: MapEditForm[K],
@@ -202,6 +206,21 @@ export function EditVehicleDialog({
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Comunicação</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="activationDate" className="text-xs">Data de Ativação</Label>
+                  <Input
+                    id="activationDate"
+                    type="date"
+                    value={editForm.activationDate}
+                    disabled={!canEditLifecycleDates}
+                    onChange={(e) => updateField("activationDate", e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    {canEditLifecycleDates
+                      ? "Data de início da referência do dispositivo"
+                      : "Apenas administradores podem alterar esta data"}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="phone" className="text-xs">Telefone (SIM Card)</Label>
                   <Input
                     id="phone"
@@ -225,9 +244,14 @@ export function EditVehicleDialog({
                     id="expiryDate"
                     type="date"
                     value={editForm.expiryDate}
+                    disabled={!canEditLifecycleDates}
                     onChange={(e) => updateField("expiryDate", e.target.value)}
                   />
-                  <p className="text-[10px] text-muted-foreground">Data de vencimento do contrato</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {canEditLifecycleDates
+                      ? "Data de vencimento do contrato"
+                      : "Somente o administrador pode alterar esta validade"}
+                  </p>
                 </div>
               </div>
             </div>

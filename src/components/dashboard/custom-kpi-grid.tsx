@@ -40,14 +40,14 @@ export function CustomKpiGrid({ kpis, devices, positions, events }: CustomKpiGri
   }
 
   return (
-    <Card className="lg:col-span-full">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="lg:col-span-full">
+      <CardHeader className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between pb-3">
         <div>
-          <CardTitle className="flex items-center gap-2">
-            <Radar className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-base xl:text-lg">
+            <Radar className="w-4 h-4 xl:w-5 xl:h-5" />
             KPIs Personalizados
           </CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs xl:text-sm text-muted-foreground max-w-2xl">
             Cada card exibe o per\u00edodo salvo no KPI e deixa vis\u00edvel a base usada no c\u00e1lculo atual.
           </p>
         </div>
@@ -55,42 +55,42 @@ export function CustomKpiGrid({ kpis, devices, positions, events }: CustomKpiGri
           {evaluatedKpis.length} ativo{evaluatedKpis.length === 1 ? '' : 's'}
         </Badge>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 xl:gap-3">
           {evaluatedKpis.map(({ kpi, result }, index) => {
             const palette = KPI_COLORS[index % KPI_COLORS.length];
 
             return (
             <div
               key={kpi.id}
-              className="flex items-start gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/40"
+              className="flex items-start gap-2.5 rounded-xl border border-border p-2.5 transition-colors hover:bg-muted/40"
             >
-              <div className={`shrink-0 rounded-lg p-2 ${palette.bgColor}`}>
-                <BarChart3 className={`h-4 w-4 ${palette.color}`} />
+              <div className={`shrink-0 rounded-lg p-1.5 ${palette.bgColor}`}>
+                <BarChart3 className={`h-3.5 w-3.5 ${palette.color}`} />
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className={`text-lg font-bold ${palette.color}`}>{result.value}</p>
-                <p className="truncate text-xs font-medium text-foreground">{kpi.name}</p>
-                <p className="text-[11px] text-muted-foreground">{result.subtext}</p>
+                <p className={`text-base xl:text-lg font-bold ${palette.color}`}>{result.value}</p>
+                <p className="truncate text-[11px] font-medium text-foreground leading-tight">{kpi.name}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{result.subtext}</p>
 
-                <div className="mt-2 flex flex-wrap gap-2">
-                <Badge variant="outline" className="gap-1 text-[10px]">
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <Badge variant="outline" className="gap-1 text-[9px]">
                   <Calculator className="h-3 w-3" />
                   {kpi.sensorLabel || kpi.sensorKey}
                 </Badge>
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-[9px]">
                   {result.periodLabel}
                 </Badge>
                 {kpi.reportSchedule?.enabled && (
-                  <Badge className="gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+                  <Badge className="gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px]">
                     <Mail className="h-3 w-3" />
                     Email ativo
                   </Badge>
                 )}
                 </div>
 
-                <p className="mt-2 text-[10px] text-muted-foreground/80">{result.basis}</p>
+                <p className="mt-1.5 text-[9px] text-muted-foreground/80 leading-tight">{result.basis}</p>
               </div>
             </div>
             );

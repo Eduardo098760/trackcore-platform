@@ -212,12 +212,36 @@ export async function getEvents(params?: {
       requestParams.deviceId = devices.map((d) => d.id);
     }
 
-    const events = await api.get<Event[]>("/reports/events", requestParams);
+    const events =
+      typeof window !== "undefined"
+        ? await fetch("/api/reports/events", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              deviceIds: Array.isArray(requestParams.deviceId)
+                ? requestParams.deviceId
+                : requestParams.deviceId != null
+                  ? [requestParams.deviceId]
+                  : undefined,
+              from: requestParams.from,
+              to: requestParams.to,
+            }),
+          }).then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Failed to fetch events: ${response.status}`);
+            }
+            return (await response.json()) as Event[];
+          })
+        : await api.get<Event[]>('/reports/events', requestParams);
+
+    const normalizedEvents = Array.isArray(events) ? events : [];
 
     // Depuração: logar eventos de cerca brutos para investigar perdas
     try {
       if (typeof window !== "undefined") {
-        events.forEach((ev) => {
+        normalizedEvents.forEach((ev) => {
           if (ev.type === "geofence" || ev.type?.toLowerCase?.()?.includes("geofence")) {
             // Log leve — mostra id, deviceId e atributos para investigação
             // eslint-disable-next-line no-console
@@ -248,7 +272,7 @@ export async function getEvents(params?: {
       if (stored) resolvedIds = JSON.parse(stored);
     } catch { /* ignore */ }
 
-    return events.map((event) => {
+    return normalizedEvents.map((event) => {
       const normalizedType = normalizeEventType(event);
       const rawTimestamp =
         event.serverTime ||
@@ -271,7 +295,7 @@ export async function getEvents(params?: {
             `Dispositivo #${event.deviceId}`,
         },
       } as Event;
-    });
+    }).filter((event) => (params?.type ? event.type === normalizeEventType({ type: params.type } as Event) : true));
   } catch (error) {
     console.error("Erro ao buscar eventos:", error);
     return [];

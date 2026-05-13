@@ -238,17 +238,17 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
 
   return (
     <Card className="lg:col-span-full">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <CardHeader className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between pb-3">
         <div>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
+          <CardTitle className="flex items-center gap-2 text-base xl:text-lg">
+            <TrendingUp className="w-4 h-4 xl:w-5 xl:h-5" />
             KPIs da Frota
           </CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs xl:text-sm text-muted-foreground max-w-2xl">
             Período analítico configurável. Métricas instantâneas aparecem marcadas como tempo real.
           </p>
         </div>
-        <div className="w-full sm:w-[220px]">
+        <div className="w-full sm:w-[200px] xl:w-[220px]">
           <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
             <SelectTrigger>
               <SelectValue placeholder="Período" />
@@ -263,23 +263,25 @@ export function FleetKpi({ devices, positions, events }: FleetKpiProps) {
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 xl:gap-3">
           {kpis.map((kpi: KpiItem) => {
             const Icon = kpi.icon;
+
             return (
               <div
                 key={kpi.label}
-                className="flex items-start gap-3 p-3 rounded-xl border border-border hover:bg-muted/40 transition-colors"
+                className="flex items-start gap-2.5 p-2.5 rounded-xl border border-border hover:bg-muted/40 transition-colors"
               >
-                <div className={`p-2 rounded-lg ${kpi.bgColor} shrink-0`}>
-                  <Icon className={`w-4 h-4 ${kpi.color}`} />
+                <div className={`p-1.5 rounded-lg ${kpi.bgColor} shrink-0`}>
+                  <Icon className={`w-3.5 h-3.5 ${kpi.color}`} />
                 </div>
+
                 <div className="min-w-0">
-                  <p className={`text-lg font-bold ${kpi.color}`}>{kpi.value}</p>
-                  <p className="text-xs font-medium text-foreground truncate">{kpi.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{kpi.subtext}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground/80">{kpi.basis}</p>
+                  <p className={`text-base xl:text-lg font-bold ${kpi.color}`}>{kpi.value}</p>
+                  <p className="text-[11px] font-medium text-foreground truncate leading-tight">{kpi.label}</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">{kpi.subtext}</p>
+                  <p className="mt-0.5 text-[9px] text-muted-foreground/80 leading-tight">{kpi.basis}</p>
                 </div>
               </div>
             );

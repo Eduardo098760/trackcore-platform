@@ -66,6 +66,43 @@ type MarkerDragEndEvent = {
   };
 };
 
+const MAX_DRAWING_POINT_JUMP_METERS = 5000;
+
+function haversineDistanceMeters(a: [number, number], b: [number, number]) {
+  const earthRadius = 6371000;
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const deltaLat = toRad(b[0] - a[0]);
+  const deltaLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+
+  return 2 * earthRadius * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function buildSafeDrawingPoints(points: [number, number][]) {
+  if (points.length <= 2) return points;
+
+  const safePoints: [number, number][] = [points[0]];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const currentPoint = points[index];
+    const previousPoint = safePoints[safePoints.length - 1];
+    const jumpMeters = haversineDistanceMeters(previousPoint, currentPoint);
+
+    if (jumpMeters > MAX_DRAWING_POINT_JUMP_METERS) {
+      continue;
+    }
+
+    safePoints.push(currentPoint);
+  }
+
+  return safePoints;
+}
+
 export interface ParsedGeofenceItem {
   id: number;
   name: string;
@@ -672,6 +709,7 @@ export default function GeofenceDrawMap({
   }, []);
 
   const selectedLayer = TILE_LAYERS[mapStyle as TileLayerKey] ?? TILE_LAYERS.dark;
+  const safeDrawingPoints = buildSafeDrawingPoints(drawingPoints);
   const circleRadiusHandlePosition =
     type === 'circle' && circleCenter && circleRadius > 0
       ? getCircleRadiusHandlePosition(circleCenter, circleRadius)
@@ -745,17 +783,17 @@ export default function GeofenceDrawMap({
       ))}
 
       {/* Preview do polígono em desenho */}
-      {drawingPoints.length > 2 && type === 'polygon' && (
+      {safeDrawingPoints.length > 2 && type === 'polygon' && (
         <Polygon
-          positions={drawingPoints}
+          positions={safeDrawingPoints}
           pathOptions={{ color, fillColor: color, fillOpacity: 0.3 }}
         />
       )}
 
       {/* Preview do retângulo */}
-      {type === 'rectangle' && drawingPoints.length === 4 && (
+      {type === 'rectangle' && safeDrawingPoints.length === 4 && (
         <Polygon
-          positions={drawingPoints}
+          positions={safeDrawingPoints}
           pathOptions={{ color, fillColor: color, fillOpacity: 0.3 }}
         />
       )}
