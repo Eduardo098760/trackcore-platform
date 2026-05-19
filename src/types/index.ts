@@ -58,6 +58,8 @@ export interface User {
   accessInviteExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** Atributos extras do Traccar (inclui tkPermissions quando preset foi aplicado) */
+  attributes?: Record<string, any>;
 }
 
 // Permissões de usuário (relacionamento User-Device no Traccar)
@@ -439,6 +441,8 @@ export interface ReportFilter {
   from: string;
   to: string;
   type: ReportType;
+  driverId?: number;
+  driverName?: string;
 }
 
 export interface TripReport {

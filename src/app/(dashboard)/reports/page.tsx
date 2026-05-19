@@ -19,7 +19,7 @@ import {
   exportReportExcel,
   getRoutePositions,
 } from "@/lib/api/reports";
-import { getDevices } from "@/lib/api/devices";
+import { getDevices, getDrivers } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,14 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -283,6 +291,10 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState<Date>(startOfDay(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfDay(new Date()));
   const [selectedDevices, setSelectedDevices] = useState<number[]>([]);
+  const [reportDriverId, setReportDriverId] = useState<number | null>(null);
+  const [driverDialogOpen, setDriverDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"generate" | "pdf" | null>(null);
+  const [draftDriverId, setDraftDriverId] = useState<string>("none");
   const [isGenerating, setIsGenerating] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -294,9 +306,16 @@ export default function ReportsPage() {
   const [summaryData, setSummaryData] = useState<any[] | null>(null);
 
   // Devices
-  const { data: devices = [], isLoading: isLoadingDevices } = useQuery({
+  const { data: devices = [], isLoading: isLoadingDevices } = useQuery<import("@/types").Device[]>({
     queryKey: ["devices"],
     queryFn: () => getDevices(),
+    retry: 3,
+    staleTime: 60000,
+  });
+
+  const { data: drivers = [], isLoading: isLoadingDrivers } = useQuery<import("@/types").Driver[]>({
+    queryKey: ["drivers"],
+    queryFn: () => getDrivers(),
     retry: 3,
     staleTime: 60000,
   });
@@ -312,9 +331,16 @@ export default function ReportsPage() {
 
   const selectedDeviceNames = useMemo(() => {
     return selectedDevices
-      .map((id) => devices.find((dev) => dev.id === id)?.name || `#${id}`)
+      .map((id) => devices.find((dev: import("@/types").Device) => dev.id === id)?.name || `#${id}`)
       .join(", ");
   }, [selectedDevices, devices]);
+
+  const selectedReportDriver = useMemo(
+    () => drivers.find((driver: import("@/types").Driver) => driver.id === reportDriverId) ?? null,
+    [drivers, reportDriverId],
+  );
+
+  const selectedReportDriverLabel = selectedReportDriver?.name || "";
 
   const clearReports = () => {
     setRouteData(null);
@@ -324,118 +350,161 @@ export default function ReportsPage() {
     setSummaryData(null);
   };
 
-  // ── Generate ──
-  const handleGenerate = useCallback(async (type?: ReportType) => {
-    const currentType = type ?? reportType;
-    if (selectedDevices.length === 0) return;
+  const buildReportFilter = useCallback(
+    (type: ReportType, driverIdOverride?: number | null): ReportFilter => {
+      const driverId =
+        typeof driverIdOverride === "number" ? driverIdOverride : reportDriverId;
+      const driver =
+        typeof driverId === "number"
+          ? drivers.find((item: import("@/types").Driver) => item.id === driverId) ?? null
+          : null;
 
-    setIsGenerating(true);
-    clearReports();
+      return {
+        deviceIds: selectedDevices,
+        from: dateFrom.toISOString(),
+        to: dateTo.toISOString(),
+        type,
+        ...(driver
+          ? {
+              driverId: driver.id,
+              driverName: driver.name,
+            }
+          : {}),
+      };
+    },
+    [dateFrom, dateTo, drivers, reportDriverId, selectedDevices],
+  );
 
-    const filter: ReportFilter = {
-      deviceIds: selectedDevices,
-      from: dateFrom.toISOString(),
-      to: dateTo.toISOString(),
-      type: currentType,
-    };
+  // ── Generate / Export ──
+  const handleGenerate = useCallback(
+    async (type?: ReportType, driverIdOverride?: number | null) => {
+      const currentType = type ?? reportType;
+      if (selectedDevices.length === 0) return;
 
-    try {
-      const needsRoute =
-        currentType === "route" ||
-        currentType === "chart" ||
-        currentType === "combined";
-      const needsTrips = currentType === "trips" || currentType === "combined";
-      const needsStops = currentType === "stops" || currentType === "combined";
-      const needsEvents = currentType === "events" || currentType === "combined" ||
-        currentType === "geofence" || currentType === "ignition" || currentType === "fuel";
-      const needsSummary =
-        currentType === "summary" || currentType === "combined";
+      setIsGenerating(true);
+      clearReports();
 
-      const promises: Promise<void>[] = [];
+      const filter = buildReportFilter(currentType, driverIdOverride);
 
-      if (needsRoute) {
-        abortRef.current = new AbortController();
-        promises.push(
-          getRoutePositions(
-            selectedDevices[0],
-            dateFrom.toISOString(),
-            dateTo.toISOString(),
-            abortRef.current.signal,
-          ).then((p) => setRouteData(p)),
+      try {
+        const needsRoute =
+          currentType === "route" ||
+          currentType === "chart" ||
+          currentType === "combined";
+        const needsTrips =
+          currentType === "trips" || currentType === "combined";
+        const needsStops =
+          currentType === "stops" || currentType === "combined";
+        const needsEvents =
+          currentType === "events" ||
+          currentType === "combined" ||
+          currentType === "geofence" ||
+          currentType === "ignition" ||
+          currentType === "fuel";
+        const needsSummary =
+          currentType === "summary" || currentType === "combined";
+
+        const promises: Promise<void>[] = [];
+
+        if (needsRoute) {
+          abortRef.current = new AbortController();
+          promises.push(
+            getRoutePositions(
+              selectedDevices[0],
+              dateFrom.toISOString(),
+              dateTo.toISOString(),
+              abortRef.current.signal,
+            ).then((p) => setRouteData(p)),
+          );
+        }
+        if (needsTrips)
+          promises.push(generateTripReport(filter).then((d) => setTripData(d)));
+        if (needsStops)
+          promises.push(generateStopReport(filter).then((d) => setStopData(d)));
+        if (needsEvents)
+          promises.push(
+            generateEventReport(filter).then((d) => setEventData(d)),
+          );
+        if (needsSummary)
+          promises.push(
+            generateSummaryReport(filter).then((d) => setSummaryData(d)),
+          );
+
+        await Promise.all(promises);
+        toast.success("Relatório gerado com sucesso!");
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        toast.error(
+          "Erro ao gerar relatório: " + (err?.message || "Desconhecido"),
         );
+      } finally {
+        setIsGenerating(false);
+        abortRef.current = null;
       }
-      if (needsTrips)
-        promises.push(generateTripReport(filter).then((d) => setTripData(d)));
-      if (needsStops)
-        promises.push(generateStopReport(filter).then((d) => setStopData(d)));
-      if (needsEvents)
-        promises.push(
-          generateEventReport(filter).then((d) => setEventData(d)),
-        );
-      if (needsSummary)
-        promises.push(
-          generateSummaryReport(filter).then((d) => setSummaryData(d)),
-        );
+    },
+    [buildReportFilter, dateFrom, dateTo, reportType, selectedDevices],
+  );
 
-      await Promise.all(promises);
-      toast.success("Relatório gerado com sucesso!");
-    } catch (err: any) {
-      if (err?.name === "AbortError") return;
-      toast.error(
-        "Erro ao gerar relatório: " + (err?.message || "Desconhecido"),
+  const handleExport = useCallback(
+    async (fmt: "pdf" | "excel", driverIdOverride?: number | null) => {
+      const mappedType = reportType === "chart" ? "route" : reportType;
+      const filter = buildReportFilter(
+        mappedType as ReportType,
+        driverIdOverride,
       );
-    } finally {
-      setIsGenerating(false);
-      abortRef.current = null;
-    }
-  }, [reportType, selectedDevices, dateFrom, dateTo]);
 
-  // Auto-submit when type, period, or devices change
-  const autoSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (selectedDevices.length === 0) return;
-    if (autoSubmitTimer.current) clearTimeout(autoSubmitTimer.current);
-    autoSubmitTimer.current = setTimeout(() => {
-      handleGenerate();
-    }, 400);
-    return () => { if (autoSubmitTimer.current) clearTimeout(autoSubmitTimer.current); };
-  }, [reportType, periodPreset, dateFrom, dateTo, selectedDevices, handleGenerate]);
+      try {
+        if (fmt === "pdf") {
+          const blob = await exportReportPDF(filter.type, filter);
+          const url = window.URL.createObjectURL(
+            new Blob([blob], { type: "text/html" }),
+          );
+          window.open(url, "_blank");
+          toast.success("Relatório aberto — use Ctrl+P para salvar como PDF");
+        } else {
+          const blob = await exportReportExcel(filter.type, filter);
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          toast.success("Excel exportado!");
+        }
+      } catch {
+        toast.error(`Erro ao exportar ${fmt === "pdf" ? "PDF" : "Excel"}`);
+      }
+    },
+    [buildReportFilter, reportType],
+  );
+
+  const openDriverDialog = useCallback(
+    (action: "generate" | "pdf") => {
+      setPendingAction(action);
+      setDraftDriverId(reportDriverId ? String(reportDriverId) : "none");
+      setDriverDialogOpen(true);
+    },
+    [reportDriverId],
+  );
+
+  const confirmDriverDialog = useCallback(async () => {
+    const nextDriverId =
+      draftDriverId === "none" ? null : Number(draftDriverId);
+
+    setReportDriverId(nextDriverId);
+    setDriverDialogOpen(false);
+
+    const action = pendingAction;
+    setPendingAction(null);
+
+    if (action === "generate") {
+      await handleGenerate(undefined, nextDriverId);
+    } else if (action === "pdf") {
+      await handleExport("pdf", nextDriverId);
+    }
+  }, [draftDriverId, handleExport, handleGenerate, pendingAction]);
 
   // ── Export ──
-  const handleExport = async (fmt: "pdf" | "excel") => {
-    const mappedType =
-      reportType === "chart"
-        ? "route"
-        : reportType;
-    const filter: ReportFilter = {
-      deviceIds: selectedDevices,
-      from: dateFrom.toISOString(),
-      to: dateTo.toISOString(),
-      type: mappedType as ReportType,
-    };
-    try {
-      if (fmt === "pdf") {
-        // PDF endpoint returns HTML — open in new tab for print/save
-        const blob = await exportReportPDF(filter.type, filter);
-        const url = window.URL.createObjectURL(
-          new Blob([blob], { type: "text/html" }),
-        );
-        window.open(url, "_blank");
-        toast.success("Relatório aberto — use Ctrl+P para salvar como PDF");
-      } else {
-        const blob = await exportReportExcel(filter.type, filter);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `relatorio-${reportType}-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        toast.success("Excel exportado!");
-      }
-    } catch {
-      toast.error(`Erro ao exportar ${fmt === "pdf" ? "PDF" : "Excel"}`);
-    }
-  };
 
   const hasData =
     routeData || tripData || stopData || eventData || summaryData;
@@ -487,7 +556,7 @@ export default function ReportsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleExport("pdf")}
+                onClick={() => openDriverDialog("pdf")}
               >
                 <Download className="h-4 w-4 mr-1" />
                 PDF
@@ -495,6 +564,66 @@ export default function ReportsPage() {
             </div>
           )}
         </div>
+
+        <Dialog
+          open={driverDialogOpen}
+          onOpenChange={(open: boolean) => {
+            setDriverDialogOpen(open);
+            if (!open) setPendingAction(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Vincular motorista?</DialogTitle>
+              <DialogDescription>
+                Se quiser destacar um condutor no PDF, selecione um motorista abaixo.
+                Caso contrário, siga sem vínculo.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Motorista
+              </Label>
+              <Select
+                value={draftDriverId}
+                onValueChange={setDraftDriverId}
+                disabled={isLoadingDrivers}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      isLoadingDrivers ? "Carregando motoristas..." : "Sem motorista"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem motorista</SelectItem>
+                  {drivers.map((driver: import("@/types").Driver) => (
+                    <SelectItem key={driver.id} value={String(driver.id)}>
+                      {driver.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDriverDialogOpen(false);
+                  setPendingAction(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={() => void confirmDriverDialog()} disabled={!pendingAction}>
+                {pendingAction === "pdf" ? "Continuar com PDF" : "Gerar relatório"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -610,7 +739,7 @@ export default function ReportsPage() {
             <Button
               className="w-full"
               size="lg"
-              onClick={() => handleGenerate()}
+              onClick={() => openDriverDialog("generate")}
               disabled={isGenerating || selectedDevices.length === 0}
             >
               {isGenerating ? (
@@ -671,6 +800,17 @@ export default function ReportsPage() {
                 <span className="truncate">
                   <strong>Veículos:</strong> {selectedDeviceNames}
                 </span>
+                {selectedReportDriverLabel && (
+                  <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 shadow-sm">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                      Condutor
+                    </span>
+                    <span className="max-w-[240px] truncate text-xs font-bold text-emerald-900">
+                      {selectedReportDriverLabel}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Report content */}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, Car, ChevronDown, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -53,16 +54,54 @@ export function VehicleCombobox(props: VehicleComboboxProps) {
   const { devices, placeholder, className, disabled, align = "left", mode } = props;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // Click outside
+  useEffect(() => { setMounted(true); }, []);
+
+  // Recalcula posição do dropdown quando abre ou janela redimensiona
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    function calcPos() {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropW = Math.max(rect.width, 280);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openDown = spaceBelow >= 260 || spaceBelow >= spaceAbove;
+      setDropdownStyle({
+        position: "fixed",
+        width: dropW,
+        ...(align === "right"
+          ? { right: window.innerWidth - rect.right }
+          : { left: rect.left }),
+        ...(openDown
+          ? { top: rect.bottom + 4 }
+          : { bottom: window.innerHeight - rect.top + 4 }),
+        zIndex: 9999,
+      });
+    }
+    calcPos();
+    window.addEventListener("resize", calcPos);
+    window.addEventListener("scroll", calcPos, true);
+    return () => {
+      window.removeEventListener("resize", calcPos);
+      window.removeEventListener("scroll", calcPos, true);
+    };
+  }, [open, align]);
+
+  // Click outside (container ou dropdown portal)
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inTrigger = containerRef.current?.contains(target);
+      const inDropdown = dropdownRef.current?.contains(target);
+      if (!inTrigger && !inDropdown) setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -133,6 +172,7 @@ export function VehicleCombobox(props: VehicleComboboxProps) {
     <div ref={containerRef} className={`relative ${className || ""}`}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
@@ -181,10 +221,12 @@ export function VehicleCombobox(props: VehicleComboboxProps) {
         </div>
       )}
 
-      {/* Dropdown */}
-      {open && (
+      {/* Dropdown via portal – escapa qualquer overflow:hidden na árvore */}
+      {open && mounted && createPortal(
         <div
-          className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1 z-50 w-full min-w-[280px] rounded-lg border border-border bg-popover shadow-lg overflow-hidden`}
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="rounded-lg border border-border bg-popover shadow-xl overflow-hidden"
         >
           {/* Search */}
           <div className="p-2 border-b border-border/50">
@@ -261,7 +303,8 @@ export function VehicleCombobox(props: VehicleComboboxProps) {
               </p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

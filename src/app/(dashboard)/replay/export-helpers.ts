@@ -101,6 +101,7 @@ export function exportSummaryReport(
   stops: StopEvent[],
   violations: SpeedViolation[],
   deviceName: string,
+  driverName: string | null,
   speedLimit: number,
   dateFrom: string,
   dateTo: string,
@@ -111,6 +112,11 @@ export function exportSummaryReport(
   lines.push("RELATORIO DE ROTA");
   lines.push(sep);
   lines.push(`Veiculo: ${deviceName}`);
+  if (driverName) {
+    lines.push("CONDUTOR RESPONSAVEL");
+    lines.push(`>>> ${driverName}`);
+    lines.push("----------------------------------------");
+  }
   lines.push(`Periodo: ${dateFrom} -> ${dateTo}`);
   lines.push(`Gerado em: ${new Date().toLocaleString("pt-BR")}`);
   lines.push("");
@@ -406,6 +412,7 @@ export async function exportSummaryPDF(
   stops: StopEvent[],
   violations: SpeedViolation[],
   deviceName: string,
+  driverName: string | null,
   speedLimit: number,
   dateFrom: string,
   dateTo: string,
@@ -466,8 +473,9 @@ export async function exportSummaryPDF(
 
   // ── Row 2: Report details (below, with background strip) ──
   const detailY = 32;
+  const detailH = 20;
   doc.setFillColor(30, 41, 59);
-  doc.roundedRect(marginL, detailY, contentW, 18, 2, 2, "F");
+  doc.roundedRect(marginL, detailY, contentW, detailH, 2, 2, "F");
 
   // Report type badge (left)
   const badgeText = "RELATORIO DE ROTA";
@@ -483,18 +491,32 @@ export async function exportSummaryPDF(
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(255, 255, 255);
-  doc.text(deviceName, pageW / 2, detailY + 8, { align: "center" });
+  doc.text(deviceName, pageW / 2, detailY + 7.8, { align: "center" });
+
+  if (driverName) {
+    const driverBadgeText = `CONDUTOR: ${driverName}`;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    const driverBadgeW = Math.min(contentW - 16, doc.getTextWidth(driverBadgeText) + 8);
+    const driverBadgeX = pageW / 2 - driverBadgeW / 2;
+    const driverBadgeY = detailY + 9.2;
+
+    doc.setFillColor(22, 163, 74);
+    doc.roundedRect(driverBadgeX, driverBadgeY, driverBadgeW, 5.6, 1.4, 1.4, "F");
+    doc.setTextColor(220, 252, 231);
+    doc.text(driverBadgeText, pageW / 2, driverBadgeY + 3.9, { align: "center" });
+  }
 
   // Period (below badge, left area)
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(148, 163, 184);
-  doc.text(`Periodo: ${dateFrom}  -  ${dateTo}`, marginL + 6, detailY + 14.5);
+  doc.text(`Periodo: ${dateFrom}  -  ${dateTo}`, marginL + 6, detailY + 17.2);
 
   // Generation date (right)
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Gerado: ${generatedAt}`, pageW - marginR - 4, detailY + 14.5, { align: "right" });
+  doc.text(`Gerado: ${generatedAt}`, pageW - marginR - 4, detailY + 17.2, { align: "right" });
 
   y = headerH + 8;
 

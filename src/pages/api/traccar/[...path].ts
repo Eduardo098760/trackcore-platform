@@ -37,6 +37,32 @@ function resolveTraccarUrl(req: NextApiRequest): string | null {
   return null;
 }
 
+function buildTraccarBaseCandidates(baseUrl: string): string[] {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  const candidates = [normalized];
+
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+
+    if (parsed.protocol === "http:" && !isLocalHost) {
+      const upgraded = `https://${parsed.host}${parsed.pathname}`.replace(/\/+$/, "");
+      candidates.unshift(upgraded);
+    }
+  } catch {
+    // Se não for URL válida, mantém apenas o valor original.
+  }
+
+  return Array.from(new Set(candidates));
+}
+
 /**
  * Desabilita o body parser do Next.js para este proxy.
  * Assim o body raw é repassado diretamente ao Traccar sem nenhuma transformação.
@@ -381,9 +407,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: "Nenhum servidor configurado. Informe o endereço do servidor na tela de login.",
       });
     }
+    const baseCandidates = buildTraccarBaseCandidates(base);
+    const preferredBase = baseCandidates[0];
     const query = req.url?.split("?")[1];
 
-    const makeUrl = (useApi: boolean, baseUrl = base) => {
+    const makeUrl = (useApi: boolean, baseUrl = preferredBase) => {
       const targetPath = useApi
         ? forwardPath.startsWith("api")
           ? forwardPath
@@ -392,16 +420,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return query ? `${baseUrl}/${targetPath}?${query}` : `${baseUrl}/${targetPath}`;
     };
 
-    const defaultCandidates = addApiPrefer ? [true, false] : [false, true];
+    const method = (req.method || "GET").toUpperCase();
+    const isWriteMethod = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+    // Escrita deve sempre usar /api para evitar variantes sem prefixo que alguns servidores rejeitam.
+    const defaultCandidates = isWriteMethod
+      ? [true]
+      : addApiPrefer
+        ? [true, false]
+        : [false, true];
     const internalApiBase = getInternalTraccarApiBase();
-    const publicApiBase = ensureApiBase(base);
+    const publicApiBase = ensureApiBase(preferredBase);
     const candidateUrls =
       req.method === "POST" && forwardPath === "commands/send"
         ? [
             `${publicApiBase}/commands/send`,
             internalApiBase ? `${internalApiBase}/commands/send` : null,
           ].filter((url, index, items): url is string => !!url && items.indexOf(url) === index)
-        : defaultCandidates.map((useApi) => makeUrl(useApi));
+        : baseCandidates
+            .flatMap((candidateBase) => defaultCandidates.map((useApi) => makeUrl(useApi, candidateBase)))
+            .filter((url, index, items) => items.indexOf(url) === index);
     const attemptedUrls: string[] = [];
 
     // Lê o body cru UMA vez (stream só pode ser lido uma vez)
@@ -520,6 +557,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             break;
           }
           if ([401, 403].includes(upstream.status)) {
+            const isHttpsAttempt = /^https:\/\//i.test(targetUrl);
+            const hasHttpFallback = candidateUrls
+              .slice(attemptedUrls.length)
+              .some((url) => /^http:\/\//i.test(url));
+
+            // Se 401/403 ocorrer na tentativa HTTPS auto-promovida, testar HTTP antes de abortar.
+            if (isHttpsAttempt && hasHttpFallback) {
+              continue;
+            }
+
             break;
           }
           continue;
@@ -552,6 +599,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         res.status(upstream.status);
         res.setHeader("content-type", contentType);
+        res.setHeader("x-traccar-upstream-url", targetUrl);
+        res.setHeader("x-traccar-attempted-urls", attemptedUrls.join(" | "));
 
         // Repassa todos os set-cookie para preservar a sessão
         // Reescreve atributos do cookie para funcionar no domínio do proxy (não do Traccar)

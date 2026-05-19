@@ -6,6 +6,7 @@ import { getDevices } from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
   getTraccarNotifications,
+  getTraccarNotificationDeviceIds,
   createTraccarNotification,
   updateTraccarNotification,
   deleteTraccarNotification,
@@ -233,7 +234,7 @@ function VehicleSelector({
             </div>
           )}
 
-          <div className="max-h-[200px] overflow-y-auto">
+          <div className="max-h-[200px] overflow-y-auto"> 
             {filtered.map((dev) => {
               const selected = selectedIds.includes(dev.id);
               return (
@@ -290,6 +291,7 @@ export default function NotificationsPage() {
   const [formChannels, setFormChannels] = useState<string[]>(["web"]);
   const [formAlways, setFormAlways] = useState(true);
   const [formDeviceIds, setFormDeviceIds] = useState<number[]>([]);
+  const [isSyncingDevices, setIsSyncingDevices] = useState(false);
 
   // ── Queries ──
   const { data: notifications = [], isLoading } = useQuery({
@@ -327,11 +329,6 @@ export default function NotificationsPage() {
       if (user?.id) await addUserNotification(user.id, notif.id);
       return notif;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
-      toast.success("Regra de notificação criada!");
-      setDialogOpen(false);
-    },
     onError: () => toast.error("Erro ao criar regra de notificação"),
   });
 
@@ -340,7 +337,6 @@ export default function NotificationsPage() {
       updateTraccarNotification(data.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
-      toast.success("Regra atualizada!");
     },
     onError: () => toast.error("Erro ao atualizar regra"),
   });
@@ -360,6 +356,24 @@ export default function NotificationsPage() {
     onError: () => toast.error("Erro ao enviar teste"),
   });
 
+  const syncNotificationDevices = useCallback(
+    async (notificationId: number, nextDeviceIds: number[]) => {
+      const uniqueNext = Array.from(new Set(nextDeviceIds));
+      const currentDeviceIds = await getTraccarNotificationDeviceIds(notificationId).catch(
+        () => [] as number[],
+      );
+
+      const toAdd = uniqueNext.filter((id) => !currentDeviceIds.includes(id));
+      const toRemove = currentDeviceIds.filter((id) => !uniqueNext.includes(id));
+
+      await Promise.all([
+        ...toAdd.map((deviceId) => addDeviceNotification(deviceId, notificationId)),
+        ...toRemove.map((deviceId) => removeDeviceNotification(deviceId, notificationId)),
+      ]);
+    },
+    [],
+  );
+
   // ── Handlers ──
   const openNewDialog = () => {
     setEditingNotif(null);
@@ -370,33 +384,96 @@ export default function NotificationsPage() {
     setDialogOpen(true);
   };
 
-  const openEditDialog = (n: TraccarNotification) => {
+  const openEditDialog = async (n: TraccarNotification) => {
     setEditingNotif(n);
     setFormType(n.type);
     setFormChannels(n.notificators ? n.notificators.split(",").filter(Boolean) : ["web"]);
     setFormAlways(n.always);
     setFormDeviceIds([]);
     setDialogOpen(true);
+
+    if (n.always) return;
+
+    setIsSyncingDevices(true);
+    try {
+      const linkedIds = await getTraccarNotificationDeviceIds(n.id);
+      setFormDeviceIds(linkedIds);
+    } catch {
+      toast.error("Não foi possível carregar os veículos da regra");
+    } finally {
+      setIsSyncingDevices(false);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const notificators = formChannels.join(",");
+    if (!formAlways && formDeviceIds.length === 0) {
+      toast.error("Selecione ao menos um veículo para regra específica");
+      return;
+    }
+
+    setIsSyncingDevices(true);
+
     if (editingNotif) {
-      updateMut.mutate({
-        id: editingNotif.id,
-        type: editingNotif.type,
-        notificators,
-        always: formAlways,
-      });
+      try {
+        await updateMut.mutateAsync({
+          id: editingNotif.id,
+          type: editingNotif.type,
+          notificators,
+          always: formAlways,
+        });
+
+        await syncNotificationDevices(editingNotif.id, formAlways ? [] : formDeviceIds);
+
+        await queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
+        toast.success("Regra atualizada!");
+        setDialogOpen(false);
+      } catch {
+      } finally {
+        setIsSyncingDevices(false);
+      }
     } else {
       if (!formType) return;
-      createMut.mutate({
-        type: formType,
-        notificators,
-        always: formAlways,
-      });
+      try {
+        const created = await createMut.mutateAsync({
+          type: formType,
+          notificators,
+          always: formAlways,
+        });
+
+        await syncNotificationDevices(created.id, formAlways ? [] : formDeviceIds);
+
+        await queryClient.invalidateQueries({ queryKey: ["traccar-notifications"] });
+        toast.success("Regra de notificação criada!");
+        setDialogOpen(false);
+      } catch {
+      } finally {
+        setIsSyncingDevices(false);
+      }
     }
-    setDialogOpen(false);
+  };
+
+  const handleDelete = async (notif: TraccarNotification) => {
+    try {
+      if (user?.id) {
+        await removeUserNotification(user.id, notif.id).catch(() => undefined);
+      }
+
+      if (!notif.always) {
+        const linkedDeviceIds = await getTraccarNotificationDeviceIds(notif.id).catch(
+          () => [] as number[],
+        );
+        if (linkedDeviceIds.length > 0) {
+          await Promise.all(
+            linkedDeviceIds.map((deviceId) =>
+              removeDeviceNotification(deviceId, notif.id).catch(() => undefined),
+            ),
+          );
+        }
+      }
+
+      await deleteMut.mutateAsync(notif.id);
+    } catch {}
   };
 
   const toggleChannel = (notif: TraccarNotification, channel: string) => {
@@ -407,7 +484,7 @@ export default function NotificationsPage() {
     updateMut.mutate({ id: notif.id, type: notif.type, notificators: next.join(","), always: notif.always });
   };
 
-  const isBusy = createMut.isPending || updateMut.isPending;
+  const isBusy = createMut.isPending || updateMut.isPending || isSyncingDevices;
 
   return (
       <div className="space-y-6">
@@ -602,7 +679,9 @@ export default function NotificationsPage() {
                         size="icon"
                         className="h-8 w-8"
                         title="Editar regra"
-                        onClick={() => openEditDialog(notif)}
+                        onClick={() => {
+                          void openEditDialog(notif);
+                        }}
                       >
                         <Zap className="w-3.5 h-3.5" />
                       </Button>
@@ -611,7 +690,9 @@ export default function NotificationsPage() {
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         title="Remover regra"
-                        onClick={() => deleteMut.mutate(notif.id)}
+                        onClick={() => {
+                          void handleDelete(notif);
+                        }}
                         disabled={deleteMut.isPending}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -788,6 +869,29 @@ export default function NotificationsPage() {
                 </div>
                 <Switch checked={formAlways} onCheckedChange={setFormAlways} />
               </div>
+
+              {!formAlways && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Dispositivos específicos</p>
+                  <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                    {isSyncingDevices && editingNotif ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Carregando dispositivos vinculados...
+                      </div>
+                    ) : (
+                      <VehicleSelector
+                        selectedIds={formDeviceIds}
+                        onChangeIds={setFormDeviceIds}
+                        allDevices={allDevices}
+                      />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selecione os veículos que devem disparar esta regra.
+                  </p>
+                </div>
+              )}
             </div>
 
             <DialogFooter>

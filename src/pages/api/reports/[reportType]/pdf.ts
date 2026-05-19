@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { reportType } = req.query as { reportType: string };
-  const { deviceIds, from, to } = req.body;
+  const { deviceIds, from, to, driverId, driverName } = req.body;
 
   if (!deviceIds || !Array.isArray(deviceIds) || deviceIds.length === 0) {
     return res.status(400).json({ message: 'deviceIds is required' });
@@ -126,6 +126,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     geofence: 'Geocercas', ignition: 'Ignicao', fuel: 'Combustivel',
   };
   const typeLabel = typeLabels[reportType] || reportType;
+  const driverLabel = typeof driverName === 'string' && driverName.trim()
+    ? driverName.trim()
+    : typeof driverId === 'number'
+      ? `#${driverId}`
+      : '';
 
   // ---- Builders de HTML ----
   const buildTrips = (data: any[]) =>
@@ -274,7 +279,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .header-brand .subtitle { font-size:11px; opacity:0.75; }
     .header-right { text-align:right; z-index:1; }
     .report-type-badge { display:inline-block; background:rgba(255,255,255,0.18); padding:5px 14px; border-radius:20px; font-size:12px; font-weight:600; margin-bottom:6px; }
+    .report-driver-badge { display:inline-flex; align-items:center; gap:7px; background:linear-gradient(135deg,rgba(34,197,94,0.45),rgba(16,185,129,0.45)); color:#ecfdf5; border:1.5px solid rgba(134,239,172,0.95); padding:7px 16px; border-radius:999px; font-size:13px; font-weight:800; letter-spacing:0.35px; text-transform:uppercase; margin-bottom:8px; box-shadow:0 4px 14px rgba(16,185,129,0.28); }
+    .report-driver-badge .driver-dot { width:9px; height:9px; border-radius:50%; background:#4ade80; flex-shrink:0; box-shadow:0 0 9px rgba(74,222,128,0.95); }
     .header-meta { font-size:10px; opacity:0.7; line-height:1.6; }
+    .driver-banner { background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:2.5px solid #4ade80; border-radius:12px; padding:14px 28px; margin:0 32px 20px 32px; display:flex; align-items:center; gap:16px; box-shadow:0 4px 14px rgba(22,163,74,0.2); }
+    .driver-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#16a34a,#22c55e); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 10px rgba(22,163,74,0.35); }
+    .driver-avatar .material-icons { font-size:22px; color:#fff; }
+    .driver-info { flex:1; }
+    .driver-label { font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:#15803d; font-weight:700; margin-bottom:3px; }
+    .driver-name { font-size:17px; font-weight:800; color:#14532d; line-height:1; }
+    .driver-id { font-size:10px; color:#16a34a; margin-top:3px; font-weight:500; }
+    .driver-badge-pill { background:#16a34a; color:#fff; padding:4px 12px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:0.4px; }
+    @media print { .driver-banner { margin: 0 16px 16px 16px; } }
     .print-bar { display:flex; align-items:center; justify-content:space-between; padding:0 32px; margin-bottom:20px; }
     .print-btn { background:linear-gradient(135deg,#1d4ed8,#2563eb); color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 2px 8px rgba(29,78,216,0.3); }
     .print-btn:hover { background:linear-gradient(135deg,#1e40af,#1d4ed8); }
@@ -323,19 +339,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     </div>
     <div class="header-right">
       <div class="report-type-badge">Relatorio de ${typeLabel}</div>
+      ${driverLabel ? `<div class="report-driver-badge"><span class="driver-dot"></span>Condutor: ${driverLabel}</div>` : ''}
       <div class="header-meta">Periodo: ${fromLabel} - ${toLabel}<br>Gerado em: ${generatedAt}</div>
     </div>
   </div>
   <div class="print-bar">
     <button class="print-btn" onclick="window.print()"><span class="material-icons" style="font-size:18px">print</span> Imprimir / Salvar como PDF</button>
-    <div class="print-summary">${totalDevices} veiculo${totalDevices !== 1 ? 's' : ''} no relatorio</div>
+    <div class="print-summary">${totalDevices} veiculo${totalDevices !== 1 ? 's' : ''} no relatorio${driverLabel ? ` • Condutor: <strong style="color:#15803d">${driverLabel}</strong>` : ''}</div>
   </div>
+  ${driverLabel ? `
+  <div class="driver-banner">
+    <div class="driver-avatar"><span class="material-icons">person</span></div>
+    <div class="driver-info">
+      <div class="driver-label">Condutor Responsavel</div>
+      <div class="driver-name">${driverLabel}</div>
+      ${driverId ? `<div class="driver-id">ID #${driverId}</div>` : ''}
+    </div>
+    <div class="driver-badge-pill">&#10003; Vinculado</div>
+  </div>` : ''}
   <div class="content">
     ${bodyContent || '<div class="empty-state"><div class="icon">&#xe88e;</div><p>Nenhum dado encontrado para o periodo selecionado.</p></div>'}
   </div>
   <div class="report-footer">
     <div class="footer-left">${logoBase64 ? `<img src="${logoBase64}" class="footer-logo" />` : ''}<span>${companyName}</span></div>
-    <div class="footer-center"><span class="confidential">Documento confidencial</span><br>Relatorio de ${typeLabel} - ${fromLabel} - ${toLabel}</div>
+    <div class="footer-center"><span class="confidential">Documento confidencial</span><br>Relatorio de ${typeLabel} - ${fromLabel} - ${toLabel}${driverLabel ? `<br><strong style="color:#15803d">Condutor: ${driverLabel}</strong>` : ''}</div>
     <div class="footer-right">${generatedAt}</div>
   </div>
 </body>

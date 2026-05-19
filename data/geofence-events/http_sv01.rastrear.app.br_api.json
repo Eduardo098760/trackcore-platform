@@ -19,5 +19,46 @@
     "resolved": false,
     "sourceKey": "ui:-1778625719712",
     "tenantKey": "http://sv01.rastrear.app.br/api"
+  },
+  {
+    "id": -1778634266541,
+    "type": "geofenceEnter",
+    "deviceId": 200,
+    "positionId": 8576858,
+    "serverTime": "2026-05-13T00:58:48.000+00:00",
+    "address": "Rua Barão de Monte Cedro, Quissamã, Rio de Janeiro, BR",
+    "attributes": {
+      "geofenceId": 165,
+      "geofenceName": "Barracão",
+      "geofence": "Barracão",
+      "originalType": "geofence",
+      "source": "geofence-store",
+      "sourceKey": "ui:-1778634266541",
+      "tenantKey": "http://sv01.rastrear.app.br/api"
+    },
+    "resolved": false,
+    "sourceKey": "ui:-1778634266541",
+    "tenantKey": "http://sv01.rastrear.app.br/api"
+  },
+  {
+    "id": -1779144278232,
+    "type": "geofenceEnter",
+    "deviceId": 195,
+    "positionId": 8779328,
+    "serverTime": "2026-05-18T22:38:59.000+00:00",
+    "address": "Rua Barão de Monte Cedro, Quissamã, Rio de Janeiro, BR",
+    "attributes": {
+      "geofenceId": 155,
+      "geofenceName": "Barração ",
+      "geofence": "Barração ",
+      "originalType": "geofenceEnter",
+      "source": "geofence-store",
+      "sourceKey": "ui:-1779144278232",
+      "tenantKey": "http://sv01.rastrear.app.br/api",
+      "deviceName": "Renault Master LTL-7512"
+    },
+    "resolved": false,
+    "sourceKey": "ui:-1779144278232",
+    "tenantKey": "http://sv01.rastrear.app.br/api"
   }
 ]

@@ -90,7 +90,18 @@ export function resolvePermissions(options: ResolveOptions): RoutePermissions {
     return enforceAdminOnlyRoutes(role, ceiling, isImpersonating);
   }
 
-  // b) Customizado → interseção com o teto (usuário nunca supera a empresa)
+  // b) Customizado:
+  //   - Se a empresa foi configurada explicitamente → interseção com o teto (usuário nunca supera a empresa)
+  //   - Se NÃO há config de empresa → preset definido pelo admin é a palavra final (sem restrição por role defaults)
+  //     O admin atribui permissões customizadas que podem superar os defaults da role.
+  if (!hasCompanyConfig) {
+    const result: RoutePermissions = { ...DENIED_ALL_PERMISSIONS };
+    for (const key of ALL_ROUTE_KEYS) {
+      result[key] = userPermissions.routes?.[key] ?? false;
+    }
+    return enforceAdminOnlyRoutes(role, result, isImpersonating);
+  }
+
   const result: RoutePermissions = { ...DENIED_ALL_PERMISSIONS };
   for (const key of ALL_ROUTE_KEYS) {
     const companyAllows = ceiling[key];

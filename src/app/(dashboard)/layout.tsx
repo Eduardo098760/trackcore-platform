@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth";
+import { usePermissionsStore } from "@/lib/stores/permissions";
 import { getCurrentUser, login } from "@/lib/api/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -29,6 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     rememberMe,
     isImpersonating,
   } = useAuthStore();
+  const setUserPermissions = usePermissionsStore((s) => s.setUserPermissions);
   const [isValidating, setIsValidating] = useState(true);
 
   // Ativar monitoramento de eventos do Traccar para notificações
@@ -87,6 +89,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           console.log(`[Layout] Role atualizada: ${storedUser.role} → ${freshUser.role}`);
         }
         setUser(freshUser);
+        // Hidrata permissões salvas pelo admin no servidor (tkPermissions em attributes)
+        const tkPerms = (freshUser as any).attributes?.tkPermissions;
+        if (tkPerms && freshUser.id) {
+          setUserPermissions(freshUser.id, tkPerms);
+          console.log(`[Layout] Permissões carregadas do servidor para userId ${freshUser.id}`);
+        }
         setIsValidating(false);
       } catch (error) {
         console.log("Erro ao validar sessão:", error);

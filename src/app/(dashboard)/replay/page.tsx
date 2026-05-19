@@ -5,9 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import L from "leaflet";
-import { getDevices } from "@/lib/api";
+import { getDevices, getDrivers } from "@/lib/api";
 import { getRoutePositions } from "@/lib/api/reports";
-import { RoutePosition, Device } from "@/types";
+import { RoutePosition, Device, Driver } from "@/types";
 import { getVehicleIconSVG } from "@/lib/vehicle-icons";
 import type { StopEventData, SpeedViolationData } from "./replay-map";
 import { exportPositionsCSV, exportSummaryReport, exportSummaryPDF, captureMapImage } from "./export-helpers";
@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
@@ -429,6 +431,10 @@ export default function RouteReplayPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [reportDriverId, setReportDriverId] = useState<number | null>(null);
+  const [driverDialogOpen, setDriverDialogOpen] = useState(false);
+  const [pendingExport, setPendingExport] = useState<"csv" | "pdf" | "txt" | null>(null);
+  const [draftDriverId, setDraftDriverId] = useState<string>("none");
 
   const abortRef = useRef<AbortController | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -437,6 +443,10 @@ export default function RouteReplayPage() {
   const { data: devices = [] } = useQuery({
     queryKey: ["devices"],
     queryFn: getDevices,
+  });
+  const { data: drivers = [] } = useQuery<Driver[]>({
+    queryKey: ["drivers"],
+    queryFn: getDrivers,
   });
   useEffect(() => {
     setIsClient(true);
@@ -708,10 +718,53 @@ export default function RouteReplayPage() {
   const currentPos = route[currentIndex];
   const nextPos = currentIndex < route.length - 1 ? route[currentIndex + 1] : null;
   const device = devices.find((d) => d.id === selectedDevice);
+  const selectedReportDriver = useMemo(
+    () => drivers.find((driver) => driver.id === reportDriverId) ?? null,
+    [drivers, reportDriverId],
+  );
+  const selectedReportDriverLabel = selectedReportDriver?.name || "";
   const progress =
     route.length > 1
       ? ((currentIndex + interpFraction) / (route.length - 1)) * 100
       : 0;
+
+  const openDriverDialog = useCallback((action: "csv" | "pdf" | "txt") => {
+    setPendingExport(action);
+    setDraftDriverId(reportDriverId ? String(reportDriverId) : "none");
+    setDriverDialogOpen(true);
+  }, [reportDriverId]);
+
+  const confirmDriverDialog = useCallback(async () => {
+    const nextDriverId = draftDriverId === "none" ? null : Number(draftDriverId);
+    const nextDriverName = nextDriverId ? drivers.find((driver) => driver.id === nextDriverId)?.name ?? null : null;
+
+    setReportDriverId(nextDriverId);
+    setDriverDialogOpen(false);
+
+    const action = pendingExport;
+    setPendingExport(null);
+
+    const deviceLabel = device?.plate || device?.name || "veiculo";
+
+    if (action === "csv") {
+      exportPositionsCSV(route, deviceLabel, dateFrom, dateTo);
+      toast.success("CSV de posições exportado!");
+      return;
+    }
+
+    if (action === "pdf") {
+      toast.info("Gerando mapa da rota...");
+      const mapImg = await captureMapImage(route, stops);
+      await exportSummaryPDF(route, summary!, stops, violations, deviceLabel, nextDriverName, speedLimit, dateFrom, dateTo, mapImg);
+      toast.success("PDF exportado!");
+      return;
+    }
+
+    if (action === "txt") {
+      exportSummaryReport(route, summary!, stops, violations, deviceLabel, nextDriverName, speedLimit, dateFrom, dateTo);
+      toast.success("Relatório exportado!");
+    }
+  }, [dateFrom, dateTo, device?.name, device?.plate, drivers, draftDriverId, pendingExport, route, speedLimit, stops, summary, violations]);
 
   // Interpola linearmente entre ponto atual e próximo para movimento suave
   const interpolated = useMemo(() => {
@@ -934,7 +987,59 @@ export default function RouteReplayPage() {
         icon={Route}
       />
 
-      <div className="flex-1 relative mt-4 overflow-hidden rounded-lg">
+      <Dialog
+        open={driverDialogOpen}
+        onOpenChange={(open) => {
+          setDriverDialogOpen(open);
+          if (!open) setPendingExport(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vincular motorista?</DialogTitle>
+            <DialogDescription>
+              Se quiser destacar um condutor no export do replay, escolha um motorista abaixo.
+              Caso contrário, continue sem vínculo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Motorista
+            </Label>
+            <Select value={draftDriverId} onValueChange={setDraftDriverId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sem motorista" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem motorista</SelectItem>
+                {drivers.map((driver) => (
+                  <SelectItem key={driver.id} value={String(driver.id)}>
+                    {driver.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDriverDialogOpen(false);
+                setPendingExport(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={() => void confirmDriverDialog()} disabled={!pendingExport}>
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex-1 relative mt-4 overflow-visible rounded-lg">
         {/* â”€â”€ Loading â”€â”€ */}
         {isLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-muted">
@@ -1165,16 +1270,18 @@ export default function RouteReplayPage() {
                   <p className="text-xs text-muted-foreground">
                     {device?.plate || device?.name}
                   </p>
+                  {selectedReportDriverLabel && (
+                    <Badge variant="secondary" className="mt-1 w-fit text-[10px]">
+                      Condutor: {selectedReportDriverLabel}
+                    </Badge>
+                  )}
                   {/* Botões de exportação */}
                   <div className="flex gap-1.5 mt-2">
                     <Button
                       variant="outline"
                       size="sm"
                       className="flex-1 h-7 text-xs bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20 hover:text-blue-200 gap-1"
-                      onClick={() => {
-                        exportPositionsCSV(route, device?.plate || device?.name || 'veiculo', dateFrom, dateTo);
-                        toast.success('CSV de posições exportado!');
-                      }}
+                      onClick={() => openDriverDialog("csv")}
                     >
                       <FileSpreadsheet className="h-3 w-3" />
                       CSV
@@ -1183,12 +1290,7 @@ export default function RouteReplayPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1 h-7 text-xs bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20 hover:text-red-200 gap-1"
-                      onClick={async () => {
-                        toast.info('Gerando mapa da rota...');
-                        const mapImg = await captureMapImage(route, stops);
-                        await exportSummaryPDF(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo, mapImg);
-                        toast.success('PDF exportado!');
-                      }}
+                      onClick={() => openDriverDialog("pdf")}
                     >
                       <FileDown className="h-3 w-3" />
                       PDF
@@ -1197,10 +1299,7 @@ export default function RouteReplayPage() {
                       variant="outline"
                       size="sm"
                       className="flex-1 h-7 text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200 gap-1"
-                      onClick={() => {
-                        exportSummaryReport(route, summary!, stops, violations, device?.plate || device?.name || 'veiculo', speedLimit, dateFrom, dateTo);
-                        toast.success('Relatório exportado!');
-                      }}
+                      onClick={() => openDriverDialog("txt")}
                     >
                       <FileText className="h-3 w-3" />
                       TXT

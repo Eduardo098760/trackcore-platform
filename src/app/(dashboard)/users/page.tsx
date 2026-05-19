@@ -543,6 +543,14 @@ export default function UsersPage() {
     // userDevices será carregado automaticamente quando o dialog abrir
   };
 
+  const openBulkPermissionDialog = () => {
+    if (selectedUserIds.size === 0) {
+      toast.error("Selecione pelo menos um usuário na tabela para aplicar um preset");
+      return;
+    }
+    setIsBulkPermOpen(true);
+  };
+
   const handleSubmitDevices = () => {
     if (!selectedUser) return;
     console.log(
@@ -1238,8 +1246,10 @@ export default function UsersPage() {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              onClick={() => setIsBulkPermOpen(true)}
+              onClick={openBulkPermissionDialog}
+              disabled={selectedUserIds.size === 0}
               className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5"
+              title={selectedUserIds.size === 0 ? "Selecione usuários na tabela" : undefined}
             >
               <LayoutTemplate className="w-3.5 h-3.5" />
               Aplicar Preset

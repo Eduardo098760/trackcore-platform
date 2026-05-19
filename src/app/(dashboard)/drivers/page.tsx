@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Driver } from "@/types";
 import { getDrivers, createDriver, updateDriver, deleteDriver } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,18 +55,53 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Download,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
 
+// ── Funções de máscara ─────────────────────────────────────────────────────────
+function maskCPF(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function maskCNH(v: string) {
+  return v.replace(/\D/g, "").slice(0, 11);
+}
+
+function maskPhone(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function unMask(v: string) {
+  return v.replace(/\D/g, "");
+}
+
 export default function DriversPage() {
   const queryClient = useQueryClient();
   const colors = useTenantColors();
+  const submittingRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  // Import state
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importRows, setImportRows] = useState<Partial<Driver>[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     document: "",
@@ -90,21 +126,33 @@ export default function DriversPage() {
       setIsDialogOpen(false);
       resetForm();
     },
-    onError: () => {
-      toast.error("Erro ao cadastrar motorista");
+    onError: (err: any) => {
+      const msg =
+        err?.details?.message ||
+        err?.details?.error ||
+        (typeof err?.details === "string" ? err.details : null) ||
+        err?.message ||
+        "Erro ao cadastrar motorista";
+      toast.error(`Erro ao cadastrar motorista: ${msg}`);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Driver> }) => updateDriver(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["drivers"] });
       toast.success("Motorista atualizado com sucesso!");
       setIsDialogOpen(false);
       resetForm();
     },
-    onError: () => {
-      toast.error("Erro ao atualizar motorista");
+    onError: (err: any) => {
+      const msg =
+        err?.details?.message ||
+        err?.details?.error ||
+        (typeof err?.details === "string" ? err.details : null) ||
+        err?.message ||
+        "Erro ao atualizar motorista";
+      toast.error(`Erro ao atualizar motorista: ${msg}`);
     },
   });
 
@@ -149,16 +197,134 @@ export default function DriversPage() {
   };
 
   const handleSubmit = () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     if (editingDriver) {
-      updateMutation.mutate({ id: editingDriver.id, data: formData });
+      updateMutation.mutate({ id: editingDriver.id, data: formData }, {
+        onSettled: () => { submittingRef.current = false; },
+      });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(formData, {
+        onSettled: () => { submittingRef.current = false; },
+      });
     }
   };
 
   const handleDelete = (id: number) => {
     if (confirm("Tem certeza que deseja excluir este motorista?")) {
       deleteMutation.mutate(id);
+    }
+  };
+
+  // ── Export ────────────────────────────────────────────────────────────────────
+  const handleExport = () => {
+    const rows = filteredDrivers.map((d) => ({
+      Nome: d.name,
+      CPF: maskCPF(d.document),
+      "Número CNH": d.licenseNumber,
+      "Categoria CNH": d.licenseCategory,
+      "Validade CNH": d.licenseExpiry,
+      Telefone: maskPhone(d.phone),
+      Email: d.email || "",
+      Status: d.status === "active" ? "ativo" : d.status === "suspended" ? "suspenso" : "inativo",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Largura das colunas
+    ws["!cols"] = [30, 16, 14, 12, 14, 16, 28, 10].map((w) => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Motoristas");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf], { type: "application/octet-stream" }), `motoristas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        Nome: "João da Silva",
+        CPF: "000.000.000-00",
+        "Número CNH": "00000000000",
+        "Categoria CNH": "B",
+        "Validade CNH": "2028-12-31",
+        Telefone: "(11) 99999-9999",
+        Email: "motorista@email.com",
+        Status: "ativo",
+      },
+    ]);
+    ws["!cols"] = [30, 16, 14, 12, 14, 16, 28, 10].map((w) => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Motoristas");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf], { type: "application/octet-stream" }), "modelo_motoristas.xlsx");
+  };
+
+  // ── Import ────────────────────────────────────────────────────────────────────
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const errors: string[] = [];
+        const rows: Partial<Driver>[] = raw.map((row, i) => {
+          const nome = String(row["Nome"] || row["name"] || "").trim();
+          if (!nome) errors.push(`Linha ${i + 2}: campo "Nome" obrigatório`);
+          const cpf = unMask(String(row["CPF"] || row["document"] || ""));
+          const cnh = unMask(String(row["Número CNH"] || row["licenseNumber"] || ""));
+          const cat = String(row["Categoria CNH"] || row["licenseCategory"] || "B").toUpperCase();
+          const valid = ["A","B","C","D","E","AB","AC","AD","AE"];
+          const categoria = valid.includes(cat) ? (cat as Driver["licenseCategory"]) : "B";
+          const rawStatus = String(row["Status"] || row["status"] || "ativo").toLowerCase();
+          const status: Driver["status"] = rawStatus === "suspenso" ? "suspended" : rawStatus === "inativo" ? "inactive" : "active";
+          return {
+            name: nome,
+            document: cpf,
+            licenseNumber: cnh,
+            licenseCategory: categoria,
+            licenseExpiry: String(row["Validade CNH"] || row["licenseExpiry"] || ""),
+            phone: unMask(String(row["Telefone"] || row["phone"] || "")),
+            email: String(row["Email"] || row["email"] || ""),
+            status,
+          };
+        });
+        setImportErrors(errors);
+        setImportRows(rows);
+        setIsImportDialogOpen(true);
+      } catch {
+        toast.error("Erro ao ler o arquivo. Certifique-se de usar o modelo correto.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    // Reset input para permitir reimportar o mesmo arquivo
+    e.target.value = "";
+  };
+
+  const handleConfirmImport = async () => {
+    if (importErrors.length > 0) {
+      toast.error("Corrija os erros antes de importar");
+      return;
+    }
+    setIsImporting(true);
+    let ok = 0;
+    let fail = 0;
+    for (const row of importRows) {
+      try {
+        await createDriver(row as any);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setIsImporting(false);
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    setIsImportDialogOpen(false);
+    setImportRows([]);
+    if (fail === 0) {
+      toast.success(`${ok} motorista(s) importado(s) com sucesso!`);
+    } else {
+      toast.warning(`${ok} importado(s), ${fail} com falha (CPF duplicado ou dados inválidos).`);
     }
   };
 
@@ -369,9 +535,11 @@ export default function DriversPage() {
                     </Label>
                     <Input
                       id="document"
-                      value={formData.document}
-                      onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                      value={maskCPF(formData.document)}
+                      onChange={(e) => setFormData({ ...formData, document: unMask(e.target.value) })}
                       placeholder="000.000.000-00"
+                      inputMode="numeric"
+                      maxLength={14}
                     />
                   </div>
 
@@ -382,14 +550,16 @@ export default function DriversPage() {
                     </Label>
                     <Input
                       id="licenseNumber"
-                      value={formData.licenseNumber}
+                      value={maskCNH(formData.licenseNumber)}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          licenseNumber: e.target.value,
+                          licenseNumber: maskCNH(e.target.value),
                         })
                       }
                       placeholder="00000000000"
+                      inputMode="numeric"
+                      maxLength={11}
                     />
                   </div>
 
@@ -446,9 +616,11 @@ export default function DriversPage() {
                     </Label>
                     <Input
                       id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      value={maskPhone(formData.phone)}
+                      onChange={(e) => setFormData({ ...formData, phone: unMask(e.target.value) })}
                       placeholder="(00) 00000-0000"
+                      inputMode="numeric"
+                      maxLength={15}
                     />
                   </div>
 
@@ -489,8 +661,12 @@ export default function DriversPage() {
                 </div>
 
                 <div className="flex gap-2 pt-4">
-                  <Button onClick={handleSubmit} className="flex-1">
-                    {editingDriver ? "Atualizar" : "Cadastrar"} Motorista
+                  <Button
+                    onClick={handleSubmit}
+                    className="flex-1"
+                    disabled={createMutation.isPending || updateMutation.isPending || !formData.name.trim()}
+                  >
+                    {(createMutation.isPending || updateMutation.isPending) ? "Salvando..." : (editingDriver ? "Atualizar" : "Cadastrar") + " Motorista"}
                   </Button>
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
@@ -498,6 +674,98 @@ export default function DriversPage() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* ── Botões de Export / Import ─── */}
+            <Button variant="outline" onClick={handleExport} title="Exportar para Excel">
+              <Download className="w-4 h-4 mr-2" />
+              Exportar
+            </Button>
+
+            <Button variant="outline" onClick={handleDownloadTemplate} title="Baixar modelo de importação">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Modelo
+            </Button>
+
+            <Button variant="outline" onClick={() => importFileRef.current?.click()} title="Importar do Excel">
+              <Upload className="w-4 h-4 mr-2" />
+              Importar
+            </Button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* ── Dialog de Preview de Importação ─── */}
+            <Dialog open={isImportDialogOpen} onOpenChange={(o) => { if (!isImporting) setIsImportDialogOpen(o); }}>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5" />
+                    Pré-visualização da Importação
+                  </DialogTitle>
+                </DialogHeader>
+
+                {importErrors.length > 0 && (
+                  <div className="rounded-md bg-destructive/10 border border-destructive/30 p-3 space-y-1">
+                    <p className="text-sm font-medium text-destructive">Erros encontrados:</p>
+                    {importErrors.map((e, i) => (
+                      <p key={i} className="text-xs text-destructive">{e}</p>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground">
+                  {importRows.length} motorista(s) encontrado(s) na planilha.
+                  {importErrors.length === 0 ? " Revise e confirme a importação." : " Corrija o arquivo e reimporte."}
+                </p>
+
+                <div className="border rounded-md overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>CPF</TableHead>
+                        <TableHead>CNH</TableHead>
+                        <TableHead>Cat.</TableHead>
+                        <TableHead>Validade</TableHead>
+                        <TableHead>Telefone</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importRows.map((row, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{row.name}</TableCell>
+                          <TableCell>{maskCPF(row.document || "")}</TableCell>
+                          <TableCell>{row.licenseNumber}</TableCell>
+                          <TableCell>{row.licenseCategory}</TableCell>
+                          <TableCell>{row.licenseExpiry}</TableCell>
+                          <TableCell>{maskPhone(row.phone || "")}</TableCell>
+                          <TableCell>{row.status === "active" ? "Ativo" : row.status === "suspended" ? "Suspenso" : "Inativo"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    className="flex-1"
+                    disabled={isImporting || importErrors.length > 0 || importRows.length === 0}
+                    onClick={handleConfirmImport}
+                  >
+                    {isImporting ? `Importando...` : `Importar ${importRows.length} motorista(s)`}
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsImportDialogOpen(false)} disabled={isImporting}>
+                    Cancelar
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
           </div>
         </CardContent>
       </Card>

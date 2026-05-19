@@ -46,6 +46,26 @@ export async function getTraccarNotifications(): Promise<TraccarNotification[]> 
   return api.get<TraccarNotification[]>('/notifications');
 }
 
+/**
+ * Lista dispositivos vinculados a uma notificação.
+ * Traccar suporta filtro relacional via query param: /devices?notificationId={id}
+ */
+export async function getTraccarNotificationDevices(
+  notificationId: number,
+): Promise<Array<{ id: number; name?: string; plate?: string }>> {
+  return api.get<Array<{ id: number; name?: string; plate?: string }>>('/devices', {
+    notificationId,
+  });
+}
+
+/** Lista apenas os IDs dos dispositivos vinculados a uma notificação. */
+export async function getTraccarNotificationDeviceIds(
+  notificationId: number,
+): Promise<number[]> {
+  const devices = await getTraccarNotificationDevices(notificationId);
+  return devices.map((device) => device.id);
+}
+
 /** Cria uma notificação no Traccar */
 export async function createTraccarNotification(
   data: Omit<TraccarNotification, 'id'>,

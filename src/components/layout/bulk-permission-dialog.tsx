@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getUsers, patchUserPermissionsOnServer } from "@/lib/api";
 import { usePermissionsStore, PermissionPreset } from "@/lib/stores/permissions";
 import { ALL_ROUTE_KEYS, RoutePermissions } from "@/lib/permissions/types";
 import { useTenantColors } from "@/lib/hooks/useTenantColors";
@@ -8,6 +10,7 @@ import { PermissionGrid } from "./permission-grid";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   BookMarked,
@@ -18,7 +21,9 @@ import {
   LayoutTemplate,
   ArrowRight,
   Zap,
+  Loader2,
 } from "lucide-react";
+import type { User } from "@/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -57,27 +62,48 @@ export function BulkPermissionDialog({
 }: BulkPermissionDialogProps) {
   const { presets, setPreset, removePreset, setUserPermissions } = usePermissionsStore();
   const colors = useTenantColors();
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["users", "bulk-permission-dialog"],
+    queryFn: () => getUsers(),
+  });
   const [activeTab, setActiveTab] = useState<TabId>("apply");
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [draft, setDraft] = useState<RoutePermissions>(buildAllTrue);
+  const [applying, setApplying] = useState(false);
 
   const presetList = Object.values(presets).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const selectedUsers = selectedUserIds
+    .map((id) => users.find((user) => user.id === id))
+    .filter((user): user is User => Boolean(user));
 
-  const handleApplyPreset = (preset: PermissionPreset) => {
+  const handleApplyPreset = async (preset: PermissionPreset) => {
     if (selectedUserIds.length === 0) {
       toast.error("Selecione pelo menos um usuário na tabela para aplicar");
       return;
     }
-    selectedUserIds.forEach((userId) => {
-      setUserPermissions(userId, {
-        inheritFromCompany: false,
-        routes: preset.routes,
-        appliedPresetId: preset.id,
-        appliedPresetName: preset.name,
-      });
-    });
-    toast.success(`"${preset.name}" aplicado a ${selectedUserIds.length} usuário(s)!`);
+    setApplying(true);
+    const entry = {
+      inheritFromCompany: false,
+      routes: preset.routes,
+      appliedPresetId: preset.id,
+      appliedPresetName: preset.name,
+    };
+    // 1. Atualiza localStorage imediatamente (efeito local instantâneo)
+    selectedUserIds.forEach((userId) => setUserPermissions(userId, entry));
+    // 2. Salva server-side em paralelo (persiste entre sessões/dispositivos)
+    const results = await Promise.allSettled(
+      selectedUserIds.map((userId) => patchUserPermissionsOnServer(userId, entry))
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    setApplying(false);
+    if (failed > 0) {
+      toast.warning(
+        `"${preset.name}" aplicado localmente, mas ${failed} usuário(s) não foram salvos no servidor. Verifique a conexão.`
+      );
+    } else {
+      toast.success(`"${preset.name}" aplicado e salvo para ${selectedUserIds.length} usuário(s)!`);
+    }
     onApplied();
     onClose();
   };
@@ -180,6 +206,38 @@ export function BulkPermissionDialog({
 
         {/* ── Body ── */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-muted/10 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Usuários selecionados
+              </p>
+              <Badge variant="secondary" className="text-[10px]">
+                {selectedUserIds.length}
+              </Badge>
+            </div>
+            {selectedUserIds.length === 0 ? (
+              <p className="text-xs text-amber-400/80">
+                Selecione usuários na tabela para aplicar um preset.
+              </p>
+            ) : selectedUsers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Carregando lista de usuários...
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedUsers.map((user) => (
+                  <span
+                    key={user.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background px-2.5 py-1 text-xs text-foreground"
+                    title={user.email}
+                  >
+                    {user.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Tab: Presets Salvos */}
           {activeTab === "apply" && (
             <>

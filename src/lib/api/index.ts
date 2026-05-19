@@ -573,6 +573,27 @@ export async function deleteUser(id: number): Promise<void> {
   await api.delete<void>(`/users/${id}`);
 }
 
+/**
+ * Salva as permissões de um usuário diretamente nos attributes do Traccar,
+ * garantindo persistência server-side independente do localStorage.
+ * Usa o raw Traccar user para evitar double-mapping e preservar todos os campos.
+ */
+export async function patchUserPermissionsOnServer(
+  userId: number,
+  entry: import('@/lib/stores/permissions').UserEntry,
+): Promise<void> {
+  // Busca o usuário bruto do Traccar para preservar todos os campos
+  const raw = await api.get<any>(`/users/${userId}`);
+  await api.put<any>(`/users/${userId}`, {
+    ...raw,
+    id: userId,
+    attributes: {
+      ...(raw.attributes ?? {}),
+      tkPermissions: entry,
+    },
+  });
+}
+
 // Drivers API (Traccar /drivers endpoint)
 export async function getDrivers(): Promise<import("@/types").Driver[]> {
   const impersonatingUserId = getImpersonatingUserId();
@@ -587,7 +608,7 @@ export async function getDrivers(): Promise<import("@/types").Driver[]> {
   }
   try {
     const traccarDrivers = await api.get<any[]>("/drivers", params);
-    return (traccarDrivers || []).map((d) => ({
+    const mapped = (traccarDrivers || []).map((d) => ({
       id: d.id,
       name: d.name,
       uniqueId: d.uniqueId,
@@ -604,6 +625,14 @@ export async function getDrivers(): Promise<import("@/types").Driver[]> {
       createdAt: d.attributes?.createdAt || new Date().toISOString(),
       updatedAt: d.attributes?.updatedAt || new Date().toISOString(),
     }));
+    // Deduplica por uniqueId mantendo o registro mais recente (maior id = criado por último)
+    const seen = new Map<string, typeof mapped[0]>();
+    for (const d of mapped) {
+      const key = d.uniqueId || String(d.id);
+      const existing = seen.get(key);
+      if (!existing || d.id > existing.id) seen.set(key, d);
+    }
+    return Array.from(seen.values());
   } catch (error) {
     console.error("[getDrivers] Erro ao buscar motoristas:", error);
     return [];
@@ -613,9 +642,34 @@ export async function getDrivers(): Promise<import("@/types").Driver[]> {
 export async function createDriver(
   data: Partial<import("@/types").Driver>,
 ): Promise<import("@/types").Driver> {
-  const payload = {
+  // Verifica duplicata antes de criar
+  const documentId = (data.document || "").trim();
+  if (documentId) {
+    const impersonatingUserId = getImpersonatingUserId();
+    const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
+    const existing = await api.get<any[]>('/drivers', params).catch(() => [] as any[]);
+    let duplicate = (existing || []).find(
+      (d: any) => (d.attributes?.document || d.uniqueId) === documentId,
+    );
+
+    // Em impersonação, o backend pode validar unicidade global do uniqueId.
+    if (!duplicate && impersonatingUserId) {
+      const allDrivers = await api.get<any[]>('/drivers').catch(() => [] as any[]);
+      duplicate = (allDrivers || []).find(
+        (d: any) => (d.attributes?.document || d.uniqueId) === documentId,
+      );
+    }
+
+    if (duplicate) {
+      const err: any = new Error(`Já existe um motorista cadastrado com o CPF ${data.document}.`);
+      err.details = { message: `Já existe um motorista cadastrado com o CPF ${data.document}.` };
+      throw err;
+    }
+  }
+
+  const createPayload = (uniqueId: string) => ({
     name: data.name || "",
-    uniqueId: data.document || `drv-${Date.now()}`,
+    uniqueId,
     attributes: {
       document: data.document || "",
       licenseNumber: data.licenseNumber || "",
@@ -628,8 +682,87 @@ export async function createDriver(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
-  };
-  const result = await api.post<any>("/drivers", payload);
+  });
+
+  // uniqueId é chave técnica do Traccar; CPF permanece em attributes.document.
+  const baseUniqueId = documentId
+    ? `drv-${documentId}`
+    : `drv-${Date.now()}`;
+
+  let result: any;
+  try {
+    result = await api.post<any>("/drivers", createPayload(baseUniqueId));
+  } catch (error: any) {
+    const detailsText = JSON.stringify(error?.details || error?.message || "").toLowerCase();
+    const isUniqueConflict =
+      error?.status === 400 &&
+      (detailsText.includes("unique") ||
+        detailsText.includes("duplicate") ||
+        detailsText.includes("already") ||
+        detailsText.includes("constraint"));
+
+    // Conflito técnico de uniqueId: reitera com um sufixo único mantendo CPF em attributes.
+    if (isUniqueConflict) {
+      const fallbackUniqueId = `${baseUniqueId}-${Date.now()}`;
+      try {
+        result = await api.post<any>("/drivers", createPayload(fallbackUniqueId));
+      } catch (retryError: any) {
+        const retryDetails = JSON.stringify(retryError?.details || retryError?.message || "").toLowerCase();
+        const retryUniqueConflict =
+          retryError?.status === 400 &&
+          (retryDetails.includes("unique") ||
+            retryDetails.includes("duplicate") ||
+            retryDetails.includes("already") ||
+            retryDetails.includes("constraint"));
+
+        if (retryUniqueConflict) {
+          const err: any = new Error(`Já existe um motorista cadastrado com o CPF ${data.document}.`);
+          err.status = 400;
+          err.details = { message: err.message };
+          throw err;
+        }
+        throw retryError;
+      }
+    }
+
+    if (
+      !result &&
+      error?.status === 400 &&
+      (detailsText.includes("unique") ||
+        detailsText.includes("duplicate") ||
+        detailsText.includes("already"))
+    ) {
+      const err: any = new Error(`Já existe um motorista cadastrado com o CPF ${data.document}.`);
+      err.status = 400;
+      err.details = { message: err.message };
+      throw err;
+    }
+
+    if (error?.status === 405) {
+      const err: any = new Error(
+        "O servidor Traccar bloqueou criação de motoristas (POST /drivers). Verifique se o endpoint está habilitado e se o usuário tem permissão de escrita.",
+      );
+      err.status = error?.status;
+      err.details = error?.details ?? { message: err.message };
+      throw err;
+    }
+    if (!result) {
+      throw error;
+    }
+  }
+
+  // Quando em impersonação, o driver é criado na conta do admin.
+  // Vincula o driver ao usuário impersonado para que ele apareça na listagem filtrada.
+  const impersonatingUserId = getImpersonatingUserId();
+  if (impersonatingUserId && result?.id) {
+    try {
+      await api.post("/permissions", { userId: impersonatingUserId, driverId: result.id });
+      console.log(`[createDriver] Driver ${result.id} vinculado ao userId ${impersonatingUserId}`);
+    } catch (e) {
+      console.warn("[createDriver] Falha ao vincular driver ao usuário impersonado:", e);
+    }
+  }
+
   return {
     ...data,
     id: result.id,
@@ -642,42 +775,153 @@ export async function updateDriver(
   id: number,
   data: Partial<import("@/types").Driver>,
 ): Promise<import("@/types").Driver> {
-  let currentAttributes: Record<string, any> = {};
+  // Busca da lista e filtra pelo id para obter os dados atuais.
+  let current: any = {};
+  const impersonatingUserId = getImpersonatingUserId();
+  const params = impersonatingUserId ? { userId: impersonatingUserId } : undefined;
   try {
-    const current = await api.get<any>(`/drivers/${id}`);
-    currentAttributes = current?.attributes || {};
+    const list = await api.get<any[]>("/drivers", params);
+    current = list?.find((d: any) => d.id === id) || {};
   } catch {}
-  const payload = {
-    id,
-    name: data.name,
-    uniqueId: data.document || currentAttributes.document || `drv-${id}`,
-    attributes: {
-      ...currentAttributes,
-      ...(data.document !== undefined ? { document: data.document } : {}),
-      ...(data.licenseNumber !== undefined
-        ? { licenseNumber: data.licenseNumber }
-        : {}),
-      ...(data.licenseCategory !== undefined
-        ? { licenseCategory: data.licenseCategory }
-        : {}),
-      ...(data.licenseExpiry !== undefined
-        ? { licenseExpiry: data.licenseExpiry }
-        : {}),
-      ...(data.phone !== undefined ? { phone: data.phone } : {}),
-      ...(data.email !== undefined ? { email: data.email } : {}),
-      ...(data.status !== undefined ? { status: data.status } : {}),
-      updatedAt: new Date().toISOString(),
-    },
-  };
-  const result = await api.put<any>(`/drivers/${id}`, payload);
-  return {
-    ...data,
-    id: result.id,
+
+  if (data.document && data.document !== (current?.attributes?.document || "")) {
+    const existing = await api.get<any[]>('/drivers', params).catch(() => [] as any[]);
+    const duplicate = (existing || []).find(
+      (d: any) => (d.attributes?.document || d.uniqueId) === data.document && d.id !== id,
+    );
+    if (duplicate) {
+      const err: any = new Error(`Já existe um motorista cadastrado com o CPF ${data.document}.`);
+      err.details = { message: `Já existe um motorista cadastrado com o CPF ${data.document}.` };
+      throw err;
+    }
+  }
+
+  const updatedAttributes = {
+    ...(current?.attributes || {}),
+    ...(data.document !== undefined ? { document: data.document } : {}),
+    ...(data.licenseNumber !== undefined ? { licenseNumber: data.licenseNumber } : {}),
+    ...(data.licenseCategory !== undefined ? { licenseCategory: data.licenseCategory } : {}),
+    ...(data.licenseExpiry !== undefined ? { licenseExpiry: data.licenseExpiry } : {}),
+    ...(data.phone !== undefined ? { phone: data.phone } : {}),
+    ...(data.email !== undefined ? { email: data.email } : {}),
+    ...(data.photo !== undefined ? { photo: data.photo } : {}),
+    ...(data.status !== undefined ? { status: data.status } : {}),
     updatedAt: new Date().toISOString(),
-  } as import("@/types").Driver;
+  };
+
+  const uniqueId = current?.uniqueId || `drv-${id}`;
+  const name = data.name || current?.name || "";
+  const traccarPayload = {
+    id,
+    name,
+    uniqueId,
+    attributes: updatedAttributes,
+  };
+
+  const isUniqueConstraintError = (error: any) => {
+    if (error?.status !== 400) return false;
+    const detailsText = JSON.stringify(error?.details || error?.message || "").toLowerCase();
+    return (
+      detailsText.includes("unique") ||
+      detailsText.includes("duplicate") ||
+      detailsText.includes("already") ||
+      detailsText.includes("constraint")
+    );
+  };
+
+  const throwDuplicateCpfError = () => {
+    const err: any = new Error(`Já existe um motorista cadastrado com o CPF ${uniqueId}.`);
+    err.status = 400;
+    err.details = { message: err.message };
+    throw err;
+  };
+
+  const mapDriverResult = (result?: any) => {
+    const attrs = result?.attributes || updatedAttributes;
+    return {
+      id: result?.id ?? id,
+      name: result?.name ?? name,
+      uniqueId: result?.uniqueId ?? uniqueId,
+      document: attrs.document || "",
+      licenseNumber: attrs.licenseNumber || "",
+      licenseCategory: attrs.licenseCategory || "B",
+      licenseExpiry: attrs.licenseExpiry || "",
+      phone: attrs.phone || "",
+      email: attrs.email || "",
+      photo: attrs.photo || "",
+      status: attrs.status || "active",
+      clientId: attrs.clientId,
+      currentDeviceId: attrs.currentDeviceId,
+      createdAt: attrs.createdAt || current?.attributes?.createdAt || new Date().toISOString(),
+      updatedAt: attrs.updatedAt || updatedAttributes.updatedAt,
+    } as import("@/types").Driver;
+  };
+
+  const canTryAltPut = (error: any) => {
+    const status = error?.status;
+    if (![400, 404, 405, 501].includes(status)) return false;
+    if (status !== 400) return true;
+
+    const detailsText = JSON.stringify(error?.details || "").toLowerCase();
+    const messageText = String(error?.message || "").toLowerCase();
+    return (
+      detailsText.includes("method not allowed") ||
+      messageText.includes("method not allowed") ||
+      detailsText.includes("not found")
+    );
+  };
+
+  try {
+    const result = await api.put<any>(`/drivers/${id}`, traccarPayload);
+    return mapDriverResult(result);
+  } catch (error: any) {
+    if (isUniqueConstraintError(error)) {
+      throwDuplicateCpfError();
+    }
+
+    if (!canTryAltPut(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    const result = await api.put<any>("/drivers", traccarPayload);
+    return mapDriverResult(result);
+  } catch (altError: any) {
+    if (isUniqueConstraintError(altError)) {
+      throwDuplicateCpfError();
+    }
+
+    const err: any = new Error("Não foi possível atualizar o motorista no servidor Traccar.");
+    err.status = altError?.status;
+    err.details = altError?.details || altError?.message || { message: err.message };
+    throw err;
+  }
 }
 
 export async function deleteDriver(id: number): Promise<void> {
+  const [linkedUsers, linkedDevices, linkedGroups] = await Promise.all([
+    api.get<any[]>("/users", { driverId: id }).catch(() => [] as any[]),
+    api.get<any[]>("/devices", { driverId: id }).catch(() => [] as any[]),
+    api.get<any[]>("/groups", { driverId: id }).catch(() => [] as any[]),
+  ]);
+
+  const unlinkOps: Promise<any>[] = [
+    ...linkedUsers.map((u) =>
+      api.delete<void>("/permissions", { userId: u.id, driverId: id }, true).catch(() => undefined),
+    ),
+    ...linkedDevices.map((d) =>
+      api.delete<void>("/permissions", { deviceId: d.id, driverId: id }, true).catch(() => undefined),
+    ),
+    ...linkedGroups.map((g) =>
+      api.delete<void>("/permissions", { groupId: g.id, driverId: id }, true).catch(() => undefined),
+    ),
+  ];
+
+  if (unlinkOps.length > 0) {
+    await Promise.all(unlinkOps);
+  }
+
   await api.delete<void>(`/drivers/${id}`);
 }
 

@@ -81,19 +81,41 @@ class ApiClient {
   }
 
   /**
+   * Captura metadados de debug retornados pelo proxy interno.
+   */
+  private getProxyDebugHeaders(response: Response): { upstreamUrl?: string; attemptedUrls?: string } {
+    const upstreamUrl = response.headers.get('x-traccar-upstream-url') || undefined;
+    const attemptedUrls = response.headers.get('x-traccar-attempted-urls') || undefined;
+    return { upstreamUrl, attemptedUrls };
+  }
+
+  /**
    * Trata erros de API
    */
   private handleError(error: any): never {
-    const detailMessage =
+    const detailsObj =
       typeof error?.details === 'object' && error?.details
-        ? error.details.message || error.details.error || undefined
+        ? (error.details.body && typeof error.details.body === 'object'
+            ? error.details.body
+            : error.details)
+        : undefined;
+
+    const detailMessage =
+      detailsObj
+        ? detailsObj.message || detailsObj.error || undefined
         : undefined;
 
     const apiError: ApiError = {
       message: detailMessage || error.message || error.statusText || 'Erro desconhecido',
       status: error.status,
       code: error.code,
-      details: error.details || error,
+      details:
+        typeof error?.details === 'object' && error?.details
+          ? {
+              ...error.details,
+              ...(detailMessage ? { message: detailMessage } : {}),
+            }
+          : (error.details || error),
     };
 
     // Sessão expirada: redirecionar ao login automaticamente
@@ -142,13 +164,30 @@ class ApiClient {
         method: 'GET',
         headers: this.getHeaders(),
         credentials: 'include', // Importante: inclui cookies de sessão
+        cache: 'no-store',
         signal: AbortSignal.timeout(this.config.timeout),
       });
 
       if (!response.ok) {
+        let errorBody: any = null;
+        try {
+          const text = await response.text();
+          errorBody = text;
+          try { errorBody = JSON.parse(text); } catch (_) { /* manter como texto */ }
+        } catch (_) {
+          errorBody = null;
+        }
+        const debug = this.getProxyDebugHeaders(response);
         throw {
-          message: `HTTP ${response.status}: ${response.statusText}`,
+          message:
+            (typeof errorBody === 'object' && errorBody
+              ? errorBody.message || errorBody.error
+              : undefined) || `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
+          details: {
+            body: errorBody,
+            ...debug,
+          },
         };
       }
 
@@ -176,6 +215,7 @@ class ApiClient {
         method: 'POST',
         headers: this.getHeaders(),
         credentials: 'include', // Importante: inclui cookies de sessão
+        cache: 'no-store',
         body: data ? JSON.stringify(data) : undefined,
         signal: AbortSignal.timeout(this.config.timeout),
       });
@@ -198,11 +238,16 @@ class ApiClient {
           errorBody = 'Não foi possível ler o corpo da resposta';
         }
 
+        const debug = this.getProxyDebugHeaders(response);
+
         throw {
           message: errorBody?.message || errorBody?.error || `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
           statusText: response.statusText,
-          details: errorBody,
+          details: {
+            body: errorBody,
+            ...debug,
+          },
         };
       }
 
@@ -231,6 +276,7 @@ class ApiClient {
         method: 'PUT',
         credentials: 'include', // Importante: inclui cookies de sessão
         headers: this.getHeaders(),
+        cache: 'no-store',
         body: data ? JSON.stringify(data) : undefined,
         signal: AbortSignal.timeout(this.config.timeout),
       });
@@ -245,10 +291,14 @@ class ApiClient {
         } catch (_) {
           errorBody = 'Não foi possível ler o corpo da resposta';
         }
+        const debug = this.getProxyDebugHeaders(response);
         throw {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
-          details: errorBody,
+          details: {
+            body: errorBody,
+            ...debug,
+          },
         };
       }
 
@@ -275,6 +325,7 @@ class ApiClient {
         method: 'PATCH',
         credentials: 'include', // Importante: inclui cookies de sessão
         headers: this.getHeaders(),
+        cache: 'no-store',
         body: data ? JSON.stringify(data) : undefined,
         signal: AbortSignal.timeout(this.config.timeout),
       });
@@ -331,14 +382,28 @@ class ApiClient {
         credentials: 'include', // Importante: inclui cookies de sessão
         method: 'DELETE',
         headers: this.getHeaders(),
+        cache: 'no-store',
         body: body,
         signal: AbortSignal.timeout(this.config.timeout),
       });
 
       if (!response.ok) {
+        let errorBody: any = null;
+        try {
+          const text = await response.text();
+          errorBody = text;
+          try { errorBody = JSON.parse(text); } catch (_) { /* manter como texto */ }
+        } catch (_) {
+          errorBody = null;
+        }
+        const debug = this.getProxyDebugHeaders(response);
         throw {
           message: `HTTP ${response.status}: ${response.statusText}`,
           status: response.status,
+          details: {
+            body: errorBody,
+            ...debug,
+          },
         };
       }
 
